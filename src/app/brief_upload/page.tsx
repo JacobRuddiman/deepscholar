@@ -3,7 +3,7 @@
 import React, { useState, useRef } from "react";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, Link, X } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, Link } from "lucide-react";
 
 // Define a schema for URL validation
 const urlSchema = z.string().url("Please enter a valid URL");
@@ -112,7 +112,7 @@ export default function BriefUploadPage() {
       urlSchema.parse(newUrl);
       setIsValidUrl(true);
       setError(null);
-    } catch (err) {
+    } catch {
       setIsValidUrl(newUrl.length > 0 ? false : null);
       setError(newUrl.length > 0 ? "Please enter a valid URL" : null);
     }
@@ -134,8 +134,8 @@ export default function BriefUploadPage() {
       setTimeout(() => setShowThinkingSection(true), 900);
       setTimeout(() => setShowMetadataSection(true), 1200);
       
-    } catch (err) {
-      console.error("Error fetching brief:", err);
+    } catch (error) {
+      console.error("Error fetching brief:", error);
       setError("Failed to fetch brief data. Please check the URL and try again.");
     } finally {
       setIsLoading(false);
@@ -303,18 +303,18 @@ export default function BriefUploadPage() {
                 <div className="mb-2">
                   <input
                     type="text"
-                    defaultValue={briefData?.title || ""}
+                    defaultValue={briefData?.title ?? ""}
                     className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200"
                     onBlur={(e) => handleTitleEdit(e.target.value)}
                     autoFocus
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    {briefData?.title.length || 0}/100 characters
+                    {briefData?.title.length ?? 0}/100 characters
                   </p>
                 </div>
               ) : (
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-xl font-bold">{briefData?.title || "Untitled Brief"}</h3>
+                  <h3 className="text-xl font-bold">{briefData?.title ?? "Untitled Brief"}</h3>
                   <button 
                     onClick={() => setIsTitleEditing(true)}
                     className="text-gray-500 hover:text-blue-600 p-1"
@@ -349,13 +349,13 @@ export default function BriefUploadPage() {
               {isContentEditing ? (
                 <div>
                   <textarea
-                    defaultValue={briefData?.content || ""}
+                    defaultValue={briefData?.content ?? ""}
                     className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[200px]"
                     onBlur={(e) => handleContentEdit(e.target.value)}
                     autoFocus
                   />
                   <div className="flex justify-between mt-1 text-xs text-gray-500">
-                    <span>{briefData?.content.length || 0} characters</span>
+                    <span>{briefData?.content.length ?? 0} characters</span>
                     <button 
                       onClick={() => setIsContentEditing(false)}
                       className="text-blue-600 hover:underline"
@@ -366,7 +366,7 @@ export default function BriefUploadPage() {
                 </div>
               ) : (
                 <div className="prose max-w-none">
-                  <p>{briefData?.content || "No content available"}</p>
+                  <p>{briefData?.content ?? "No content available"}</p>
                 </div>
               )}
             </motion.div>
@@ -397,7 +397,7 @@ export default function BriefUploadPage() {
               <div className="mt-3">
                 <div className="p-3 bg-gray-50 rounded-md border border-gray-200 max-h-80 overflow-y-auto">
                   <p className="text-gray-700 text-sm whitespace-pre-line">
-                    {briefData?.thinking || "No thinking process available"}
+                    {briefData?.thinking ?? "No thinking process available"}
                   </p>
                 </div>
               </div>

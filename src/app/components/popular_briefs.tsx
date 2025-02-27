@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import BriefCard, { BriefCardProps } from './brief_card';
+import type { BriefCardProps } from './brief_card';
+import BriefCard from './brief_card';
 
 type PopularBriefsProps = {
   briefs?: BriefCardProps[];
