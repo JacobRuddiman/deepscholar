@@ -7,6 +7,11 @@ import { z } from "zod";
 import { motion } from "framer-motion";
 import { Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, Link } from "lucide-react";
 import { GiConsoleController } from "react-icons/gi";
+import { Code as CodeIcon } from 'lucide-react';
+
+import { extractBriefFromUrl } from '../components/extract_brief';
+import type { BriefData } from '../components/extract_brief';
+import HtmlInspector from '../components/html_inspector';
 
 // Define a schema for URL validation
 const urlSchema = z.string().url("Please enter a valid URL");
@@ -19,34 +24,15 @@ type BriefSource = {
   date?: string;
 };
 
-type BriefData = {
-  title: string;
-  content: string;
-  sources: BriefSource[];
-  thinking: string;
-  model: "OpenAI" | "Perplexity" | "Anthropic" | "Other";
-};
-
-// Server action placeholder - this would be imported from a separate file
 async function fetchBriefFromUrl(url: string): Promise<BriefData> {
-  // This is a placeholder. In a real implementation, this would be a server action
-  // that fetches the brief data from the provided URL
-  console.log("Fetching brief from URL:", url);
-  
-  // Simulate a network request
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Return mock data
-  return {
-    title: "The Impact of Quantum Computing on Modern Cryptography",
-    content: "Quantum computing poses significant challenges to current cryptographic methods...",
-    sources: [
-      { title: "Quantum Computing and Cryptography", url: "https://example.com/quantum1" },
-      { title: "Post-Quantum Cryptographic Standards", url: "https://example.com/pqc-standards" }
-    ],
-    thinking: "The analysis began by examining the fundamental principles of quantum computing...",
-    model: "OpenAI"
-  };
+  try {
+    // Call the server action to extract brief data
+    return await extractBriefFromUrl(url);
+    
+  } catch (error) {
+    console.error("Error fetching brief:", error);
+    throw new Error("Failed to fetch brief data. Please check the URL and try again.");
+  }
 }
 
 export default function BriefUploadPage() {
@@ -59,6 +45,7 @@ export default function BriefUploadPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [briefData, setBriefData] = useState<BriefData | null>(null);
+  const [showHtmlInspector, setShowHtmlInspector] = useState(false);
   
   // Section visibility state
   const [showTitleSection, setShowTitleSection] = useState(false);
@@ -178,7 +165,18 @@ export default function BriefUploadPage() {
   };
   
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl h-screen flex flex-col">
+    <div className="container mx-auto px-4 py-8 max-w-7xl h-screen flex flex-col relative">
+      {briefData?.rawHtml && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg w-3/4 h-3/4 max-w-4xl max-h-[600px] shadow-2xl">
+            <HtmlInspector
+              html={briefData.rawHtml}
+              isOpen={showHtmlInspector}
+              onClose={() => setShowHtmlInspector(false)}
+            />
+          </div>
+        </div>
+      )}
       <h1 className="text-3xl font-bold text-center my-6">Upload Research Brief</h1>
       
       <div className={`flex-grow flex flex-col ${showTitleSection ? 'justify-start' : 'justify-center'}`}>
@@ -234,8 +232,9 @@ export default function BriefUploadPage() {
                   Supports OpenAI and Perplexity deep research URLs
                 </p>
               )}
+              
             </div>
-
+            
             {/* Sources Section - Appears below URL in left column */}
             <motion.div
               ref={sourcesSectionRef}
@@ -373,6 +372,15 @@ export default function BriefUploadPage() {
               ) : (
                 <div className="prose max-w-none">
                   <p>{briefData?.content ?? "No content available"}</p>
+                  {briefData?.rawHtml && (
+                    <button
+                      onClick={() => setShowHtmlInspector(true)}
+                      className="mt-2 flex items-center justify-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      <CodeIcon size={16} />
+                      <span>Inspect HTML</span>
+                    </button>
+                  )}
                 </div>
               )}
             </motion.div>

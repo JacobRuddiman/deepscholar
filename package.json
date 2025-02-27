@@ -25,6 +25,7 @@
     "@phosphor-icons/react": "github:phosphor-icons/react",
     "@prisma/client": "^6.4.1",
     "@t3-oss/env-nextjs": "^0.10.1",
+    "cheerio": "^1.0.0",
     "debounce": "^2.2.0",
     "dotenv": "^16.4.7",
     "framer-motion": "^12.4.7",
