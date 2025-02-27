@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { motion } from "framer-motion";
 import { Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, Link } from "lucide-react";
+import { GiConsoleController } from "react-icons/gi";
 
 // Define a schema for URL validation
 const urlSchema = z.string().url("Please enter a valid URL");
@@ -47,6 +50,9 @@ async function fetchBriefFromUrl(url: string): Promise<BriefData> {
 }
 
 export default function BriefUploadPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  
   // State variables
   const [url, setUrl] = useState("");
   const [isValidUrl, setIsValidUrl] = useState<boolean | null>(null);

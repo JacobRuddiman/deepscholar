@@ -16,14 +16,13 @@ export default async function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Check if user is already authenticated
   const session = await auth();
   
   // If already signed in, redirect to dashboard
   if (session?.user) {
-    redirect("/dashboard");
+    redirect("/home");
   }
-
+  
   return (
     <div className={`${geistFont.className} min-h-screen bg-gradient-to-b from-gray-50 to-gray-100`}>
       {children}
