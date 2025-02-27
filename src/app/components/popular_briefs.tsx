@@ -4,7 +4,7 @@ import React from 'react';
 import BriefCard, { BriefCardProps } from './brief_card';
 
 type PopularBriefsProps = {
-  briefs: BriefCardProps[];
+  briefs?: BriefCardProps[];
 };
 
 // Sample data for demonstration

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import BriefCard, { BriefCardProps } from './brief_card';
 
 type CategoryBriefsProps = {
-  categories: {
+  categories?: {
     name: string;
     briefs: BriefCardProps[];
   }[];
@@ -119,47 +119,58 @@ const sampleCategories = [
   }
 ];
 
-const TopBriefsByCategory: React.FC<CategoryBriefsProps> = ({ categories = sampleCategories }) => {
-  const [activeCategory, setActiveCategory] = useState(categories[0].name);
-  
-  const activeCategoryData = categories.find(cat => cat.name === activeCategory) || categories[0];
-  
+const TopBriefsByCategory: React.FC<CategoryBriefsProps> = ({ categories }) => {
+  // Ensure categories is always an array and has at least one valid entry
+  const safeCategories = Array.isArray(categories) && categories.length > 0 ? categories : sampleCategories;
+
+  // Use a default value only if categories has at least one item
+  const [activeCategory, setActiveCategory] = useState(safeCategories[0]?.name || '');
+
+  const activeCategoryData = safeCategories.find(cat => cat.name === activeCategory) || safeCategories[0] || { name: '', briefs: [] };
+
   return (
     <section className="py-6">
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Top Research by Category</h2>
-      
-      <div className="mb-5 border-b border-gray-200">
-        <div className="flex space-x-1 overflow-x-auto pb-1">
-          {categories.map((category) => (
-            <button
-              key={category.name}
-              onClick={() => setActiveCategory(category.name)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${
-                activeCategory === category.name
-                  ? 'bg-white text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {activeCategoryData.briefs.map((brief) => (
-          <BriefCard key={brief.id} {...brief} />
-        ))}
-      </div>
-      
-      <div className="mt-4 text-center">
-        <a href={`/category/${activeCategory.toLowerCase().replace(/\s+/g, '-')}`} 
-           className="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium">
-          See all in {activeCategory}
-        </a>
-      </div>
+
+      {safeCategories.length > 0 ? (
+        <>
+          <div className="mb-5 border-b border-gray-200">
+            <div className="flex space-x-1 overflow-x-auto pb-1">
+              {safeCategories.map((category) => (
+                <button
+                  key={category.name}
+                  onClick={() => setActiveCategory(category.name)}
+                  className={`px-4 py-2 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${
+                    activeCategory === category.name
+                      ? 'bg-white text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {activeCategoryData.briefs.map((brief) => (
+              <BriefCard key={brief.id} {...brief} />
+            ))}
+          </div>
+
+          <div className="mt-4 text-center">
+            <a href={`/category/${activeCategory.toLowerCase().replace(/\s+/g, '-')}`} 
+               className="inline-block px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium">
+              See all in {activeCategory}
+            </a>
+          </div>
+        </>
+      ) : (
+        <p className="text-gray-500 text-center">No research briefs available.</p>
+      )}
     </section>
   );
 };
+
 
 export default TopBriefsByCategory;
