@@ -5,9 +5,21 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Edit2, Link } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import { 
+  Loader2, 
+  CheckCircle, 
+  AlertCircle, 
+  ChevronDown, 
+  ChevronUp, 
+  Edit2, 
+  Link, 
+  Code as CodeIcon 
+} from "lucide-react";
 import { GiConsoleController } from "react-icons/gi";
-import { Code as CodeIcon } from 'lucide-react';
 
 import { extractBriefFromUrl } from '../components/extract_brief';
 import type { BriefData } from '../components/extract_brief';
@@ -16,24 +28,63 @@ import HtmlInspector from '../components/html_inspector';
 // Define a schema for URL validation
 const urlSchema = z.string().url("Please enter a valid URL");
 
-// Define types for the brief data
-type BriefSource = {
-  title: string;
-  url: string;
-  author?: string;
-  date?: string;
-};
-
 async function fetchBriefFromUrl(url: string): Promise<BriefData> {
   try {
     // Call the server action to extract brief data
     return await extractBriefFromUrl(url);
-    
   } catch (error) {
     console.error("Error fetching brief:", error);
     throw new Error("Failed to fetch brief data. Please check the URL and try again.");
   }
 }
+
+// Markdown components configuration for consistent styling
+const markdownComponents = {
+  h1: ({node, ...props}) => <h1 className="text-2xl font-bold my-4" {...props} />,
+  h2: ({node, ...props}) => <h2 className="text-xl font-bold my-3" {...props} />,
+  h3: ({node, ...props}) => <h3 className="text-lg font-bold my-3" {...props} />,
+  h4: ({node, ...props}) => <h4 className="text-base font-bold my-2" {...props} />,
+  h5: ({node, ...props}) => <h5 className="text-sm font-bold my-2" {...props} />,
+  h6: ({node, ...props}) => <h6 className="text-xs font-bold my-2" {...props} />,
+  p: ({node, ...props}) => <p className="text-gray-800 my-2" {...props} />,
+  a: ({node, ...props}) => <a className="text-blue-600 hover:underline" {...props} />,
+  ul: ({node, ...props}) => <ul className="list-disc pl-5 my-3" {...props} />,
+  ol: ({node, ...props}) => <ol className="list-decimal pl-5 my-3" {...props} />,
+  li: ({node, ...props}) => <li className="my-1" {...props} />,
+  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic my-3" {...props} />,
+  code: ({node, inline, ...props}) => 
+    inline 
+      ? <code className="bg-gray-100 px-1 rounded" {...props} />
+      : <code className="block bg-gray-100 p-2 rounded my-3 overflow-x-auto" {...props} />,
+  pre: ({node, ...props}) => <pre className="bg-gray-100 p-2 rounded my-2 overflow-x-auto" {...props} />,
+  table: ({node, ...props}) => <table className="border-collapse table-auto w-full my-3" {...props} />,
+  thead: ({node, ...props}) => <thead className="bg-gray-100" {...props} />,
+  tbody: ({node, ...props}) => <tbody {...props} />,
+  tr: ({node, ...props}) => <tr className="border-b border-gray-200" {...props} />,
+  th: ({node, ...props}) => <th className="p-2 text-left font-bold" {...props} />,
+  td: ({node, ...props}) => <td className="p-2" {...props} />
+};
+
+// Title-specific components that render the title as a span
+const titleComponents = {
+  p: ({node, ...props}) => <span className="text-xl font-bold" {...props} />
+};
+
+// Reference-specific components
+const referenceComponents = {
+  p: ({node, ...props}) => <p className="text-sm text-gray-700 whitespace-pre-wrap" {...props} />,
+  a: ({node, ...props}) => <a className="text-blue-600 hover:underline text-sm" {...props} />
+};
+
+// Thinking-specific components
+const thinkingComponents = {
+  p: ({node, ...props}) => <p className="text-gray-700 text-sm" {...props} />,
+  pre: ({node, ...props}) => <pre className="bg-gray-100 p-2 rounded my-2 overflow-x-auto text-sm" {...props} />,
+  code: ({node, inline, ...props}) => 
+    inline 
+      ? <code className="bg-gray-100 px-1 rounded text-sm" {...props} />
+      : <code className="block bg-gray-100 p-2 rounded my-2 overflow-x-auto text-sm" {...props} />
+};
 
 export default function BriefUploadPage() {
   const { data: session, status } = useSession();
@@ -49,23 +100,29 @@ export default function BriefUploadPage() {
   
   // Section visibility state
   const [showTitleSection, setShowTitleSection] = useState(false);
+  const [showAbstractSection, setShowAbstractSection] = useState(false);
   const [showContentSection, setShowContentSection] = useState(false);
   const [showSourcesSection, setShowSourcesSection] = useState(false);
+  const [showReferencesSection, setShowReferencesSection] = useState(false);
   const [showThinkingSection, setShowThinkingSection] = useState(false);
   const [showMetadataSection, setShowMetadataSection] = useState(false);
   
   // Toggle states for collapsible sections
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(true);
+  const [isReferencesExpanded, setIsReferencesExpanded] = useState(true);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(true);
   
   // Edit mode states
   const [isTitleEditing, setIsTitleEditing] = useState(false);
+  const [isAbstractEditing, setIsAbstractEditing] = useState(false);
   const [isContentEditing, setIsContentEditing] = useState(false);
   
   // Refs for section elements to enable smooth scrolling
   const titleSectionRef = useRef<HTMLDivElement>(null);
+  const abstractSectionRef = useRef<HTMLDivElement>(null);
   const contentSectionRef = useRef<HTMLDivElement>(null);
   const sourcesSectionRef = useRef<HTMLDivElement>(null);
+  const referencesSectionRef = useRef<HTMLDivElement>(null);
   const thinkingSectionRef = useRef<HTMLDivElement>(null);
   
   // Animation variants for sliding sections
@@ -122,10 +179,12 @@ export default function BriefUploadPage() {
       
       // Reveal sections sequentially with delays
       setShowTitleSection(true);
-      setTimeout(() => setShowContentSection(true), 300);
+      setTimeout(() => setShowAbstractSection(true), 200);
+      setTimeout(() => setShowContentSection(true), 400);
       setTimeout(() => setShowSourcesSection(true), 600);
+      setTimeout(() => setShowReferencesSection(true), 700);
       setTimeout(() => setShowThinkingSection(true), 900);
-      setTimeout(() => setShowMetadataSection(true), 1200);
+      setTimeout(() => setShowMetadataSection(true), 1100);
       
     } catch (error) {
       console.error("Error fetching brief:", error);
@@ -144,6 +203,17 @@ export default function BriefUploadPage() {
       });
     }
     setIsTitleEditing(false);
+  };
+  
+  // Handle abstract edit
+  const handleAbstractEdit = (newAbstract: string) => {
+    if (briefData) {
+      setBriefData({
+        ...briefData,
+        abstract: newAbstract
+      });
+    }
+    setIsAbstractEditing(false);
   };
   
   // Handle content edit
@@ -166,17 +236,15 @@ export default function BriefUploadPage() {
   
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl h-screen flex flex-col relative">
+      {/* HTML Inspector Modal */}
       {briefData?.rawHtml && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg w-3/4 h-3/4 max-w-4xl max-h-[600px] shadow-2xl">
-            <HtmlInspector
-              html={briefData.rawHtml}
-              isOpen={showHtmlInspector}
-              onClose={() => setShowHtmlInspector(false)}
-            />
-          </div>
-        </div>
+        <HtmlInspector
+          html={briefData.rawHtml}
+          isOpen={showHtmlInspector}
+          onClose={() => setShowHtmlInspector(false)}
+        />
       )}
+      
       <h1 className="text-3xl font-bold text-center my-6">Upload Research Brief</h1>
       
       <div className={`flex-grow flex flex-col ${showTitleSection ? 'justify-start' : 'justify-center'}`}>
@@ -214,17 +282,28 @@ export default function BriefUploadPage() {
                     <AlertCircle className="absolute right-3 top-2 text-red-500" size={18} />
                   )}
                 </div>
-                <button
-                  onClick={handleFetchBrief}
-                  disabled={!isValidUrl || isLoading}
-                  className={`w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors ${showTitleSection ? 'text-sm' : ''}`}
-                >
-                  {isLoading ? (
-                    <Loader2 className="animate-spin mx-auto" size={20} />
-                  ) : (
-                    "Fetch Brief"
+                <div className="flex flex-col">
+                  <button
+                    onClick={handleFetchBrief}
+                    disabled={!isValidUrl || isLoading}
+                    className={`w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors ${showTitleSection ? 'text-sm' : ''}`}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="animate-spin mx-auto" size={20} />
+                    ) : (
+                      "Fetch Brief"
+                    )}
+                  </button>
+                  {briefData?.rawHtml && (
+                    <button
+                      onClick={() => setShowHtmlInspector(true)}
+                      className="w-full mt-2 flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      <CodeIcon size={16} />
+                      <span>Inspect HTML</span>
+                    </button>
                   )}
-                </button>
+                </div>
               </div>
               {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
               {!showTitleSection && (
@@ -232,7 +311,6 @@ export default function BriefUploadPage() {
                   Supports OpenAI and Perplexity deep research URLs
                 </p>
               )}
-              
             </div>
             
             {/* Sources Section - Appears below URL in left column */}
@@ -248,7 +326,7 @@ export default function BriefUploadPage() {
                 onClick={() => setIsSourcesExpanded(!isSourcesExpanded)}
               >
                 <h2 className="text-lg font-semibold">Sources</h2>
-                <button className="text-gray-500 p-1">
+                <button className="text-gray-500 p-1" aria-label="Toggle sources">
                   {isSourcesExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </button>
               </div>
@@ -314,18 +392,79 @@ export default function BriefUploadPage() {
                     autoFocus
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    {briefData?.title.length ?? 0}/100 characters
+                    {briefData?.title?.length ?? 0}/100 characters
                   </p>
                 </div>
               ) : (
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-xl font-bold">{briefData?.title ?? "Untitled Brief"}</h3>
+                  <h3 className="text-xl font-bold">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeSanitize, rehypeRaw]}
+                      components={titleComponents}
+                    >
+                      {briefData?.title ?? "Untitled Brief"}
+                    </ReactMarkdown>
+                  </h3>
                   <button 
                     onClick={() => setIsTitleEditing(true)}
                     className="text-gray-500 hover:text-blue-600 p-1"
+                    aria-label="Edit title"
                   >
                     <Edit2 size={16} />
                   </button>
+                </div>
+              )}
+            </motion.div>
+            
+            {/* Abstract Section */}
+            <motion.div
+              ref={abstractSectionRef}
+              initial="hidden"
+              animate={showAbstractSection ? "visible" : "hidden"}
+              variants={sectionVariants}
+              className="bg-white rounded-lg shadow-md p-4 mb-4"
+            >
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-lg font-semibold">Abstract/Conclusion</h2>
+                {!isAbstractEditing && (
+                  <button 
+                    onClick={() => setIsAbstractEditing(true)}
+                    className="text-gray-500 hover:text-blue-600 p-1"
+                    aria-label="Edit abstract"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                )}
+              </div>
+              
+              {isAbstractEditing ? (
+                <div>
+                  <textarea
+                    defaultValue={briefData?.abstract ?? ""}
+                    className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[120px]"
+                    onBlur={(e) => handleAbstractEdit(e.target.value)}
+                    autoFocus
+                  />
+                  <div className="flex justify-between mt-1 text-xs text-gray-500">
+                    <span>{briefData?.abstract?.length ?? 0} characters</span>
+                    <button 
+                      onClick={() => setIsAbstractEditing(false)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="prose max-w-none">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeSanitize, rehypeRaw]}
+                    components={markdownComponents}
+                  >
+                    {briefData?.abstract ?? "No abstract available"}
+                  </ReactMarkdown>
                 </div>
               )}
             </motion.div>
@@ -337,7 +476,7 @@ export default function BriefUploadPage() {
               animate={showContentSection ? "visible" : "hidden"}
               variants={sectionVariants}
               className="bg-white rounded-lg shadow-md p-4 mb-4"
-              style={{ maxHeight: "calc(100vh - 350px)", overflowY: "auto" }}
+              style={{ maxHeight: "calc(100vh - 450px)", overflowY: "auto" }}
             >
               <div className="flex justify-between items-center mb-2">
                 <h2 className="text-lg font-semibold">Research Summary</h2>
@@ -345,6 +484,7 @@ export default function BriefUploadPage() {
                   <button 
                     onClick={() => setIsContentEditing(true)}
                     className="text-gray-500 hover:text-blue-600 p-1"
+                    aria-label="Edit content"
                   >
                     <Edit2 size={16} />
                   </button>
@@ -355,12 +495,12 @@ export default function BriefUploadPage() {
                 <div>
                   <textarea
                     defaultValue={briefData?.content ?? ""}
-                    className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[200px]"
+                    className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[300px]"
                     onBlur={(e) => handleContentEdit(e.target.value)}
                     autoFocus
                   />
                   <div className="flex justify-between mt-1 text-xs text-gray-500">
-                    <span>{briefData?.content.length ?? 0} characters</span>
+                    <span>{briefData?.content?.length ?? 0} characters</span>
                     <button 
                       onClick={() => setIsContentEditing(false)}
                       className="text-blue-600 hover:underline"
@@ -371,16 +511,13 @@ export default function BriefUploadPage() {
                 </div>
               ) : (
                 <div className="prose max-w-none">
-                  <p>{briefData?.content ?? "No content available"}</p>
-                  {briefData?.rawHtml && (
-                    <button
-                      onClick={() => setShowHtmlInspector(true)}
-                      className="mt-2 flex items-center justify-center gap-1 text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      <CodeIcon size={16} />
-                      <span>Inspect HTML</span>
-                    </button>
-                  )}
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeSanitize, rehypeRaw]}
+                    components={markdownComponents}
+                  >
+                    {briefData?.content ?? "No content available"}
+                  </ReactMarkdown>
                 </div>
               )}
             </motion.div>
@@ -388,7 +525,46 @@ export default function BriefUploadPage() {
         </div>
         
         {/* Bottom Sections (Full Width) */}
-                  <div className="mt-4">
+        <div className="mt-4">
+          {/* References Section */}
+          <motion.div
+            ref={referencesSectionRef}
+            initial="hidden"
+            animate={showReferencesSection ? "visible" : "hidden"}
+            variants={sectionVariants}
+            className="bg-white rounded-lg shadow-md p-4 mb-4"
+          >
+            <div 
+              className="flex justify-between items-center cursor-pointer"
+              onClick={() => setIsReferencesExpanded(!isReferencesExpanded)}
+            >
+              <h2 className="text-lg font-semibold">References</h2>
+              <button className="text-gray-500 p-1" aria-label="Toggle references">
+                {isReferencesExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+            </div>
+            
+            {isReferencesExpanded && (
+              <div className="mt-3">
+                {briefData?.references ? (
+                  <div className="p-3 bg-gray-50 rounded-md border border-gray-200 max-h-96 overflow-y-auto">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeSanitize, rehypeRaw]}
+                      components={referenceComponents}
+                    >
+                      {briefData.references}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="py-3 text-center text-gray-500 text-sm">
+                    <p>No references available.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
+
           {/* AI Thinking Section */}
           <motion.div
             ref={thinkingSectionRef}
@@ -402,7 +578,7 @@ export default function BriefUploadPage() {
               onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
             >
               <h2 className="text-lg font-semibold">AI Thinking Process</h2>
-              <button className="text-gray-500 p-1">
+              <button className="text-gray-500 p-1" aria-label="Toggle thinking process">
                 {isThinkingExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </button>
             </div>
@@ -410,9 +586,13 @@ export default function BriefUploadPage() {
             {isThinkingExpanded && (
               <div className="mt-3">
                 <div className="p-3 bg-gray-50 rounded-md border border-gray-200 max-h-80 overflow-y-auto">
-                  <p className="text-gray-700 text-sm whitespace-pre-line">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeSanitize, rehypeRaw]}
+                    components={thinkingComponents}
+                  >
                     {briefData?.thinking ?? "No thinking process available"}
-                  </p>
+                  </ReactMarkdown>
                 </div>
               </div>
             )}
