@@ -20,6 +20,8 @@ import {
   Code as CodeIcon 
 } from "lucide-react";
 import { GiConsoleController } from "react-icons/gi";
+import type { Components } from 'react-markdown';
+import type { DetailedHTMLProps, HTMLAttributes } from 'react';
 
 import { extractBriefFromUrl } from '../components/extract_brief';
 import type { BriefData } from '../components/extract_brief';
@@ -38,52 +40,92 @@ async function fetchBriefFromUrl(url: string): Promise<BriefData> {
   }
 }
 
+// Add this helper function after the fetchBriefFromUrl function
+function groupSourcesByDomain(sources: BriefData['sources']) {
+  if (!sources) return new Map();
+  
+  return sources.reduce((groups, source) => {
+    try {
+      const url = new URL(source.url);
+      const domain = url.hostname.replace('www.', '');
+      const existing = groups.get(domain) || [];
+      groups.set(domain, [...existing, source]);
+    } catch (e) {
+      // If URL parsing fails, group under "Other"
+      const existing = groups.get('Other') || [];
+      groups.set('Other', [...existing, source]);
+    }
+    return groups;
+  }, new Map<string, typeof sources>());
+}
+
+// Add these helper functions after groupSourcesByDomain
+function getUrlPath(urlString: string): string {
+  try {
+    const url = new URL(urlString);
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    return path || '/';
+  } catch (e) {
+    return urlString;
+  }
+}
+
+function getFaviconUrl(domain: string): string {
+  return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+}
+
+// Add this type for the code component props
+type CodeComponentProps = {
+  children: React.ReactNode;
+  inline?: boolean;
+} & React.HTMLAttributes<HTMLElement>;
+
 // Markdown components configuration for consistent styling
-const markdownComponents = {
-  h1: ({node, ...props}) => <h1 className="text-2xl font-bold my-4" {...props} />,
-  h2: ({node, ...props}) => <h2 className="text-xl font-bold my-3" {...props} />,
-  h3: ({node, ...props}) => <h3 className="text-lg font-bold my-3" {...props} />,
-  h4: ({node, ...props}) => <h4 className="text-base font-bold my-2" {...props} />,
-  h5: ({node, ...props}) => <h5 className="text-sm font-bold my-2" {...props} />,
-  h6: ({node, ...props}) => <h6 className="text-xs font-bold my-2" {...props} />,
-  p: ({node, ...props}) => <p className="text-gray-800 my-2" {...props} />,
-  a: ({node, ...props}) => <a className="text-blue-600 hover:underline" {...props} />,
-  ul: ({node, ...props}) => <ul className="list-disc pl-5 my-3" {...props} />,
-  ol: ({node, ...props}) => <ol className="list-decimal pl-5 my-3" {...props} />,
-  li: ({node, ...props}) => <li className="my-1" {...props} />,
-  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic my-3" {...props} />,
-  code: ({node, inline, ...props}) => 
+const markdownComponents: Components = {
+  h1: ({children, ...props}) => <h1 className="text-2xl font-bold my-4" {...props}>{children}</h1>,
+  h2: ({children, ...props}) => <h2 className="text-xl font-bold my-3" {...props}>{children}</h2>,
+  h3: ({children, ...props}) => <h3 className="text-lg font-bold my-3" {...props}>{children}</h3>,
+  h4: ({children, ...props}) => <h4 className="text-base font-bold my-2" {...props}>{children}</h4>,
+  h5: ({children, ...props}) => <h5 className="text-sm font-bold my-2" {...props}>{children}</h5>,
+  h6: ({children, ...props}) => <h6 className="text-xs font-bold my-2" {...props}>{children}</h6>,
+  p: ({children, ...props}) => <p className="text-gray-800 my-2" {...props}>{children}</p>,
+  a: ({children, ...props}) => <a className="text-blue-600 hover:underline" {...props}>{children}</a>,
+  ul: ({children, ...props}) => <ul className="list-disc pl-5 my-3" {...props}>{children}</ul>,
+  ol: ({children, ...props}) => <ol className="list-decimal pl-5 my-3" {...props}>{children}</ol>,
+  li: ({children, ...props}) => <li className="my-1" {...props}>{children}</li>,
+  blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic my-3" {...props}>{children}</blockquote>,
+  code: ({children, inline, ...props}: CodeComponentProps) => 
     inline 
-      ? <code className="bg-gray-100 px-1 rounded" {...props} />
-      : <code className="block bg-gray-100 p-2 rounded my-3 overflow-x-auto" {...props} />,
-  pre: ({node, ...props}) => <pre className="bg-gray-100 p-2 rounded my-2 overflow-x-auto" {...props} />,
-  table: ({node, ...props}) => <table className="border-collapse table-auto w-full my-3" {...props} />,
-  thead: ({node, ...props}) => <thead className="bg-gray-100" {...props} />,
-  tbody: ({node, ...props}) => <tbody {...props} />,
-  tr: ({node, ...props}) => <tr className="border-b border-gray-200" {...props} />,
-  th: ({node, ...props}) => <th className="p-2 text-left font-bold" {...props} />,
-  td: ({node, ...props}) => <td className="p-2" {...props} />
+      ? <code className="bg-gray-100 px-1 rounded" {...props}>{children}</code>
+      : <code className="block bg-gray-100 p-2 rounded my-3 overflow-x-auto" {...props}>{children}</code>,
+  pre: ({children, ...props}) => <pre className="bg-gray-100 p-2 rounded my-2 overflow-x-auto" {...props}>{children}</pre>,
+  table: ({children, ...props}) => <table className="border-collapse table-auto w-full my-3" {...props}>{children}</table>,
+  thead: ({children, ...props}) => <thead className="bg-gray-100" {...props}>{children}</thead>,
+  tbody: ({children, ...props}) => <tbody {...props}>{children}</tbody>,
+  tr: ({children, ...props}) => <tr className="border-b border-gray-200" {...props}>{children}</tr>,
+  th: ({children, ...props}) => <th className="p-2 text-left font-bold" {...props}>{children}</th>,
+  td: ({children, ...props}) => <td className="p-2" {...props}>{children}</td>
 };
 
 // Title-specific components that render the title as a span
-const titleComponents = {
-  p: ({node, ...props}) => <span className="text-xl font-bold" {...props} />
+const titleComponents: Components = {
+  p: ({children, ...props}) => <span className="text-xl font-bold" {...props}>{children}</span>
 };
 
 // Reference-specific components
-const referenceComponents = {
-  p: ({node, ...props}) => <p className="text-sm text-gray-700 whitespace-pre-wrap" {...props} />,
-  a: ({node, ...props}) => <a className="text-blue-600 hover:underline text-sm" {...props} />
+const referenceComponents: Components = {
+  p: ({children, ...props}) => <p className="text-sm text-gray-700 whitespace-pre-wrap" {...props}>{children}</p>,
+  a: ({children, ...props}) => <a className="text-blue-600 hover:underline text-sm" {...props}>{children}</a>
 };
 
 // Thinking-specific components
-const thinkingComponents = {
-  p: ({node, ...props}) => <p className="text-gray-700 text-sm" {...props} />,
-  pre: ({node, ...props}) => <pre className="bg-gray-100 p-2 rounded my-2 overflow-x-auto text-sm" {...props} />,
-  code: ({node, inline, ...props}) => 
+const thinkingComponents: Components = {
+  p: ({children, ...props}) => <p className="text-gray-700 text-sm" {...props}>{children}</p>,
+  pre: ({children, ...props}) => <pre className="bg-gray-100 p-2 rounded my-2 overflow-x-auto text-sm" {...props}>{children}</pre>,
+  code: ({children, inline, ...props}: CodeComponentProps) => 
     inline 
-      ? <code className="bg-gray-100 px-1 rounded text-sm" {...props} />
-      : <code className="block bg-gray-100 p-2 rounded my-2 overflow-x-auto text-sm" {...props} />
+      ? <code className="bg-gray-100 px-1 rounded text-sm" {...props}>{children}</code>
+      : <code className="block bg-gray-100 p-2 rounded my-2 overflow-x-auto text-sm" {...props}>{children}</code>
 };
 
 export default function BriefUploadPage() {
@@ -111,6 +153,7 @@ export default function BriefUploadPage() {
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(true);
   const [isReferencesExpanded, setIsReferencesExpanded] = useState(true);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(true);
+  const [isContentExpanded, setIsContentExpanded] = useState(true);
   
   // Edit mode states
   const [isTitleEditing, setIsTitleEditing] = useState(false);
@@ -152,6 +195,9 @@ export default function BriefUploadPage() {
       transition: { duration: 0.5, ease: "easeInOut" }
     }
   };
+  
+  // Add this state for active tab
+  const [activeSourcesDomain, setActiveSourcesDomain] = useState<string | null>(null);
   
   // Handle URL input change
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -319,7 +365,7 @@ export default function BriefUploadPage() {
               initial="hidden"
               animate={showSourcesSection ? "visible" : "hidden"}
               variants={sectionVariants}
-              className="bg-white rounded-lg shadow-md p-4 mt-6 h-full"
+              className="bg-white rounded-lg shadow-md p-4 mt-6"
             >
               <div 
                 className="flex justify-between items-center cursor-pointer"
@@ -332,26 +378,86 @@ export default function BriefUploadPage() {
               </div>
               
               {isSourcesExpanded && (
-                <div className="mt-3 h-full">
+                <div className="mt-3">
                   {briefData?.sources && briefData.sources.length > 0 ? (
-                    <ul className="space-y-2 max-h-full overflow-y-auto">
-                      {briefData.sources.map((source, index) => (
-                        <li key={index} className="flex items-start p-2 border rounded-md border-gray-200 text-sm">
-                          <Link className="text-gray-500 mt-1 mr-2 flex-shrink-0" size={14} />
-                          <div className="flex-1">
-                            <p className="font-medium">{source.title}</p>
-                            <a 
-                              href={source.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline break-words"
-                            >
-                              {source.url}
-                            </a>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                    <div>
+                      {/* Tabs */}
+                      {(() => {
+                        const sourceGroups = groupSourcesByDomain(briefData.sources);
+                        const domains = Array.from(sourceGroups.keys());
+                        
+                        // Set initial active domain if not set
+                        if (!activeSourcesDomain && domains.length > 0) {
+                          setActiveSourcesDomain(domains[0]);
+                        }
+                        
+                        return (
+                          <>
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {domains.map(domain => (
+                                <button
+                                  key={domain}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveSourcesDomain(domain);
+                                  }}
+                                  className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                                    activeSourcesDomain === domain
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {domain}
+                                  <span className="ml-1 text-xs">
+                                    ({sourceGroups.get(domain)?.length})
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                            
+                            {/* Source List */}
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              {activeSourcesDomain && sourceGroups.get(activeSourcesDomain)?.map((source: BriefData['sources'][0], index: number) => {
+                                const favicon = getFaviconUrl(activeSourcesDomain);
+                                return (
+                                  <div 
+                                    key={index} 
+                                    className="p-2 border rounded-md border-gray-200 text-sm break-words"
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <img 
+                                        src={favicon} 
+                                        alt={`${activeSourcesDomain} favicon`}
+                                        className="w-4 h-4 mt-1 flex-shrink-0"
+                                        onError={(e) => {
+                                          // Fallback to link icon if favicon fails to load
+                                          e.currentTarget.style.display = 'none';
+                                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                        }}
+                                      />
+                                      <Link className="text-gray-500 mt-1 flex-shrink-0 hidden" size={14} />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="font-medium line-clamp-2">{source.title}</p>
+                                        <a 
+                                          href={source.url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-blue-600 hover:underline block truncate"
+                                          onClick={(e) => e.stopPropagation()}
+                                          title={source.url}
+                                        >
+                                          {getUrlPath(source.url)}
+                                        </a>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                   ) : (
                     <div className="py-3 text-center text-gray-500 text-sm">
                       <p>No sources found.</p>
@@ -475,50 +581,64 @@ export default function BriefUploadPage() {
               initial="hidden"
               animate={showContentSection ? "visible" : "hidden"}
               variants={sectionVariants}
-              className="bg-white rounded-lg shadow-md p-4 mb-4"
-              style={{ maxHeight: "calc(100vh - 450px)", overflowY: "auto" }}
+              className="bg-white rounded-lg shadow-md p-4 mb-4 overflow-y-auto"
             >
-              <div className="flex justify-between items-center mb-2">
+              <div 
+                className="flex justify-between items-center mb-2 cursor-pointer"
+                onClick={() => setIsContentExpanded(!isContentExpanded)}
+              >
                 <h2 className="text-lg font-semibold">Research Summary</h2>
-                {!isContentEditing && (
-                  <button 
-                    onClick={() => setIsContentEditing(true)}
-                    className="text-gray-500 hover:text-blue-600 p-1"
-                    aria-label="Edit content"
-                  >
-                    <Edit2 size={16} />
+                <div className="flex items-center gap-2">
+                  {!isContentEditing && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsContentEditing(true);
+                      }}
+                      className="text-gray-500 hover:text-blue-600 p-1"
+                      aria-label="Edit content"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  )}
+                  <button className="text-gray-500 p-1" aria-label="Toggle content">
+                    {isContentExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   </button>
-                )}
+                </div>
               </div>
               
-              {isContentEditing ? (
-                <div>
-                  <textarea
-                    defaultValue={briefData?.content ?? ""}
-                    className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[300px]"
-                    onBlur={(e) => handleContentEdit(e.target.value)}
-                    autoFocus
-                  />
-                  <div className="flex justify-between mt-1 text-xs text-gray-500">
-                    <span>{briefData?.content?.length ?? 0} characters</span>
-                    <button 
-                      onClick={() => setIsContentEditing(false)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Done
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="prose max-w-none">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeSanitize, rehypeRaw]}
-                    components={markdownComponents}
-                  >
-                    {briefData?.content ?? "No content available"}
-                  </ReactMarkdown>
-                </div>
+              {isContentExpanded && (
+                <>
+                  {isContentEditing ? (
+                    <div>
+                      <textarea
+                        defaultValue={briefData?.content ?? ""}
+                        className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[300px]"
+                        onBlur={(e) => handleContentEdit(e.target.value)}
+                        autoFocus
+                      />
+                      <div className="flex justify-between mt-1 text-xs text-gray-500">
+                        <span>{briefData?.content?.length ?? 0} characters</span>
+                        <button 
+                          onClick={() => setIsContentEditing(false)}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="prose max-w-none">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeSanitize, rehypeRaw]}
+                        components={markdownComponents}
+                      >
+                        {briefData?.content ?? "No content available"}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                </>
               )}
             </motion.div>
           </div>
@@ -526,7 +646,8 @@ export default function BriefUploadPage() {
         
         {/* Bottom Sections (Full Width) */}
         <div className="mt-4">
-          {/* References Section */}
+
+          {/* References Section - Replacing AI Thinking Section */}
           <motion.div
             ref={referencesSectionRef}
             initial="hidden"
@@ -561,39 +682,6 @@ export default function BriefUploadPage() {
                     <p>No references available.</p>
                   </div>
                 )}
-              </div>
-            )}
-          </motion.div>
-
-          {/* AI Thinking Section */}
-          <motion.div
-            ref={thinkingSectionRef}
-            initial="hidden"
-            animate={showThinkingSection ? "visible" : "hidden"}
-            variants={sectionVariants}
-            className="bg-white rounded-lg shadow-md p-4 mb-4"
-          >
-            <div 
-              className="flex justify-between items-center cursor-pointer"
-              onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-            >
-              <h2 className="text-lg font-semibold">AI Thinking Process</h2>
-              <button className="text-gray-500 p-1" aria-label="Toggle thinking process">
-                {isThinkingExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </button>
-            </div>
-            
-            {isThinkingExpanded && (
-              <div className="mt-3">
-                <div className="p-3 bg-gray-50 rounded-md border border-gray-200 max-h-80 overflow-y-auto">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeSanitize, rehypeRaw]}
-                    components={thinkingComponents}
-                  >
-                    {briefData?.thinking ?? "No thinking process available"}
-                  </ReactMarkdown>
-                </div>
               </div>
             )}
           </motion.div>

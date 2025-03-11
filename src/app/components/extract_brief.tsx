@@ -276,7 +276,24 @@ export async function extractBriefFromUrl(url: string): Promise<BriefData> {
       });
       
       // Get model information if available
-      let model = "OpenAI";
+      let model: "OpenAI" | "Perplexity" | "Anthropic" | "Other" = "OpenAI";
+      
+      // Format references to have bullet points
+      const formattedReferences = referencesList
+        ? referencesList
+            .split('\n')
+            .filter(line => line.trim())
+            .filter((line, index) => {
+              // Remove first line if it has less than 4 words
+              if (index === 0) {
+                const wordCount = line.trim().split(/\s+/).length;
+                return wordCount >= 4;
+              }
+              return true;
+            })
+            .map(line => `• ${line.trim()}`)
+            .join('\n')
+        : "No references available";
       
       // Extract thinking content (this is usually not visible in ChatGPT responses,
       // but we keep this as a placeholder)
@@ -287,7 +304,7 @@ export async function extractBriefFromUrl(url: string): Promise<BriefData> {
         content: mainContent || "No content could be extracted",
         abstract: abstractContent || "No summary available",
         sources,
-        references: referencesList || "No references available",
+        references: formattedReferences,
         thinking,
         model,
         rawHtml: await page.content()

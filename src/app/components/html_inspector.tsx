@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, Copy, Check, Circle, CheckCircle2 } from 'lucide-react';
 
 interface HtmlInspectorProps {
   html: string;
@@ -13,9 +13,11 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
   const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({
     head: false,
     body: true,
-    scripts: false
+    scripts: false,
+    selectedElement: true
   });
   const [copied, setCopied] = useState(false);
+  const [selectedElement, setSelectedElement] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -63,38 +65,42 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
   };
 
   const formatHtml = (html: string) => {
-    // Improved HTML formatting with indentation and syntax highlighting
     let indentLevel = 0;
     const indentSize = 2;
     
     return html
-      .replace(/></g, '>\n<') // Add newlines between tags
+      .replace(/></g, '>\n<')
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0)
       .map(line => {
-        // Decrease indent for closing tags
         if (line.match(/^<\//)) {
           indentLevel = Math.max(0, indentLevel - 1);
         }
         
-        // Add proper indentation
         const indent = ' '.repeat(indentLevel * indentSize);
         const formattedLine = indent + line
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
-          // Add syntax highlighting
-          .replace(/&lt;(\/?[a-zA-Z][^\s&>]*)/g, '<span class="text-pink-400">&lt;$1</span>') // Tag names
-          .replace(/([a-zA-Z-]+)=/g, '<span class="text-sky-300">$1</span>=') // Attributes
-          .replace(/"([^"]*)"/g, '<span class="text-emerald-300">"$1"</span>'); // Attribute values
+          .replace(/&lt;(\/?[a-zA-Z][^\s&>]*)/g, '<span class="text-pink-400">&lt;$1</span>')
+          .replace(/([a-zA-Z-]+)=/g, '<span class="text-sky-300">$1</span>=')
+          .replace(/"([^"]*)"/g, '<span class="text-emerald-300">"$1"</span>');
         
-        // Increase indent for opening tags (not self-closing)
         if (line.match(/^<[^/][^>]*>$/) && !line.match(/\/>$/)) {
           indentLevel++;
         }
         
         return (
-          <div key={Math.random()} className="html-line hover:bg-gray-800">
+          <div key={Math.random()} className="html-line hover:bg-gray-800 group">
+            <button 
+              onClick={() => setSelectedElement(line)}
+              className="select-button opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              {selectedElement === line ? 
+                <CheckCircle2 size={16} className="text-blue-500" /> : 
+                <Circle size={16} className="text-gray-400 hover:text-gray-200" />
+              }
+            </button>
             <span className="line-number">{indentLevel}</span>
             <span className="line-content" dangerouslySetInnerHTML={{ __html: formattedLine }} />
           </div>
@@ -188,6 +194,30 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
               )}
             </div>
             
+            {/* Selected Element Section */}
+            <div className="rounded-lg border bg-white overflow-hidden">
+              <div 
+                className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer border-b" 
+                onClick={() => toggleSection('selectedElement')}
+              >
+                <h3 className="font-medium">Selected Element</h3>
+                <button>
+                  {expandedSections.selectedElement ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+              </div>
+              {expandedSections.selectedElement && (
+                <div className="p-3 overflow-x-auto bg-gray-900 text-gray-300 text-sm">
+                  {selectedElement ? (
+                    <pre className="font-mono">
+                      {formatHtml(selectedElement)}
+                    </pre>
+                  ) : (
+                    <div className="text-gray-500 italic">Select an element to view its content</div>
+                  )}
+                </div>
+              )}
+            </div>
+            
             {/* Scripts Section */}
             <div className="rounded-lg border bg-white overflow-hidden">
               <div 
@@ -220,6 +250,7 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
         .html-line {
           display: flex;
           width: 100%;
+          align-items: center;
         }
         .line-number {
           min-width: 3rem;
@@ -230,6 +261,17 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
         }
         .line-content {
           white-space: pre;
+        }
+        .select-button {
+          min-width: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          padding: 2px;
+          margin-right: 4px;
         }
       `}</style>
     </div>
