@@ -13,6 +13,12 @@ const publicRoutes = [
 
 export default async function middleware(req: NextRequest) {
   try {
+    // Check for dev mode
+    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+    if (isDevMode) {
+      return NextResponse.next();
+    }
+
     console.log('\n=== MIDDLEWARE START ===');
     console.log('Request URL:', req.url);
     console.log('Request path:', req.nextUrl.pathname);

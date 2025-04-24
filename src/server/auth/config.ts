@@ -58,5 +58,23 @@ export const authConfig = {
         id: user.id,
       },
     }),
+    authorized: ({ auth, request: { nextUrl } }) => {
+      const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+      if (isDevMode) {
+        return true;
+      }
+      
+      const isLoggedIn = !!auth?.user;
+      const isAuthPage = nextUrl.pathname.startsWith('/auth');
+
+      if (isAuthPage) {
+        if (isLoggedIn) return Response.redirect(new URL('/', nextUrl));
+        return true;
+      }
+
+      if (!isLoggedIn) return false;
+
+      return true;
+    },
   },
 } satisfies NextAuthConfig;

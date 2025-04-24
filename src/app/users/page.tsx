@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, AlertCircle, SlidersHorizontal } from 'lucide-react';
-import UserCard from '@/components/UserCard';
+import UserCard from '@/functions/UserCard';
 import { getUsers } from '../../server/actions/users';
 
 type User = {

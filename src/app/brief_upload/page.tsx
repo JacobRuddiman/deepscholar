@@ -89,7 +89,7 @@ const markdownComponents: Components = {
   h5: ({children, ...props}) => <h5 className="text-sm font-bold my-2" {...props}>{children}</h5>,
   h6: ({children, ...props}) => <h6 className="text-xs font-bold my-2" {...props}>{children}</h6>,
   p: ({children, ...props}) => <p className="text-gray-800 my-2" {...props}>{children}</p>,
-  a: ({children, ...props}) => <a className="text-blue-600 hover:underline" {...props}>{children}</a>,
+  a: ({children, href, ...props}) => <a className="text-blue-600 hover:underline" href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>,
   ul: ({children, ...props}) => <ul className="list-disc pl-5 my-3" {...props}>{children}</ul>,
   ol: ({children, ...props}) => <ol className="list-decimal pl-5 my-3" {...props}>{children}</ol>,
   li: ({children, ...props}) => <li className="my-1" {...props}>{children}</li>,
@@ -109,13 +109,14 @@ const markdownComponents: Components = {
 
 // Title-specific components that render the title as a span
 const titleComponents: Components = {
-  p: ({children, ...props}) => <span className="text-xl font-bold" {...props}>{children}</span>
+  p: ({children, ...props}) => <span className="text-xl font-bold" {...props}>{children}</span>,
+  a: ({children, href, ...props}) => <a className="text-blue-600 hover:underline" href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
 };
 
 // Reference-specific components
 const referenceComponents: Components = {
   p: ({children, ...props}) => <p className="text-sm text-gray-700 whitespace-pre-wrap" {...props}>{children}</p>,
-  a: ({children, ...props}) => <a className="text-blue-600 hover:underline text-sm" {...props}>{children}</a>
+  a: ({children, href, ...props}) => <a className="text-blue-600 hover:underline text-sm" href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
 };
 
 // Thinking-specific components
@@ -125,8 +126,24 @@ const thinkingComponents: Components = {
   code: ({children, inline, ...props}: CodeComponentProps) => 
     inline 
       ? <code className="bg-gray-100 px-1 rounded text-sm" {...props}>{children}</code>
-      : <code className="block bg-gray-100 p-2 rounded my-2 overflow-x-auto text-sm" {...props}>{children}</code>
+      : <code className="block bg-gray-100 p-2 rounded my-2 overflow-x-auto text-sm" {...props}>{children}</code>,
+  a: ({children, href, ...props}) => <a className="text-blue-600 hover:underline text-sm" href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
 };
+
+// Custom function to convert bare domain URLs to clickable links
+function urlify(text: string) {
+  // Basic URL regex - can be expanded for more complex cases
+  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/[^\s]*)?)/g;
+  
+  return text.replace(urlRegex, function(url) {
+    let href = url;
+    // Add https if protocol is missing
+    if (!url.match(/^https?:\/\//)) {
+      href = 'https://' + url;
+    }
+    return `[${url}](${href})`;
+  });
+}
 
 export default function BriefUploadPage() {
   const { data: session, status } = useSession();
@@ -442,10 +459,11 @@ export default function BriefUploadPage() {
                                           href={source.url} 
                                           target="_blank" 
                                           rel="noopener noreferrer"
-                                          className="text-xs text-blue-600 hover:underline block truncate"
+                                          className="text-xs text-blue-600 hover:underline block truncate flex items-center gap-1"
                                           onClick={(e) => e.stopPropagation()}
                                           title={source.url}
                                         >
+                                          <Link size={12} />
                                           {getUrlPath(source.url)}
                                         </a>
                                       </div>
@@ -569,7 +587,7 @@ export default function BriefUploadPage() {
                     rehypePlugins={[rehypeSanitize, rehypeRaw]}
                     components={markdownComponents}
                   >
-                    {briefData?.abstract ?? "No abstract available"}
+                    {urlify(briefData?.abstract ?? "No abstract available")}
                   </ReactMarkdown>
                 </div>
               )}
@@ -634,7 +652,7 @@ export default function BriefUploadPage() {
                         rehypePlugins={[rehypeSanitize, rehypeRaw]}
                         components={markdownComponents}
                       >
-                        {briefData?.content ?? "No content available"}
+                        {urlify(briefData?.content ?? "No content available")}
                       </ReactMarkdown>
                     </div>
                   )}
@@ -674,7 +692,7 @@ export default function BriefUploadPage() {
                       rehypePlugins={[rehypeSanitize, rehypeRaw]}
                       components={referenceComponents}
                     >
-                      {briefData.references}
+                      {urlify(briefData.references)}
                     </ReactMarkdown>
                   </div>
                 ) : (

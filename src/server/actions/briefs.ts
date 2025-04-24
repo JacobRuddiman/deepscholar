@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -32,14 +32,43 @@ type UpdateBriefInput = {
 // Get all briefs for the current user
 export async function getUserBriefs() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
+    console.log('Starting getUserBriefs');
+    
+    // Check for dev mode
+    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+    console.log('Dev mode:', isDevMode);
+    
+    let userId;
+    
+    if (isDevMode) {
+      console.log('In dev mode - using fake user ID');
+      userId = 'dev-user-id';
+    } else {
+      try {
+        const session = await auth();
+        console.log('Auth session result:', {
+          exists: !!session,
+          user: session?.user ? { id: session.user.id, name: session.user.name } : 'No user'
+        });
+        
+        if (!session?.user?.id) {
+          console.log('Not authenticated');
+          throw new Error('Not authenticated');
+        }
+        
+        userId = session.user.id;
+      } catch (authError) {
+        console.error('Error in authentication:', authError);
+        throw new Error('Authentication error');
+      }
     }
+    
+    console.log('Using userId:', userId);
 
+    console.log('Querying database for briefs');
     const briefs = await prisma.brief.findMany({
       where: {
-        userId: session.user.id,
+        userId,
       },
       include: {
         categories: true,
@@ -59,6 +88,7 @@ export async function getUserBriefs() {
         createdAt: 'desc',
       },
     });
+    console.log(`Found ${briefs.length} briefs`);
 
     return {
       success: true,
@@ -66,6 +96,10 @@ export async function getUserBriefs() {
     };
   } catch (error) {
     console.error('Error fetching user briefs:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return {
       success: false,
       error: 'Failed to fetch briefs',
@@ -76,10 +110,38 @@ export async function getUserBriefs() {
 // Get a single brief by ID
 export async function getBriefById(briefId: string) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
+    console.log('Starting getBriefById');
+    
+    // Check for dev mode
+    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+    console.log('Dev mode:', isDevMode);
+    
+    let userId;
+    
+    if (isDevMode) {
+      console.log('In dev mode - using fake user ID');
+      userId = 'dev-user-id';
+    } else {
+      try {
+        const session = await auth();
+        console.log('Auth session result:', {
+          exists: !!session,
+          user: session?.user ? { id: session.user.id, name: session.user.name } : 'No user'
+        });
+        
+        if (!session?.user?.id) {
+          console.log('Not authenticated');
+          throw new Error('Not authenticated');
+        }
+        
+        userId = session.user.id;
+      } catch (authError) {
+        console.error('Error in authentication:', authError);
+        throw new Error('Authentication error');
+      }
     }
+    
+    console.log('Using userId:', userId);
 
     const brief = await prisma.brief.findUnique({
       where: {
@@ -124,10 +186,38 @@ export async function getBriefById(briefId: string) {
 // Create a new brief
 export async function createBrief(input: CreateBriefInput) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      throw new Error('Not authenticated');
+    console.log('Starting createBrief');
+    
+    // Check for dev mode
+    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+    console.log('Dev mode:', isDevMode);
+    
+    let userId;
+    
+    if (isDevMode) {
+      console.log('In dev mode - using fake user ID');
+      userId = 'dev-user-id';
+    } else {
+      try {
+        const session = await auth();
+        console.log('Auth session result:', {
+          exists: !!session,
+          user: session?.user ? { id: session.user.id, name: session.user.name } : 'No user'
+        });
+        
+        if (!session?.user?.id) {
+          console.log('Not authenticated');
+          throw new Error('Not authenticated');
+        }
+        
+        userId = session.user.id;
+      } catch (authError) {
+        console.error('Error in authentication:', authError);
+        throw new Error('Authentication error');
+      }
     }
+    
+    console.log('Using userId:', userId);
 
     // Create the brief
     const brief = await prisma.brief.create({
@@ -139,7 +229,7 @@ export async function createBrief(input: CreateBriefInput) {
         thinking: input.thinking,
         slug: input.slug,
         modelId: input.modelId,
-        userId: session.user.id,
+        userId,
         ...(input.categoryIds && {
           categories: {
             connect: input.categoryIds.map(id => ({ id })),
