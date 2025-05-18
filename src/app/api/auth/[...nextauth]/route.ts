@@ -35,27 +35,72 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   session: {
-    strategy: "jwt", // Change to "database" if you want database sessions
+    strategy: "jwt",
   },
   callbacks: {
-    session({ session, token }) {
-      if (session.user && token.sub) {
-        session.user.id = token.sub;
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub!;
       }
       return session;
     },
+    async signIn({ user, account, profile }) {
+      if (!user.email) {
+        return false;
+      }
+
+      // Allow sign in if user exists with this email
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.email },
+        include: { accounts: true },
+      });
+
+      if (existingUser) {
+        // If user exists but doesn't have this provider's account, link it
+        const hasProviderAccount = existingUser.accounts.some(
+          (acc) => acc.provider === account?.provider
+        );
+
+        if (!hasProviderAccount && account) {
+          await prisma.account.create({
+            data: {
+              userId: existingUser.id,
+              type: account.type,
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              access_token: account.access_token,
+              token_type: account.token_type,
+              scope: account.scope,
+              id_token: account.id_token,
+              expires_at: account.expires_at,
+            },
+          });
+        }
+        return true;
+      }
+
+      // If user doesn't exist, create them
+      await prisma.user.create({
+        data: {
+          id: user.id,
+          name: user.name || "",
+          email: user.email,
+          image: user.image || "",
+        },
+      });
+
+      return true;
+    },
     redirect({ url, baseUrl }) {
-      // If the URL is relative to the site or starts with the base URL
       if (url.startsWith('/') || url.startsWith(baseUrl)) {
         return url;
       }
-      // Otherwise, redirect to homepage 
       return '/home';
     },
   },
   pages: {
     signIn: "auth/signin",
-    error: "auth/signin", // Redirect to sign-in page if there's an error
+    error: "auth/signin",
   },
   debug: process.env.NODE_ENV === "development",
 });

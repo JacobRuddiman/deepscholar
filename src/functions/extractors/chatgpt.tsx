@@ -286,6 +286,7 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
       : "No references available";
     
       // Get model information if available
+      console.info(url)
     const model: "OpenAI" | "Perplexity" | "Anthropic" | "Other" = "OpenAI";
       // model is explicitly typed with a union type to restrict its value to only these specific string literals
       

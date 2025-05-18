@@ -286,12 +286,13 @@ export async function extractFromPerplexity(url: string): Promise<BriefData> {
       : "No references available";
     
       // Get model information if available
-    const model: "OpenAI" | "Perplexity" | "Anthropic" | "Other" = "OpenAI";
+    const model: "OpenAI" | "Perplexity" | "Anthropic" | "Other" = "Perplexity";
       // model is explicitly typed with a union type to restrict its value to only these specific string literals
       
       // Extract thinking content (this is usually not visible in ChatGPT responses,
       // but we keep this as a placeholder)
       const thinking = "";
+      console.info("At perplexity.tsx, model = " + model)
       
       return {
         title,

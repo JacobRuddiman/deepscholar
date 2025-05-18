@@ -8,15 +8,19 @@ import { extractGeneric } from '@/functions/extractors/generic';
 
 // Main function to extract brief from URL
 export async function extractBriefFromUrl(url: string): Promise<BriefData> { // Define parameter type as string for the URL and return type as Promise<BriefData> to ensure type safety and consistent return structure
+  const lowerUrl = url.toLowerCase();
   // Determine which extractor to use based on URL
-  if (url.includes('chat.openai.com') || url.includes('chatgpt.com')) {
-    return extractFromChatGPT(url);
-  } else if (url.includes('perplexity.ai')) {
-    return extractFromPerplexity(url);
-  } else if (url.includes('google.com')) {
-    return extractFromGoogle(url);
+  if (lowerUrl.includes('chat.openai.com') || url.includes?.('chatgpt.com')) {
+    console.info('Using openai extractor');
+    return extractFromChatGPT(lowerUrl);
+  } else if (lowerUrl.includes('perplexity.ai')) {
+    console.info('Using perplexity extractor');
+    return extractFromPerplexity(lowerUrl);
+  } else if (lowerUrl.includes('google.com')) {
+    return extractFromGoogle(lowerUrl);
   } else {
     // Default extractor or generic approach
-    return extractGeneric(url);
+    console.info('Using generic extractor');
+    return extractGeneric(lowerUrl);
   }
 }

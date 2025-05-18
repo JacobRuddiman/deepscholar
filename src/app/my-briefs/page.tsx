@@ -44,7 +44,12 @@ export default function MyBriefsPage() {
       const result = await getUserBriefs();
       
       if (!result.success) {
-        throw new Error(result.error);
+        if (result.error === 'Not authenticated') {
+          setError('Please log in to view your research briefs.');
+        } else {
+          setError(result.error || 'Failed to load briefs. Please try again later.');
+        }
+        return;
       }
 
       setBriefs(result.data);

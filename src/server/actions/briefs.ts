@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from "@/server/auth";
+import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -44,18 +44,18 @@ export async function getUserBriefs() {
       console.log('In dev mode - using fake user ID');
       userId = 'dev-user-id';
     } else {
-      try {
-        const session = await auth();
+  try {
+    const session = await auth();
         console.log('Auth session result:', {
           exists: !!session,
           user: session?.user ? { id: session.user.id, name: session.user.name } : 'No user'
         });
         
-        if (!session?.user?.id) {
+    if (!session?.user?.id) {
           console.log('Not authenticated');
-          throw new Error('Not authenticated');
-        }
-        
+      throw new Error('Not authenticated');
+    }
+
         userId = session.user.id;
       } catch (authError) {
         console.error('Error in authentication:', authError);
@@ -122,17 +122,17 @@ export async function getBriefById(briefId: string) {
       console.log('In dev mode - using fake user ID');
       userId = 'dev-user-id';
     } else {
-      try {
-        const session = await auth();
+  try {
+    const session = await auth();
         console.log('Auth session result:', {
           exists: !!session,
           user: session?.user ? { id: session.user.id, name: session.user.name } : 'No user'
         });
         
-        if (!session?.user?.id) {
+    if (!session?.user?.id) {
           console.log('Not authenticated');
-          throw new Error('Not authenticated');
-        }
+      throw new Error('Not authenticated');
+    }
         
         userId = session.user.id;
       } catch (authError) {
@@ -185,59 +185,120 @@ export async function getBriefById(briefId: string) {
 
 // Create a new brief
 export async function createBrief(input: CreateBriefInput) {
+  console.log('\n==========================================');
+  console.log('🚀 STARTING CREATE BRIEF OPERATION');
+  console.log('==========================================\n');
+
   try {
-    console.log('Starting createBrief');
-    
-    // Check for dev mode
+    // Set default prompt if empty
+    const briefData = {
+      ...input,
+      prompt: input.prompt || 'placeholder'
+    };
+
+    // Log environment and mode
+    console.log('📋 ENVIRONMENT CHECK');
+    console.log('------------------------------------------');
     const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
     console.log('Dev mode:', isDevMode);
-    
+    console.log('Node environment:', process.env.NODE_ENV);
+    console.log('------------------------------------------\n');
+
+    // Authentication logging
+    console.log('🔐 AUTHENTICATION CHECK');
+    console.log('------------------------------------------');
     let userId;
     
     if (isDevMode) {
-      console.log('In dev mode - using fake user ID');
+      console.log('Using dev mode - fake user ID');
       userId = 'dev-user-id';
     } else {
       try {
         const session = await auth();
-        console.log('Auth session result:', {
+        console.log('Auth session details:', {
           exists: !!session,
-          user: session?.user ? { id: session.user.id, name: session.user.name } : 'No user'
+          user: session?.user ? {
+            id: session.user.id,
+            name: session.user.name,
+            email: session.user.email
+          } : 'No user'
         });
         
         if (!session?.user?.id) {
-          console.log('Not authenticated');
+          console.log('❌ Authentication failed: No user ID in session');
           throw new Error('Not authenticated');
         }
         
         userId = session.user.id;
+        console.log('✅ Authentication successful');
       } catch (authError) {
-        console.error('Error in authentication:', authError);
+        console.error('❌ Authentication error:', authError);
         throw new Error('Authentication error');
       }
     }
+    console.log('User ID being used:', userId);
+    console.log('------------------------------------------\n');
+
+    // Input validation logging
+    console.log('📝 INPUT VALIDATION');
+    console.log('------------------------------------------');
+    console.log('Raw input data:', JSON.stringify(briefData, null, 2));
     
-    console.log('Using userId:', userId);
+    // Validate required fields
+    const requiredFields = ['title', 'prompt', 'response', 'modelId', 'slug'];
+    const missingFields = requiredFields.filter(field => !briefData[field as keyof CreateBriefInput]);
+    
+    if (missingFields.length > 0) {
+      console.log('❌ Missing required fields:', missingFields);
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+    
+    // Validate field types and lengths
+    console.log('Field validations:');
+    console.log('- title length:', briefData.title.length);
+    console.log('- prompt length:', briefData.prompt.length);
+    console.log('- response length:', briefData.response.length);
+    console.log('- modelId:', briefData.modelId);
+    console.log('- slug:', briefData.slug);
+    console.log('- categoryIds:', briefData.categoryIds?.length || 0);
+    console.log('- sourceIds:', briefData.sourceIds?.length || 0);
+    console.log('------------------------------------------\n');
+
+    // Database operation logging
+    console.log('💾 DATABASE OPERATION');
+    console.log('------------------------------------------');
+    console.log('Attempting to create brief with data:', {
+      title: briefData.title,
+      abstract: briefData.abstract ? 'present' : 'absent',
+      prompt: briefData.prompt ? 'present' : 'absent',
+      response: briefData.response ? 'present' : 'absent',
+      thinking: briefData.thinking ? 'present' : 'absent',
+      slug: briefData.slug,
+      modelId: briefData.modelId,
+      userId: userId,
+      categoryCount: briefData.categoryIds?.length || 0,
+      sourceCount: briefData.sourceIds?.length || 0
+    });
 
     // Create the brief
     const brief = await prisma.brief.create({
       data: {
-        title: input.title,
-        abstract: input.abstract,
-        prompt: input.prompt,
-        response: input.response,
-        thinking: input.thinking,
-        slug: input.slug,
-        modelId: input.modelId,
-        userId,
-        ...(input.categoryIds && {
+        title: briefData.title,
+        abstract: briefData.abstract,
+        prompt: briefData.prompt,
+        response: briefData.response,
+        thinking: briefData.thinking,
+        slug: briefData.slug,
+        modelId: briefData.modelId,
+        userId: userId,
+        ...(briefData.categoryIds && {
           categories: {
-            connect: input.categoryIds.map(id => ({ id })),
+            connect: briefData.categoryIds.map((id: string) => ({ id })),
           },
         }),
-        ...(input.sourceIds && {
+        ...(briefData.sourceIds && {
           sources: {
-            connect: input.sourceIds.map(id => ({ id })),
+            connect: briefData.sourceIds.map((id: string) => ({ id })),
           },
         }),
       },
@@ -255,18 +316,60 @@ export async function createBrief(input: CreateBriefInput) {
       },
     });
 
-    revalidatePath('/my-briefs');
-    revalidatePath('/profile');
+    // Verify the created brief has all required data
+    if (!brief) {
+      throw new Error('Brief creation failed - no brief returned');
+    }
 
+    // Log the created brief for debugging
+    console.log('Created brief:', {
+      id: brief.id,
+      title: brief.title,
+      hasAuthor: !!brief.author,
+      authorId: brief.author ? brief.author.id : null,
+      hasModel: !!brief.model,
+      modelId: brief.model ? brief.model.id : null,
+    });
+
+    console.log('✅ Brief created successfully');
+    console.log('Created brief ID:', brief.id);
+    console.log('------------------------------------------\n');
+
+    // Cache revalidation
+    console.log('🔄 CACHE REVALIDATION');
+    console.log('------------------------------------------');
+    revalidatePath('/briefs');
+    revalidatePath('/my-briefs');
+    console.log('Cache revalidated for /briefs and /my-briefs');
+    console.log('------------------------------------------\n');
+
+    console.log('✨ CREATE BRIEF OPERATION COMPLETED SUCCESSFULLY');
+    console.log('==========================================\n');
+
+    // Return a clean response object
     return {
       success: true,
       data: brief,
     };
   } catch (error) {
-    console.error('Error creating brief:', error);
+    console.log('\n❌ ERROR IN CREATE BRIEF OPERATION');
+    console.log('==========================================');
+    
+    // More detailed error logging
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    } else {
+      console.error('Unknown error type:', error);
+    }
+    
+    console.log('==========================================\n');
+
+    // Ensure we always return a valid object
     return {
       success: false,
-      error: 'Failed to create brief',
+      error: error instanceof Error ? error.message : 'Failed to create brief',
     };
   }
 }

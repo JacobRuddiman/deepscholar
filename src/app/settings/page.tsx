@@ -395,6 +395,19 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-md">
+                    <h3 className="font-medium mb-2">Sign Out</h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Sign out of your current session. You will need to sign in again to access your account.
+                    </p>
+                    <button 
+                      onClick={() => signOut({ callbackUrl: '/auth/signin' })}
+                      className="text-red-600 hover:text-red-700 text-sm font-medium"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-md">
                     <h3 className="font-medium mb-2">Account Deletion</h3>
                     <p className="text-sm text-gray-500 mb-4">
                       Once you delete your account, there is no going back. Please be certain.
@@ -402,19 +415,6 @@ export default function SettingsPage() {
                     <button className="text-red-600 hover:text-red-700 text-sm font-medium">
                       Delete Account
                     </button>
-                  </div>
-
-                  <div className="p-4 bg-gray-50 rounded-md">
-                    <h3 className="font-medium mb-2">Sign Out</h3>
-                    <p className="text-sm text-gray-500 mb-4">
-                      Sign out of your account on this device. You will need to sign in again to access your account.
-                    </p>
-          <button
-                      onClick={() => signOut({ callbackUrl: '/auth/signin' })}
-                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-          >
-            Sign Out
-          </button>
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-md">
