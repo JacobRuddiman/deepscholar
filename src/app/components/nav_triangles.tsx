@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   BiUpload, 
   BiFile, 
@@ -11,6 +11,7 @@ import {
 import { FiUsers } from "react-icons/fi";
 import { RiCoinLine } from "react-icons/ri";
 import ConditionalNavbar from "./conditional_navbar";
+import { getUserTokenBalance } from "@/server/actions/tokens";
 
 // Define clip paths as inline styles to ensure they're applied immediately
 const clipStyles = {
@@ -23,7 +24,22 @@ const clipStyles = {
 };
 
 export default function NavTriangles() {
-  const [tokens] = useState(350); // Demo value
+  const [tokens, setTokens] = useState(0);
+
+  useEffect(() => {
+    const loadTokenBalance = async () => {
+      try {
+        const result = await getUserTokenBalance();
+        if (result.success) {
+          setTokens(result.balance);
+        }
+      } catch (error) {
+        console.error('Failed to load token balance:', error);
+      }
+    };
+
+    void loadTokenBalance();
+  }, []);
   
   return (
     <>

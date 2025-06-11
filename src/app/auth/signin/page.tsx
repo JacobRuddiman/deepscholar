@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import ErrorPopup from "../../components/error_popup";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -46,6 +47,12 @@ export default function SignInPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-12">
+      <ErrorPopup
+        isVisible={!!error}
+        message={error ?? ''}
+        onClose={() => setError(null)}
+        autoClose={true}
+      />
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <Link href="/" className="inline-block">
@@ -61,12 +68,6 @@ export default function SignInPage() {
             <h2 className="mb-6 text-center text-2xl font-medium text-gray-900">
               Welcome back
             </h2>
-
-            {error && (
-              <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-700">
-                <p>{error}</p>
-              </div>
-            )}
 
             <div className="space-y-4">
               <button

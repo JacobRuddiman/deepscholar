@@ -8,8 +8,7 @@ import BriefEditor from "../components/bried_editor";
 import type { BriefData } from '@/functions/types';
 import { createBrief } from "@/server/actions/briefs";
 import { getDefaultModel } from "@/server/actions/models";
-import { AlertCircle } from "lucide-react";
-import { slugify } from "@/lib/utils";
+import ErrorPopup from "../components/error_popup";
 
 export default function BriefUploadPage() {
   const { data: session, status } = useSession();
@@ -37,18 +36,18 @@ export default function BriefUploadPage() {
       
       if (!result.success || !result.data) {
         console.error('Model initialization failed:', result.error);
-        throw new Error(result.error || 'Failed to get model');
+        throw new Error(result.error ?? 'Failed to get model');
       }
       
       console.log('Setting defaultModelId to:', result.data.id);
       setDefaultModelId(result.data.id);
       console.log('=== initializeModel SUCCESS ===');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('=== initializeModel ERROR ===');
       console.error('Error details:', {
-        name: err?.name || 'Unknown',
-        message: err?.message || 'Unknown error',
-        stack: err?.stack || 'No stack trace'
+        name: err instanceof Error ? err.name : 'Unknown',
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : 'No stack trace'
       });
       setError('Failed to initialize model. Please try again.');
     }
@@ -64,8 +63,8 @@ export default function BriefUploadPage() {
       sources: briefData.sources.map(source => ({
         title: source.title,
         url: source.url,
-        author: source.author || 'not provided',
-        date: source.date || 'not provided'
+        author: source.author ?? 'not provided',
+        date: source.date ?? 'not provided'
       })),
       thinking: briefData.thinking,
       model: briefData.model,
@@ -88,15 +87,26 @@ export default function BriefUploadPage() {
       setIsSubmitting(true);
       setError(null);
 
-      // Initialize model if not already done
-      if (!defaultModelId) {
-        console.log('No defaultModelId found, initializing model...');
-        await initializeModel(briefData.model);
+      // Get model ID - either use cached one or fetch fresh
+      let modelId = defaultModelId;
+      if (!modelId) {
+        console.log('No defaultModelId found, fetching model...');
+        const result = await getDefaultModel(briefData.model);
+        console.log('getDefaultModel result:', JSON.stringify(result, null, 2));
+        
+        if (!result.success || !result.data) {
+          console.error('Model initialization failed:', result.error);
+          throw new Error(result.error ?? 'Failed to get model');
+        }
+        
+        modelId = result.data.id;
+        setDefaultModelId(modelId); // Update state for future use
+        console.log('Using fresh modelId:', modelId);
       } else {
-        console.log('Using existing defaultModelId:', defaultModelId);
+        console.log('Using cached defaultModelId:', defaultModelId);
       }
       
-      if (!defaultModelId) {
+      if (!modelId) {
         console.error('Model initialization failed - no modelId available');
         throw new Error('Model not initialized. Please try again.');
       }
@@ -108,8 +118,7 @@ export default function BriefUploadPage() {
         prompt: briefData.thinking,
         response: briefData.content,
         thinking: briefData.thinking,
-        modelId: defaultModelId,
-        slug: slugify(briefData.title),
+        modelId: modelId,
         categoryIds: [],
         sourceIds: [],
       };
@@ -129,23 +138,28 @@ export default function BriefUploadPage() {
       
       if (!result.success) {
         console.error('Brief creation failed:', result.error);
-        throw new Error(result.error || 'Failed to create brief');
+        throw new Error(result.error ?? 'Failed to create brief');
       }
 
-      if (!result.data?.slug) {
-        console.error('Brief creation succeeded but no slug returned');
-        throw new Error('Failed to create brief: No slug returned');
+      // ROUTING ENHANCEMENT: Use ID-based routing instead of slug-based
+      // Since we've moved to ID-based routing system, we should redirect using the brief ID
+      // This prevents issues when slug is null or empty, and ensures consistent routing
+      // The routing system will handle both slug and ID URLs automatically
+      // This relates to the createBrief function changes that make slug optional
+      if (!result.data?.id) {
+        console.error('Brief creation succeeded but no ID returned');
+        throw new Error('Failed to create brief: No ID returned');
       }
 
-      console.log('Brief created successfully, redirecting to:', `/briefs/${result.data.slug}`);
-      router.push(`/briefs/${result.data.slug}`);
+      console.log('Brief created successfully, redirecting to:', `/briefs/${result.data.id}`);
+      router.push(`/briefs/${result.data.id}`);
       console.log('=== handleSubmit SUCCESS ===');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('=== handleSubmit ERROR ===');
       console.error('Error details:', {
-        name: err?.name || 'Unknown',
-        message: err?.message || 'Unknown error',
-        stack: err?.stack || 'No stack trace'
+        name: err instanceof Error ? err.name : 'Unknown',
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : 'No stack trace'
       });
       setError(err instanceof Error ? err.message : 'Failed to create brief');
     } finally {
@@ -156,12 +170,12 @@ export default function BriefUploadPage() {
   
   return (
     <div>
-      {error && (
-        <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-700 flex items-center">
-          <AlertCircle className="w-4 h-4 mr-2" />
-          {error}
-        </div>
-      )}
+      <ErrorPopup
+        isVisible={!!error}
+        message={error ?? ''}
+        onClose={() => setError(null)}
+        autoClose={true}
+      />
       <BriefEditor onSubmit={handleSubmit} />
     </div>
   );

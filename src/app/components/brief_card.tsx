@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Clock, BookOpen, ExternalLink, Award } from 'lucide-react';
+import { Clock, BookOpen, ExternalLink, Award, Star } from 'lucide-react';
 
 export type BriefCardProps = {
   id: string;
@@ -13,8 +13,11 @@ export type BriefCardProps = {
   readTime: string;
   category: string;
   views: number;
+  rating?: number;
+  reviewCount?: number;
   featured?: boolean;
   compact?: boolean;
+  slug?: string;
 };
 
 const BriefCard: React.FC<BriefCardProps> = ({
@@ -26,8 +29,11 @@ const BriefCard: React.FC<BriefCardProps> = ({
   readTime,
   category,
   views,
+  rating,
+  reviewCount,
   featured = false,
   compact = false,
+  slug,
 }) => {
   const formattedDate = new Date(date).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -35,13 +41,16 @@ const BriefCard: React.FC<BriefCardProps> = ({
     day: 'numeric',
   });
 
+  // Use slug if available, otherwise fall back to id
+  const href = `/briefs/${id}`;
+
   return (
     <div 
       className={`group bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 overflow-hidden ${
         featured ? 'ring-2 ring-blue-500 ring-opacity-50' : ''
       }`}
     >
-      <Link href={`/brief/${id}`} className="block h-full">
+      <Link href={href} className="block h-full">
         <div className="p-5">
           {featured && (
             <div className="flex items-center mb-2">
@@ -74,6 +83,12 @@ const BriefCard: React.FC<BriefCardProps> = ({
               <BookOpen className="h-3 w-3 mr-1" />
               {readTime} read
             </span>
+            {rating && reviewCount && reviewCount > 0 && (
+              <span className="flex items-center mr-3">
+                <Star className="h-3 w-3 mr-1 text-yellow-500 fill-current" />
+                {rating.toFixed(1)} ({reviewCount})
+              </span>
+            )}
             <span className="px-2 py-0.5 bg-gray-100 rounded-full">
               {category}
             </span>

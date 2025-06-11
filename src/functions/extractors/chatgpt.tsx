@@ -289,6 +289,7 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
       console.info(url)
     const model: "OpenAI" | "Perplexity" | "Anthropic" | "Other" = "OpenAI";
       // model is explicitly typed with a union type to restrict its value to only these specific string literals
+      // Note: This will be normalized to lowercase when passed to the model lookup function
       
       // Extract thinking content (this is usually not visible in ChatGPT responses,
       // but we keep this as a placeholder)

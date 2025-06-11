@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { type Metadata } from "next";
 import NavTriangles from "./components/nav_triangles";
 import ClientSessionProvider from "./auth/SessionProvider";
+import ErrorBoundary from "./components/error_boundary";
 
 export const metadata: Metadata = {
   title: "Deep Scholar",
@@ -22,10 +23,12 @@ export default function RootLayout({
           
           {/* Use SessionProvider without server-side session */}
           <ClientSessionProvider>
-            {/* Content with appropriate padding and z-index */}
-            <main className="relative z-10">
-              {children}
-            </main>
+            <ErrorBoundary>
+              {/* Content with appropriate padding and z-index */}
+              <main className="relative z-10 pt-18">
+                {children}
+              </main>
+            </ErrorBoundary>
           </ClientSessionProvider>
         </div>
       </body>

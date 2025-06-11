@@ -18,8 +18,9 @@ import {
 } from "lucide-react";
 
 import HtmlInspector from './html_inspector';
-import type { BriefData } from './extract_brief';
+import type { BriefData } from '@/functions/types';
 import { extractBriefFromUrl } from './extract_brief';
+import ErrorPopup from './error_popup';
 
 import {
   urlSchema,
@@ -32,7 +33,6 @@ import {
   markdownComponents,
   titleComponents,
   referenceComponents,
-  thinkingComponents,
   sectionVariants,
   urlCardVariants
 } from './brief_editor_utils';
@@ -92,6 +92,7 @@ export default function BriefEditor({ onSubmit }: BriefEditorProps) {
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [isAbstractEditing, setIsAbstractEditing] = useState(false);
   const [isContentEditing, setIsContentEditing] = useState(false);
+  const [isThinkingEditing, setIsThinkingEditing] = useState(false);
   
   // Refs
   const bottomControlsRef = useRef<HTMLDivElement>(null);
@@ -163,8 +164,7 @@ export default function BriefEditor({ onSubmit }: BriefEditorProps) {
     setIsValidUrl(null);
     setError(null);
     setBriefData(null);
-    setShow
-  setShowTitleSection(false);
+    setShowTitleSection(false);
     setShowAbstractSection(false);
     setShowContentSection(false);
     setShowSourcesSection(false);
@@ -379,13 +379,19 @@ export default function BriefEditor({ onSubmit }: BriefEditorProps) {
                     )}
                   </div>
                 </div>
-                {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
                 {!showTitleSection && (
                   <p className="mt-2 text-xs text-gray-500 text-center">
                     Supports OpenAI and Perplexity deep research URLs
                   </p>
                 )}
               </div>
+              
+              <ErrorPopup
+                isVisible={!!error}
+                message={error ?? ''}
+                onClose={() => setError(null)}
+                autoClose={true}
+              />
               
               {/* Sources Section */}
               <motion.div
@@ -669,6 +675,80 @@ export default function BriefEditor({ onSubmit }: BriefEditorProps) {
                       </div>
                     )}
                   </>
+                )}
+              </motion.div>
+
+              {/* Prompt/Thinking Section */}
+              <motion.div
+                initial="hidden"
+                animate={showContentSection ? "visible" : "hidden"}
+                variants={sectionVariants}
+                className={`bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4 mb-4 border ${colors.secondary}`}
+              >
+                <div className="flex justify-between items-center mb-2">
+                  <h2 className="text-lg font-semibold">Original Prompt</h2>
+                  {!isThinkingEditing && (
+                    <button 
+                      onClick={() => setIsThinkingEditing(true)}
+                      className={`hover:${colors.tertiary} p-1`}
+                      aria-label="Edit prompt"
+                    >
+                      <Edit2 size={16} className={colors.tertiary} />
+                    </button>
+                  )}
+                </div>
+                
+                {isThinkingEditing ? (
+                  <div>
+                    <textarea
+                      defaultValue={briefData?.thinking ?? ""}
+                      className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[120px]"
+                      onBlur={(e) => {
+                        if (briefData) {
+                          setBriefData({
+                            ...briefData,
+                            thinking: e.target.value
+                          });
+                        }
+                        setIsThinkingEditing(false);
+                      }}
+                      autoFocus
+                      placeholder="Enter the original prompt or question that generated this research..."
+                    />
+                    <div className="flex justify-between mt-1 text-xs text-gray-500">
+                      <span>{briefData?.thinking?.length ?? 0} characters</span>
+                      <button 
+                        onClick={() => setIsThinkingEditing(false)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="prose max-w-none">
+                    {briefData?.thinking ? (
+                      <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeSanitize, rehypeRaw]}
+                          components={markdownComponents}
+                        >
+                          {briefData.thinking}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="py-3 text-center text-gray-500 text-sm">
+                        <p>No original prompt available.</p>
+                        <button 
+                          onClick={() => setIsThinkingEditing(true)}
+                          className="mt-1 text-blue-600 hover:underline text-xs"
+                        >
+                          Add Prompt
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </motion.div>
             </div>

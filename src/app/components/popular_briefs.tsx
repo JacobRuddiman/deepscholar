@@ -1,64 +1,122 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { BriefCardProps } from './brief_card';
 import BriefCard from './brief_card';
+import { getPopularBriefs } from '@/server/actions/home';
 
 type PopularBriefsProps = {
   briefs?: BriefCardProps[];
 };
 
-// Sample data for demonstration
-const sampleBriefs: BriefCardProps[] = [
-  {
-    id: '1',
-    title: 'Quantum Computing Impact on Modern Cryptography',
-    abstract: 'A detailed analysis of how quantum computing advancements will affect current cryptographic methods and the steps being taken to develop quantum-resistant algorithms.',
-    model: 'OpenAI',
-    date: '2025-02-10',
-    readTime: '7 min',
-    category: 'Computer Science',
-    views: 4893,
-    featured: true
-  },
-  {
-    id: '2',
-    title: 'The Evolution of Protein Folding Algorithms',
-    abstract: 'Examining the latest advancements in computational methods for predicting protein structures and how they contribute to drug discovery and treatment development.',
-    model: 'Anthropic',
-    date: '2025-02-15',
-    readTime: '5 min',
-    category: 'Biology',
-    views: 3217
-  },
-  {
-    id: '3',
-    title: 'Climate Model Accuracy: A 50-Year Retrospective',
-    abstract: 'Analyzing the historical accuracy of climate prediction models from the 1970s to present day, with insights into their improving precision and remaining challenges.',
-    model: 'Perplexity',
-    date: '2025-02-21',
-    readTime: '8 min',
-    category: 'Environmental Science',
-    views: 2954
-  },
-  {
-    id: '4',
-    title: 'Neural Networks in Financial Market Prediction',
-    abstract: 'Exploring how deep learning models are being applied to financial forecasting and the ethical considerations of algorithmic trading systems.',
-    model: 'OpenAI',
-    date: '2025-02-18',
-    readTime: '6 min',
-    category: 'Finance',
-    views: 3752
-  }
-];
+// Transform database brief to BriefCardProps
+const transformBrief = (brief: any): BriefCardProps => {
+  const reviewCount = brief.reviews?.length ?? 0;
+  const averageRating = reviewCount > 0 
+    ? brief.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviewCount 
+    : undefined;
 
-const PopularBriefs: React.FC<PopularBriefsProps> = ({ briefs = sampleBriefs }) => {
+  return {
+    id: brief.id,
+    title: brief.title,
+    abstract: brief.abstract ?? '',
+    model: brief.model?.name ?? 'Unknown',
+    date: brief.createdAt.toISOString().split('T')[0],
+    readTime: `${Math.max(1, Math.ceil((brief.response?.length ?? 0) / 1000))} min`,
+    category: brief.categories?.[0]?.name ?? 'General',
+    views: brief.viewCount ?? 0,
+    rating: averageRating,
+    reviewCount: reviewCount,
+    featured: (brief.viewCount ?? 0) > 100,
+    slug: brief.slug,
+  };
+};
+
+const PopularBriefs: React.FC<PopularBriefsProps> = ({ briefs: propBriefs }) => {
+  const [briefs, setBriefs] = useState<BriefCardProps[]>(propBriefs ?? []);
+  const [loading, setLoading] = useState(!propBriefs);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!propBriefs) {
+      const fetchBriefs = async () => {
+        try {
+          setLoading(true);
+          const result = await getPopularBriefs(4);
+          if (result.success && result.data) {
+            setBriefs(result.data.map(transformBrief));
+          } else {
+            setError('Failed to load popular briefs');
+          }
+        } catch (err) {
+          setError('Failed to load popular briefs');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchBriefs();
+    }
+  }, [propBriefs]);
+
+  if (loading) {
+    return (
+      <section className="py-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Popular Research Insights</h2>
+          <a href="/briefs" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+            View all
+          </a>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-lg shadow-sm p-4 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="py-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Popular Research Insights</h2>
+          <a href="/briefs" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+            View all
+          </a>
+        </div>
+        <div className="text-center py-8 text-gray-500">
+          {error}
+        </div>
+      </section>
+    );
+  }
+
+  if (briefs.length === 0) {
+    return (
+      <section className="py-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Popular Research Insights</h2>
+          <a href="/briefs" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+            View all
+          </a>
+        </div>
+        <div className="text-center py-8 text-gray-500">
+          No popular briefs available yet. <a href="/brief_upload" className="text-blue-600 hover:text-blue-800">Create the first one!</a>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-gray-900">Popular Research Insights</h2>
-        <a href="/browse" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+        <a href="/briefs" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
           View all
         </a>
       </div>

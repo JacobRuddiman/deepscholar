@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { 
   User, 
@@ -14,36 +15,74 @@ import {
   X,
   AlertCircle
 } from 'lucide-react';
+import { getUserTokenBalance, getUserTokenTransactions } from '@/server/actions/tokens';
+import { getProfileImageSrc, profileImageClasses } from '@/lib/profileUtils';
 
 type SettingsSection = 'profile' | 'notifications' | 'tokens' | 'account';
 
 export default function SettingsPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
-    name: session?.user?.name || '',
-    email: session?.user?.email || '',
-    image: session?.user?.image || '',
+    name: session?.user?.name ?? '',
+    email: session?.user?.email ?? '',
+    image: session?.user?.image ?? '',
   });
 
   // Notification preferences state
   const [notificationPrefs, setNotificationPrefs] = useState({
     emailNotifications: true,
-    briefUpdates: true,
-    reviewNotifications: true,
-    tokenAlerts: true,
+    briefInterestUpdates: true,
+    promotionalNotifications: true,
   });
 
-  // Token transaction history (mock data)
-  const [tokenHistory] = useState([
-    { id: 1, date: '2024-03-20', amount: 100, reason: 'Brief creation' },
-    { id: 2, date: '2024-03-19', amount: -50, reason: 'AI Review request' },
-    { id: 3, date: '2024-03-18', amount: 500, reason: 'Token purchase' },
-  ]);
+  // Token data state
+  const [tokenBalance, setTokenBalance] = useState(0);
+  const [tokenTransactions, setTokenTransactions] = useState<any[]>([]);
+
+  // Load notification preferences and token data on component mount
+  React.useEffect(() => {
+    const loadNotificationPrefs = async () => {
+      try {
+        const response = await fetch('/api/settings/notifications');
+        if (response.ok) {
+          const data = await response.json() as { success: boolean; preferences: typeof notificationPrefs };
+          if (data.success && data.preferences) {
+            setNotificationPrefs(data.preferences);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load notification preferences:', error);
+      }
+    };
+
+    const loadTokenData = async () => {
+      try {
+        const [balanceResult, transactionsResult] = await Promise.all([
+          getUserTokenBalance(),
+          getUserTokenTransactions(5) // Get last 5 transactions for settings preview
+        ]);
+
+        if (balanceResult.success) {
+          setTokenBalance(balanceResult.balance);
+        }
+
+        if (transactionsResult.success) {
+          setTokenTransactions(transactionsResult.data);
+        }
+      } catch (error) {
+        console.error('Failed to load token data:', error);
+      }
+    };
+
+    void loadNotificationPrefs();
+    void loadTokenData();
+  }, []);
 
   const handleProfileUpdate = async () => {
     try {
@@ -57,8 +96,20 @@ export default function SettingsPage() {
 
   const handleNotificationUpdate = async () => {
     try {
-      // TODO: Implement notification preferences update API call
-      setNotification({ type: 'success', message: 'Notification preferences updated!' });
+      const response = await fetch('/api/settings/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(notificationPrefs),
+      });
+
+      if (response.ok) {
+        setNotification({ type: 'success', message: 'Notification preferences updated!' });
+      } else {
+        const data = await response.json() as { error: string };
+        setNotification({ type: 'error', message: data.error || 'Failed to update notification preferences' });
+      }
     } catch (error) {
       setNotification({ type: 'error', message: 'Failed to update notification preferences' });
     }
@@ -154,9 +205,9 @@ export default function SettingsPage() {
                     </label>
                     <div className="flex items-center">
                       <img
-                        src={profileForm.image || '/default-avatar.png'}
+                        src={getProfileImageSrc(profileForm.image || null, session?.user?.id, session?.user?.email)}
                         alt="Profile"
-                        className="w-16 h-16 rounded-full"
+                        className={profileImageClasses.large}
                       />
                       {isEditing && (
                         <button className="ml-4 text-blue-600 text-sm hover:underline">
@@ -208,96 +259,83 @@ export default function SettingsPage() {
               >
                 <h2 className="text-2xl font-bold mb-6">Notification Preferences</h2>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-md">
+                  {/* Master Email Notifications Toggle */}
+                  <div className="flex items-center justify-between p-6 bg-blue-50 border-2 border-blue-200 rounded-lg">
                     <div>
-                      <h3 className="font-medium">Email Notifications</h3>
-                      <p className="text-sm text-gray-500">
-                        Receive important updates via email
+                      <h3 className="font-semibold text-lg text-blue-900">Email Notifications</h3>
+                      <p className="text-sm text-blue-700">
+                        Master control for all email notifications. When disabled, you won&apos;t receive any emails.
                       </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
                         checked={notificationPrefs.emailNotifications}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const isEnabled = e.target.checked;
                           setNotificationPrefs({
                             ...notificationPrefs,
-                            emailNotifications: e.target.checked,
-                          })
-                        }
+                            emailNotifications: isEnabled,
+                            // If disabling master toggle, disable all sub-options
+                            briefInterestUpdates: isEnabled ? notificationPrefs.briefInterestUpdates : false,
+                            promotionalNotifications: isEnabled ? notificationPrefs.promotionalNotifications : false,
+                          });
+                        }}
                         className="sr-only peer"
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-md">
-                    <div>
-                      <h3 className="font-medium">Brief Updates</h3>
-                      <p className="text-sm text-gray-500">
-                        Get notified about updates to your briefs
-                      </p>
+                  {/* Sub-notification options */}
+                  <div className={`space-y-3 ml-6 ${!notificationPrefs.emailNotifications ? 'opacity-50' : ''}`}>
+                    <div className={`flex items-center justify-between p-4 bg-gray-50 rounded-md border-l-4 border-gray-300 ${!notificationPrefs.emailNotifications ? 'cursor-not-allowed' : ''}`}>
+                      <div>
+                        <h3 className="font-medium">Brief Updates</h3>
+                        <p className="text-sm text-gray-500">
+                          Get notified when your briefs receive interactions (upvotes, reviews)
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notificationPrefs.briefInterestUpdates}
+                          disabled={!notificationPrefs.emailNotifications}
+                          onChange={(e) =>
+                            setNotificationPrefs({
+                              ...notificationPrefs,
+                              briefInterestUpdates: e.target.checked,
+                            })
+                          }
+                          className="sr-only peer"
+                        />
+                        <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 ${!notificationPrefs.emailNotifications ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationPrefs.briefUpdates}
-                        onChange={(e) =>
-                          setNotificationPrefs({
-                            ...notificationPrefs,
-                            briefUpdates: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                  </div>
 
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-md">
-                    <div>
-                      <h3 className="font-medium">Review Notifications</h3>
-                      <p className="text-sm text-gray-500">
-                        Notifications about new reviews on your briefs
-                      </p>
+                    <div className={`flex items-center justify-between p-4 bg-gray-50 rounded-md border-l-4 border-gray-300 ${!notificationPrefs.emailNotifications ? 'cursor-not-allowed' : ''}`}>
+                      <div>
+                        <h3 className="font-medium">Promotional Emails</h3>
+                        <p className="text-sm text-gray-500">
+                          Get notified about platform updates and re-engagement emails
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notificationPrefs.promotionalNotifications}
+                          disabled={!notificationPrefs.emailNotifications}
+                          onChange={(e) =>
+                            setNotificationPrefs({
+                              ...notificationPrefs,
+                              promotionalNotifications: e.target.checked,
+                            })
+                          }
+                          className="sr-only peer"
+                        />
+                        <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 ${!notificationPrefs.emailNotifications ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationPrefs.reviewNotifications}
-                        onChange={(e) =>
-                          setNotificationPrefs({
-                            ...notificationPrefs,
-                            reviewNotifications: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-md">
-                    <div>
-                      <h3 className="font-medium">Token Alerts</h3>
-                      <p className="text-sm text-gray-500">
-                        Get notified about token balance and transactions
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationPrefs.tokenAlerts}
-                        onChange={(e) =>
-                          setNotificationPrefs({
-                            ...notificationPrefs,
-                            tokenAlerts: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
                   </div>
 
                   <button
@@ -323,51 +361,69 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-blue-900">Current Balance</h3>
-                      <p className="text-3xl font-bold text-blue-600">550 Tokens</p>
+                      <p className="text-3xl font-bold text-blue-600">{tokenBalance} Tokens</p>
                     </div>
-                    <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+                    <button 
+                      onClick={() => router.push('/tokens')}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                    >
                       Purchase Tokens
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">Transaction History</h3>
-                  <div className="bg-white rounded-lg border">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Date
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Transaction
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Amount
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {tokenHistory.map((transaction) => (
-                            <tr key={transaction.id}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {transaction.date}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {transaction.reason}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                <span className={transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}>
-                                  {transaction.amount > 0 ? '+' : ''}{transaction.amount}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <h3 className="text-lg font-semibold mb-4">Recent Transactions</h3>
+                  {tokenTransactions.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Coins className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                      <p>No transactions yet</p>
                     </div>
+                  ) : (
+                    <div className="bg-white rounded-lg border">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Date
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Transaction
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Amount
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {tokenTransactions.map((transaction) => (
+                              <tr key={transaction.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(transaction.createdAt).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {transaction.reason}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                  <span className={transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}>
+                                    {transaction.amount > 0 ? '+' : ''}{transaction.amount}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-4 text-center">
+                    <button 
+                      onClick={() => router.push('/tokens')}
+                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    >
+                      View Full Token History →
+                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -434,4 +490,4 @@ export default function SettingsPage() {
       </div>
     </div>
   );
-} 
+}

@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/brief-interaction-notifier",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/promote-interaction",
+      "schedule": "0 10 * * *"
+    }
+  ]
+}

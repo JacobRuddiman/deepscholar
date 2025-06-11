@@ -3,30 +3,37 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-  relationMode = "prisma"
 }
 
 // User model (extends NextAuth)
 model User {
-  id               String          @id @default(cuid())
-  name             String?
-  email            String?         @unique
-  emailVerified    DateTime?
-  image            String?
-  accounts         Account[]
-  sessions         Session[]
-  briefs           Brief[]         // Research briefs created by the user
-  reviews          Review[]        // Reviews created by the user
-  briefUpvotes     BriefUpvote[]   // Upvotes given by the user to briefs
-  reviewUpvotes    ReviewUpvote[]  // Upvotes given by the user to reviews
-  savedBriefs      SavedBrief[]    // Briefs saved by the user
-  tokenBalance     UserToken?      // User's token balance
-  tokenTransactions TokenTransaction[]
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                    String          @id @default(cuid())
+  name                  String?
+  email                 String?         @unique
+  emailVerified         DateTime?
+  image                 String?
+  isAdmin               Boolean         @default(false)
+  lastInteractionDate   DateTime?       // Last time user interacted with the site
+  lastPromotionEmailDate DateTime?      // Last time promotion email was sent
+  emailNotifications    Boolean         @default(true)   // Master email notifications toggle
+  briefInterestUpdates  Boolean         @default(true)   // Brief interaction notifications
+  promotionalNotifications Boolean      @default(true)   // Promotional/re-engagement notifications
+  accounts              Account[]
+  sessions              Session[]
+  briefs                Brief[]         // Research briefs created by the user
+  reviews               Review[]        // Reviews created by the user
+  briefUpvotes          BriefUpvote[]   // Upvotes given by the user to briefs
+  reviewUpvotes         ReviewUpvote[]  // Upvotes given by the user to reviews
+  savedBriefs           SavedBrief[]    // Briefs saved by the user
+  briefViews            BriefView[]     // Briefs viewed by the user
+  tokenBalance          UserToken?      // User's token balance
+  tokenTransactions     TokenTransaction[]
+  tokenPurchases        TokenPurchase[] // Token purchases made by the user
+  reviewHelpful         ReviewHelpful[] // Reviews marked as helpful by the user
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 }
 
 // NextAuth required models
@@ -36,12 +43,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -104,10 +111,10 @@ model Source {
 model Brief {
   id               String            @id @default(cuid())
   title            String
-  prompt           String            @db.Text
-  response         String            @db.Text
-  abstract         String?           @db.Text  // Optional summary/abstract
-  thinking         String?           @db.Text  // Optional AI's thinking process
+  prompt           String
+  response         String
+  abstract         String?           // Optional summary/abstract
+  thinking         String?           // Optional AI's thinking process
   modelId          String
   model            ResearchAIModel   @relation(fields: [modelId], references: [id])
   userId           String
@@ -118,11 +125,12 @@ model Brief {
   aiReviews        AIReview[]        // AI-generated reviews
   upvotes          BriefUpvote[]     // User upvotes
   savedBy          SavedBrief[]      // Users who saved this brief
+  viewedBy         BriefView[]       // Users who have viewed this brief
   tokenTransactions TokenTransaction[] // Token transactions related to this brief
   viewCount        Int               @default(0)
   readTime         Int?              // Optional estimated read time in minutes
   accuracy         Float?            // 1-5 rating based on reviews and AI reviews
-  slug             String            @unique   // URL-friendly identifier
+  slug             String?           @unique   // Optional URL-friendly identifier
   published        Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -141,14 +149,14 @@ model Category {
 // User-generated reviews
 model Review {
   id           String         @id @default(cuid())
-  content      String         @db.Text
+  content      String
   rating       Int            // 1-5 star rating
   briefId      String
   brief        Brief          @relation(fields: [briefId], references: [id])
   userId       String
   author       User           @relation(fields: [userId], references: [id])
   upvotes      ReviewUpvote[] // Upvotes for this review
-  helpfulCount Int            @default(0) // Counter for upvotes
+  helpfulMarks ReviewHelpful[] // Users who marked this review as helpful
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 }
@@ -156,7 +164,7 @@ model Review {
 // AI-generated reviews
 model AIReview {
   id           String         @id @default(cuid())
-  content      String         @db.Text
+  content      String
   rating       Int            // 1-5 star rating
   briefId      String
   brief        Brief          @relation(fields: [briefId], references: [id])
@@ -203,6 +211,18 @@ model SavedBrief {
   @@unique([userId, briefId])
 }
 
+// Brief Views - Track which briefs a user has viewed
+model BriefView {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  briefId    String
+  brief      Brief    @relation(fields: [briefId], references: [id])
+  createdAt  DateTime @default(now())
+  
+  @@unique([userId, briefId]) // Ensure one view record per user per brief
+}
+
 // User Token Balance
 model UserToken {
   id         String    @id @default(cuid())
@@ -218,8 +238,37 @@ model TokenTransaction {
   userId     String
   user       User      @relation(fields: [userId], references: [id])
   amount     Int       // Positive for additions, negative for usage
-  reason     String    // e.g., "Brief creation", "AI Review request", "Purchase"
+  reason     String    // e.g., "Brief creation", "Review reward", "Upvote reward", "Purchase"
   briefId    String?   // Optional link to a brief if relevant
   brief      Brief?    @relation(fields: [briefId], references: [id])
+  reviewId   String?   // Optional link to a review if relevant
+  purchaseId String?   // Optional link to a purchase if relevant
   createdAt  DateTime  @default(now())
+}
+
+// Token Purchases
+model TokenPurchase {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  packageName   String    // e.g., "Starter Pack", "Pro Pack"
+  tokensAmount  Int       // Number of tokens purchased
+  priceUSD      Float     // Price in USD
+  paymentMethod String?   // e.g., "stripe", "paypal"
+  paymentId     String?   // External payment reference
+  status        String    @default("pending") // "pending", "completed", "failed"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Review Helpful Marks
+model ReviewHelpful {
+  id         String   @id @default(cuid())
+  reviewId   String
+  review     Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([reviewId, userId]) // Prevent duplicate helpful marks
 }
