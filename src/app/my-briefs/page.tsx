@@ -11,7 +11,8 @@ import {
   Loader2,
   ExternalLink,
   Filter,
-  Trash2
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import ErrorPopup from '../components/error_popup';
 
@@ -186,6 +187,16 @@ export default function MyBriefsPage() {
 
                 <div className="flex flex-col items-end space-y-2">
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/briefs/${brief.id}/edit`);
+                      }}
+                      className="flex items-center space-x-1 px-2 py-1 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      <span>Edit</span>
+                    </button>
                     <button
                       onClick={(e) => handleDeleteBrief(brief.id, e)}
                       className="flex items-center space-x-1 px-2 py-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm"

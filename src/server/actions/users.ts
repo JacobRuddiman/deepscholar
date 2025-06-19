@@ -38,14 +38,22 @@ export async function getTopContributors({
         _count: {
           select: {
             briefs: {
-              where: { published: true }
+              where: { 
+                published: true,
+                isActive: true,
+                isDraft: false,
+              }
             },
             reviews: true,
             briefUpvotes: true,
           },
         },
         briefs: {
-          where: { published: true },
+          where: { 
+            published: true,
+            isActive: true,
+            isDraft: false,
+          },
           include: {
             reviews: {
               select: {
@@ -131,6 +139,40 @@ export async function getTopContributors({
   }
 }
 
+// Get all user briefs for activity feed (including all versions)
+export async function getUserActivityBriefs(userId: string) {
+  try {
+    const allBriefs = await db.brief.findMany({
+      where: {
+        userId: userId,
+        published: true,
+      },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        versionNumber: true,
+        isDraft: true,
+        changeLog: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    return {
+      success: true,
+      data: allBriefs,
+    };
+  } catch (error) {
+    console.error('Error fetching user activity briefs:', error);
+    return {
+      success: false,
+      error: 'Failed to fetch activity briefs',
+      data: [],
+    };
+  }
+}
+
 // Get user profile data
 export async function getUserProfile(userId: string) {
   try {
@@ -138,6 +180,11 @@ export async function getUserProfile(userId: string) {
       where: { id: userId },
       include: {
         briefs: {
+          where: {
+            published: true,
+            isActive: true,
+            isDraft: false,
+          },
           include: {
             categories: true,
             model: true,

@@ -4,6 +4,7 @@ import { BriefData } from '@/functions/types';
 import { extractFromChatGPT } from '@/functions/extractors/chatgpt';
 import { extractFromPerplexity } from '@/functions/extractors/perplexity';
 import { extractFromGoogle } from '@/functions/extractors/google';
+import { extractFromAnthropic } from '@/functions/extractors/anthropic';
 import { extractGeneric } from '@/functions/extractors/generic';
 
 // Main function to extract brief from URL
@@ -16,7 +17,11 @@ export async function extractBriefFromUrl(url: string): Promise<BriefData> { // 
   } else if (lowerUrl.includes('perplexity.ai')) {
     console.info('Using perplexity extractor');
     return extractFromPerplexity(lowerUrl);
+  } else if (lowerUrl.includes('claude.ai') || lowerUrl.includes('anthropic.com')) {
+    console.info('Using anthropic extractor');
+    return extractFromAnthropic(lowerUrl);
   } else if (lowerUrl.includes('google.com')) {
+    console.info('Using google extractor');
     return extractFromGoogle(lowerUrl);
   } else {
     // Default extractor or generic approach

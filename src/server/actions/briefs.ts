@@ -45,7 +45,7 @@ async function getUserId() {
   }
 }
 
-// Get all briefs for the current user
+// Get all briefs for the current user (only active versions)
 export async function getUserBriefs() {
   try {
     console.log('Starting getUserBriefs');
@@ -57,6 +57,8 @@ export async function getUserBriefs() {
     const briefs = await db.brief.findMany({
       where: {
         userId,
+        isActive: true, // Only return active versions
+        isDraft: false, // Exclude drafts
       },
       include: {
         categories: true,
@@ -76,7 +78,7 @@ export async function getUserBriefs() {
           createdAt: 'desc' as const,
         },
     });
-    console.log(`Found ${briefs.length} briefs`);
+    console.log(`Found ${briefs.length} active briefs`);
 
     return {
       success: true,
@@ -91,161 +93,6 @@ export async function getUserBriefs() {
     return {
       success: false,
       error: 'Failed to fetch briefs',
-    };
-  }
-}
-
-// Get reviews written by the current user
-export async function getUserReviews() {
-  try {
-    const userId = await getUserId();
-
-    const reviews = await db.review.findMany({
-      where: {
-        userId: userId,
-      },
-      include: {
-        brief: {
-          select: {
-            id: true,
-            title: true,
-            slug: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    return {
-      success: true,
-      data: reviews,
-    };
-  } catch (error) {
-    console.error('Error fetching user reviews:', error);
-    return {
-      success: false,
-      error: 'Failed to fetch reviews',
-    };
-  }
-}
-
-// Get a single brief by slug or ID
-export async function getBriefBySlug(slug: string) {
-  try {
-    console.log('Starting getBriefBySlug with slug:', slug);
-    console.log('Slug type:', typeof slug);
-    console.log('Slug length:', slug.length);
-    console.log('Is slug likely an ID?', slug.length > 20);
-    
-    const includeOptions = {
-      categories: true,
-      sources: true,
-      upvotes: true,
-      savedBy: true,
-      reviews: {
-        include: {
-          author: {
-            select: {
-              id: true,
-              name: true,
-              image: true,
-            },
-          },
-          upvotes: true,
-          helpfulMarks: true,
-        },
-        orderBy: {
-          createdAt: 'desc' as const,
-        },
-      },
-      aiReviews: {
-        include: {
-          model: true,
-        },
-        orderBy: {
-          createdAt: 'desc' as const,
-        },
-      },
-      model: true,
-      author: {
-        select: {
-          id: true,
-          name: true,
-          image: true,
-        },
-      },
-    };
-
-    // First try to find by slug
-    let brief = await db.brief.findUnique({
-      where: {
-        slug: slug,
-      },
-      include: includeOptions,
-    });
-
-    // If not found by slug, try by ID (for cases where slug is actually an ID)
-    if (!brief) {
-      console.log('Brief not found by slug, trying by ID:', slug);
-      brief = await db.brief.findUnique({
-        where: {
-          id: slug,
-        },
-        include: includeOptions,
-      });
-      
-      if (brief) {
-        console.log('Brief found by ID:', { id: brief.id, slug: brief.slug, title: brief.title });
-      }
-    } else {
-      console.log('Brief found by slug:', { id: brief.id, slug: brief.slug, title: brief.title });
-    }
-
-    if (!brief) {
-      console.log('Brief not found by either slug or ID:', slug);
-      return {
-        success: false,
-        error: 'Brief not found',
-      };
-    }
-
-    // Increment view count - use the appropriate field for the update
-    try {
-      if (brief.slug) {
-        await db.brief.update({
-          where: { slug: brief.slug },
-          data: {
-            viewCount: {
-              increment: 1,
-            },
-          },
-        });
-      } else {
-        await db.brief.update({
-          where: { id: brief.id },
-          data: {
-            viewCount: {
-              increment: 1,
-            },
-          },
-        });
-      }
-    } catch (updateError) {
-      console.warn('Failed to update view count:', updateError);
-      // Don't fail the whole request if view count update fails
-    }
-
-    return {
-      success: true,
-      data: brief,
-    };
-  } catch (error) {
-    console.error('Error fetching brief by slug:', error);
-    return {
-      success: false,
-      error: 'Failed to fetch brief',
     };
   }
 }
@@ -284,9 +131,15 @@ export async function getBriefById(briefId: string) {
       };
     }
 
+    // Ensure we return the response field as content for the editor
+    const briefWithContent = {
+      ...brief,
+      content: brief.response, // Map response to content for editor compatibility
+    };
+
     return {
       success: true,
-      data: brief,
+      data: briefWithContent,
     };
   } catch (error) {
     console.error('Error fetching brief:', error);
@@ -297,122 +150,151 @@ export async function getBriefById(briefId: string) {
   }
 }
 
-// Create a new brief
-export async function createBrief(input: CreateBriefInput) {
-  console.log('\n==========================================');
-  console.log('🚀 STARTING CREATE BRIEF OPERATION');
-  console.log('==========================================\n');
-
+// Get all versions of a brief
+export async function getBriefVersions(briefId: string) {
   try {
-    // Set default prompt if empty
-    const briefData = {
-      ...input,
-      prompt: input.prompt ?? 'placeholder'
-    };
-
-    // Log environment and mode
-    console.log('📋 ENVIRONMENT CHECK');
-    console.log('------------------------------------------');
-    const isLocalMode = process.env.NEXT_PUBLIC_LOCAL_MODE === 'true';
-    console.log('Local mode:', isLocalMode);
-    console.log('Node environment:', process.env.NODE_ENV);
-    console.log('------------------------------------------\n');
-
-    // Authentication logging
-    console.log('🔐 AUTHENTICATION CHECK');
-    console.log('------------------------------------------');
-    
     const userId = await getUserId();
-    console.log('User ID being used:', userId);
-    console.log('------------------------------------------\n');
 
-    // Token validation
-    console.log('💰 TOKEN VALIDATION');
-    console.log('------------------------------------------');
-    const { deductTokens, getTokenCosts } = await import('./tokens');
-    const TOKEN_COSTS = await getTokenCosts();
-    
-    const tokenResult = await deductTokens(
-      TOKEN_COSTS.PUBLISH_BRIEF,
-      'Brief publication',
-      undefined,
-      undefined
-    );
+    // Get the root brief (original or any version to find the parent)
+    const brief = await db.brief.findUnique({
+      where: { id: briefId },
+      select: { 
+        id: true, 
+        parentBriefId: true, 
+        userId: true,
+        versionNumber: true 
+      },
+    }) as any;
 
-    if (!tokenResult.success) {
-      console.log('❌ Insufficient tokens:', tokenResult.error);
+    if (!brief) {
       return {
         success: false,
-        error: tokenResult.error,
-        insufficientTokens: true,
-        requiredTokens: TOKEN_COSTS.PUBLISH_BRIEF,
-        currentBalance: tokenResult.balance ?? 0,
+        error: 'Brief not found',
       };
     }
 
-    console.log('✅ Tokens deducted successfully. New balance:', tokenResult.balance);
-    console.log('------------------------------------------\n');
+    // Find the root brief ID (either this brief if it's the original, or its parent)
+    const rootBriefId = brief.parentBriefId || brief.id;
 
-    // Input validation logging
-    console.log('📝 INPUT VALIDATION');
-    console.log('------------------------------------------');
-    console.log('Raw input data:', JSON.stringify(briefData, null, 2));
-    
-    // Validate required fields
-    // BRIEF CREATION ENHANCEMENT: Remove slug requirement to prevent unique constraint errors
-    // Since we're now using ID-based routing, slugs are optional and can be null
-    // This prevents duplicate slug errors when multiple briefs have similar titles
-    // The routing system will handle both slug and ID-based URLs automatically
-    const requiredFields = ['title', 'prompt', 'response', 'modelId'];
-    const missingFields = requiredFields.filter(field => !briefData[field as keyof CreateBriefInput]);
-    
-    if (missingFields.length > 0) {
-      console.log('❌ Missing required fields:', missingFields);
-      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-    }
-    
-    // Validate field types and lengths
-    console.log('Field validations:');
-    console.log('- title length:', briefData.title.length);
-    console.log('- prompt length:', briefData.prompt.length);
-    console.log('- response length:', briefData.response.length);
-    console.log('- modelId:', briefData.modelId);
-    console.log('- slug:', briefData.slug);
-    console.log('- categoryIds:', briefData.categoryIds?.length ?? 0);
-    console.log('- sourceIds:', briefData.sourceIds?.length ?? 0);
-    console.log('------------------------------------------\n');
-
-    // Database operation logging
-    console.log('💾 DATABASE OPERATION');
-    console.log('------------------------------------------');
-    console.log('Attempting to create brief with data:', {
-      title: briefData.title,
-      abstract: briefData.abstract ? 'present' : 'absent',
-      prompt: briefData.prompt ? 'present' : 'absent',
-      response: briefData.response ? 'present' : 'absent',
-      thinking: briefData.thinking ? 'present' : 'absent',
-      slug: briefData.slug,
-      modelId: briefData.modelId,
-      userId: userId,
-      categoryCount: briefData.categoryIds?.length ?? 0,
-      sourceCount: briefData.sourceIds?.length ?? 0
+    // Get all versions (including the root brief)
+    const versions = await db.brief.findMany({
+      where: {
+        OR: [
+          { id: rootBriefId },
+          { parentBriefId: rootBriefId }
+        ]
+      } as any,
+      select: {
+        id: true,
+        versionNumber: true,
+        changeLog: true,
+        createdAt: true,
+        updatedAt: true,
+        isDraft: true,
+        isActive: true,
+        userId: true,
+      } as any,
+      orderBy: {
+        versionNumber: 'desc',
+      } as any,
     });
 
-    // Create the brief
-    const brief = await db.brief.create({
+    return {
+      success: true,
+      data: versions,
+      isOwner: brief.userId === userId,
+    };
+  } catch (error) {
+    console.error('Error fetching brief versions:', error);
+    return {
+      success: false,
+      error: 'Failed to fetch brief versions',
+    };
+  }
+}
+
+// Create a new version of a brief
+export async function createBriefVersion(
+  parentBriefId: string, 
+  briefData: {
+    title: string;
+    abstract?: string;
+    prompt: string;
+    response: string;
+    thinking?: string;
+    categoryIds?: string[];
+    sourceIds?: string[];
+  },
+  changeLog: string
+) {
+  try {
+    const userId = await getUserId();
+
+    // Verify ownership of the parent brief
+    const parentBrief = await db.brief.findUnique({
+      where: { id: parentBriefId },
+      select: { 
+        userId: true, 
+        parentBriefId: true, 
+        modelId: true,
+        versionNumber: true 
+      } as any,
+    }) as any;
+
+    if (!parentBrief || parentBrief.userId !== userId) {
+      throw new Error('Not authorized to create version of this brief');
+    }
+
+    // Find the root brief ID and get the highest version number
+    const rootBriefId = parentBrief.parentBriefId || parentBriefId;
+    
+    const highestVersion = await db.brief.findFirst({
+      where: {
+        OR: [
+          { id: rootBriefId },
+          { parentBriefId: rootBriefId }
+        ]
+      },
+      orderBy: {
+        versionNumber: 'desc',
+      },
+      select: {
+        versionNumber: true,
+      },
+    });
+
+    const newVersionNumber = (highestVersion?.versionNumber || 0) + 1;
+
+    // First, set all existing versions in this brief family to inactive
+    await db.brief.updateMany({
+      where: {
+        OR: [
+          { id: rootBriefId },
+          { parentBriefId: rootBriefId }
+        ],
+        isDraft: false, // Only update published versions
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    // Create the new version
+    const newVersion = await db.brief.create({
       data: {
         title: briefData.title,
         abstract: briefData.abstract,
         prompt: briefData.prompt,
         response: briefData.response,
         thinking: briefData.thinking,
-        // BRIEF CREATION ENHANCEMENT: Make slug optional to prevent unique constraint errors
-        // Only set slug if it's provided and not empty, otherwise let it be null
-        // This allows multiple briefs with similar titles without slug conflicts
-        ...(briefData.slug && briefData.slug.trim() ? { slug: briefData.slug } : {}),
-        // Note: The routing system will handle both slug and ID-based URLs automatically
-        modelId: briefData.modelId,
+        modelId: parentBrief.modelId,
         userId: userId,
+        parentBriefId: rootBriefId,
+        versionNumber: newVersionNumber,
+        changeLog: changeLog,
+        isDraft: false,
+        published: true,
+        isActive: true, // New versions are active by default
         ...(briefData.categoryIds && {
           categories: {
             connect: briefData.categoryIds.map((id: string) => ({ id })),
@@ -438,98 +320,69 @@ export async function createBrief(input: CreateBriefInput) {
       },
     });
 
-    // Verify the created brief has all required data
-    if (!brief) {
-      throw new Error('Brief creation failed - no brief returned');
-    }
-
-    // Log the created brief for debugging
-    console.log('Created brief:', {
-      id: brief.id,
-      title: brief.title,
-      hasAuthor: !!brief.author,
-      authorId: brief.author?.id ?? null,
-      hasModel: !!brief.model,
-      modelId: brief.model?.id ?? null,
-    });
-
-    console.log('✅ Brief created successfully');
-    console.log('Created brief ID:', brief.id);
-    console.log('------------------------------------------\n');
-
-    // Cache revalidation
-    console.log('🔄 CACHE REVALIDATION');
-    console.log('------------------------------------------');
-    revalidatePath('/briefs');
     revalidatePath('/my-briefs');
-    console.log('Cache revalidated for /briefs and /my-briefs');
-    console.log('------------------------------------------\n');
+    revalidatePath(`/briefs/${parentBriefId}`);
+    revalidatePath(`/briefs/${newVersion.id}`);
 
-    console.log('✨ CREATE BRIEF OPERATION COMPLETED SUCCESSFULLY');
-    console.log('==========================================\n');
-
-    // Return a clean response object
     return {
       success: true,
-      data: brief,
+      data: newVersion,
     };
   } catch (error) {
-    console.log('\n❌ ERROR IN CREATE BRIEF OPERATION');
-    console.log('==========================================');
-    
-    // More detailed error logging
-    if (error instanceof Error) {
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    } else {
-      console.error('Unknown error type:', error);
-    }
-    
-    console.log('==========================================\n');
-
-    // Ensure we always return a valid object
+    console.error('Error creating brief version:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to create brief',
+      error: 'Failed to create brief version',
     };
   }
 }
 
-// Update an existing brief
-export async function updateBrief(briefId: string, input: UpdateBriefInput) {
+// Update an existing version or draft
+export async function updateBriefVersion(
+  briefId: string,
+  briefData: {
+    title: string;
+    abstract?: string;
+    prompt: string;
+    response: string;
+    thinking?: string;
+    categoryIds?: string[];
+    sourceIds?: string[];
+  }
+) {
   try {
     const userId = await getUserId();
 
     // Verify ownership
-    const existingBrief = await db.brief.findUnique({
+    const brief = await db.brief.findUnique({
       where: { id: briefId },
-      select: { userId: true },
-    });
+      select: { 
+        userId: true, 
+        isDraft: true 
+      },
+    }) as any;
 
-    if (!existingBrief || existingBrief.userId !== userId) {
+    if (!brief || brief.userId !== userId) {
       throw new Error('Not authorized to update this brief');
     }
 
     // Update the brief
-    const brief = await db.brief.update({
+    const updatedBrief = await db.brief.update({
       where: { id: briefId },
       data: {
-        ...(input.title && { title: input.title }),
-        ...(input.abstract !== undefined && { abstract: input.abstract }),
-        ...(input.prompt && { prompt: input.prompt }),
-        ...(input.response && { response: input.response }),
-        ...(input.thinking !== undefined && { thinking: input.thinking }),
-        ...(input.modelId && { modelId: input.modelId }),
-        ...(input.published !== undefined && { published: input.published }),
-        ...(input.categoryIds && {
+        title: briefData.title,
+        abstract: briefData.abstract,
+        prompt: briefData.prompt,
+        response: briefData.response,
+        thinking: briefData.thinking,
+        ...(briefData.categoryIds && {
           categories: {
-            set: input.categoryIds.map(id => ({ id })),
+            set: briefData.categoryIds.map(id => ({ id })),
           },
         }),
-        ...(input.sourceIds && {
+        ...(briefData.sourceIds && {
           sources: {
-            set: input.sourceIds.map(id => ({ id })),
+            set: briefData.sourceIds.map(id => ({ id })),
           },
         }),
       },
@@ -547,197 +400,420 @@ export async function updateBrief(briefId: string, input: UpdateBriefInput) {
       },
     });
 
-    revalidatePath('/my-briefs');
-    revalidatePath('/profile');
-    revalidatePath(`/briefs/${briefId}`);
+    return {
+      success: true,
+      data: updatedBrief,
+    };
+  } catch (error) {
+    console.error('Error updating brief version:', error);
+    return {
+      success: false,
+      error: 'Failed to update brief version',
+    };
+  }
+}
+
+// Push draft to version (update version with draft content and delete draft)
+export async function pushDraftToVersion(
+  draftId: string,
+  briefData: {
+    title: string;
+    abstract?: string;
+    prompt: string;
+    response: string;
+    thinking?: string;
+    categoryIds?: string[];
+    sourceIds?: string[];
+  }
+) {
+  try {
+    const userId = await getUserId();
+
+    // Get the draft
+    const draft = await db.brief.findUnique({
+      where: { id: draftId },
+      select: { 
+        userId: true, 
+        parentBriefId: true, 
+        versionNumber: true,
+        isDraft: true 
+      },
+    }) as any;
+
+    if (!draft || draft.userId !== userId || !draft.isDraft) {
+      throw new Error('Not authorized or invalid draft');
+    }
+
+    // Find the published version for this version number
+    const publishedVersion = await db.brief.findFirst({
+      where: {
+        OR: [
+          { id: draft.parentBriefId },
+          { parentBriefId: draft.parentBriefId }
+        ],
+        versionNumber: draft.versionNumber,
+        isDraft: false,
+      },
+    });
+
+    if (!publishedVersion) {
+      throw new Error('Published version not found');
+    }
+
+    // Update the published version with draft content
+    const updatedVersion = await db.brief.update({
+      where: { id: publishedVersion.id },
+      data: {
+        title: briefData.title,
+        abstract: briefData.abstract,
+        prompt: briefData.prompt,
+        response: briefData.response,
+        thinking: briefData.thinking,
+        ...(briefData.categoryIds && {
+          categories: {
+            set: briefData.categoryIds.map(id => ({ id })),
+          },
+        }),
+        ...(briefData.sourceIds && {
+          sources: {
+            set: briefData.sourceIds.map(id => ({ id })),
+          },
+        }),
+      },
+      include: {
+        categories: true,
+        sources: true,
+        model: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    // Delete the draft
+    await db.brief.delete({
+      where: { id: draftId },
+    });
+
+    return {
+      success: true,
+      data: updatedVersion,
+    };
+  } catch (error) {
+    console.error('Error pushing draft to version:', error);
+    return {
+      success: false,
+      error: 'Failed to push draft to version',
+    };
+  }
+}
+
+// Rename a version
+export async function renameBriefVersion(
+  briefId: string,
+  newChangeLog: string
+) {
+  try {
+    const userId = await getUserId();
+
+    // Verify ownership
+    const brief = await db.brief.findUnique({
+      where: { id: briefId },
+      select: { userId: true },
+    });
+
+    if (!brief || brief.userId !== userId) {
+      throw new Error('Not authorized to rename this version');
+    }
+
+    // Update the change log
+    const updatedBrief = await db.brief.update({
+      where: { id: briefId },
+      data: {
+        changeLog: newChangeLog,
+      },
+    });
+
+    return {
+      success: true,
+      data: updatedBrief,
+    };
+  } catch (error) {
+    console.error('Error renaming brief version:', error);
+    return {
+      success: false,
+      error: 'Failed to rename version',
+    };
+  }
+}
+
+// Save current edits as a draft version
+export async function saveBriefDraft(
+  briefId: string,
+  briefData: {
+    title: string;
+    abstract?: string;
+    prompt: string;
+    response: string;
+    thinking?: string;
+    categoryIds?: string[];
+    sourceIds?: string[];
+  }
+) {
+  try {
+    const userId = await getUserId();
+
+    // Get the current brief to determine its version structure
+    const currentBrief = await db.brief.findUnique({
+      where: { id: briefId },
+      select: { 
+        userId: true, 
+        parentBriefId: true, 
+        modelId: true,
+        versionNumber: true,
+        isDraft: true
+      },
+    });
+
+    if (!currentBrief || currentBrief.userId !== userId) {
+      throw new Error('Not authorized to save draft of this brief');
+    }
+
+    // Determine the correct version number and root brief ID
+    let targetVersionNumber: number;
+    let rootBriefId: string;
+
+    if (currentBrief.isDraft) {
+      // If current is already a draft, use its version number and parent
+      targetVersionNumber = currentBrief.versionNumber;
+      rootBriefId = currentBrief.parentBriefId || briefId;
+    } else {
+      // If current is a published version, use its version number
+      targetVersionNumber = currentBrief.versionNumber;
+      rootBriefId = currentBrief.parentBriefId || briefId;
+    }
+    
+    // Get existing drafts for this specific version to determine draft number
+    const existingDrafts = await db.brief.findMany({
+      where: {
+        parentBriefId: rootBriefId,
+        versionNumber: targetVersionNumber,
+        isDraft: true,
+        userId: userId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Check if we can create a new draft (max 3 drafts per version)
+    if (existingDrafts.length >= 3) {
+      // Update the oldest draft instead
+      const oldestDraft = existingDrafts[existingDrafts.length - 1];
+      if (!oldestDraft) {
+        throw new Error('Failed to find oldest draft');
+      }
+      
+      const updatedDraft = await db.brief.update({
+        where: { id: oldestDraft.id },
+        data: {
+          title: briefData.title,
+          abstract: briefData.abstract,
+          prompt: briefData.prompt,
+          response: briefData.response,
+          thinking: briefData.thinking,
+          changeLog: `Draft changes - ${new Date().toLocaleString()}`,
+          ...(briefData.categoryIds && {
+            categories: {
+              set: briefData.categoryIds.map(id => ({ id })),
+            },
+          }),
+          ...(briefData.sourceIds && {
+            sources: {
+              set: briefData.sourceIds.map(id => ({ id })),
+            },
+          }),
+        },
+        include: {
+          categories: true,
+          sources: true,
+          model: true,
+          author: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          },
+        },
+      });
+
+      return {
+        success: true,
+        data: updatedDraft,
+      };
+    } else {
+      // Create new draft with the correct version number
+      const draft = await db.brief.create({
+        data: {
+          title: briefData.title,
+          abstract: briefData.abstract,
+          prompt: briefData.prompt,
+          response: briefData.response,
+          thinking: briefData.thinking,
+          modelId: currentBrief.modelId,
+          userId: userId,
+          parentBriefId: rootBriefId,
+          versionNumber: targetVersionNumber,
+          isDraft: true,
+          published: false,
+          changeLog: `Draft ${existingDrafts.length + 1} - ${new Date().toLocaleString()}`,
+          ...(briefData.categoryIds && {
+            categories: {
+              connect: briefData.categoryIds.map(id => ({ id })),
+            },
+          }),
+          ...(briefData.sourceIds && {
+            sources: {
+              connect: briefData.sourceIds.map(id => ({ id })),
+            },
+          }),
+        },
+        include: {
+          categories: true,
+          sources: true,
+          model: true,
+          author: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          },
+        },
+      });
+
+      return {
+        success: true,
+        data: draft,
+      };
+    }
+  } catch (error) {
+    console.error('Error saving brief draft:', error);
+    return {
+      success: false,
+      error: 'Failed to save brief draft',
+    };
+  }
+}
+
+// Get brief by slug (for public viewing)
+export async function getBriefBySlug(slug: string) {
+  try {
+    const brief = await db.brief.findFirst({
+      where: {
+        OR: [
+          { id: slug },
+          { slug: slug }
+        ],
+        published: true,
+      },
+      include: {
+        categories: true,
+        sources: true,
+        upvotes: true,
+        reviews: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
+              },
+            },
+            upvotes: true,
+            helpfulMarks: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+        aiReviews: {
+          include: {
+            model: true,
+          },
+        },
+        savedBy: true,
+        model: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!brief) {
+      return {
+        success: false,
+        error: 'Brief not found',
+      };
+    }
 
     return {
       success: true,
       data: brief,
     };
   } catch (error) {
-    console.error('Error updating brief:', error);
+    console.error('Error fetching brief by slug:', error);
     return {
       success: false,
-      error: 'Failed to update brief',
+      error: 'Failed to fetch brief',
     };
   }
 }
 
-// Delete a brief
-export async function deleteBrief(briefId: string) {
-  try {
-    const userId = await getUserId();
-
-    // Verify ownership
-    const existingBrief = await db.brief.findUnique({
-      where: { id: briefId },
-      select: { userId: true },
-    });
-
-    if (!existingBrief || existingBrief.userId !== userId) {
-      throw new Error('Not authorized to delete this brief');
-    }
-
-    // Delete related records first to avoid foreign key constraint violations
-    // Delete in the correct order to respect dependencies
-    
-    // Delete review helpful marks first (they depend on reviews)
-    await db.reviewHelpful.deleteMany({
-      where: {
-        review: {
-          briefId: briefId,
-        },
-      },
-    });
-
-    // Delete review upvotes (they depend on reviews)
-    await db.reviewUpvote.deleteMany({
-      where: {
-        review: {
-          briefId: briefId,
-        },
-      },
-    });
-
-    // Delete reviews
-    await db.review.deleteMany({
-      where: { briefId: briefId },
-    });
-
-    // Delete AI reviews
-    await db.aIReview.deleteMany({
-      where: { briefId: briefId },
-    });
-
-    // Delete brief upvotes
-    await db.briefUpvote.deleteMany({
-      where: { briefId: briefId },
-    });
-
-    // Delete saved briefs
-    await db.savedBrief.deleteMany({
-      where: { briefId: briefId },
-    });
-
-
-    // Delete token transactions related to this brief
-    await db.tokenTransaction.deleteMany({
-      where: { briefId: briefId },
-    });
-
-    // Finally, delete the brief itself
-    await db.brief.delete({
-      where: { id: briefId },
-    });
-
-    revalidatePath('/my-briefs');
-    revalidatePath('/profile');
-
-    return {
-      success: true,
-    };
-  } catch (error) {
-    console.error('Error deleting brief:', error);
-    return {
-      success: false,
-      error: 'Failed to delete brief',
-    };
-  }
-}
-
-// Toggle upvote on a brief
+// Toggle brief upvote
 export async function toggleBriefUpvote(briefId: string) {
   try {
     const userId = await getUserId();
 
     // Check if user has already upvoted
-    const existingUpvote = await db.briefUpvote.findUnique({
+    const existingUpvote = await db.briefUpvote.findFirst({
       where: {
-        briefId_userId: {
-          userId: userId,
-          briefId,
-        },
+        briefId: briefId,
+        userId: userId,
       },
     });
 
     if (existingUpvote) {
       // Remove upvote
       await db.briefUpvote.delete({
-        where: {
-          briefId_userId: {
-            userId: userId,
-            briefId,
-          },
-        },
+        where: { id: existingUpvote.id },
       });
-
-      // Deduct token for removing upvote
-      try {
-        const { deductTokens, getTokenRewards } = await import('./tokens');
-        const TOKEN_REWARDS = await getTokenRewards();
-        await deductTokens(
-          TOKEN_REWARDS.GIVE_UPVOTE,
-          'Upvote removed',
-          briefId
-        );
-      } catch (tokenError) {
-        console.warn('Failed to deduct tokens for upvote removal:', tokenError);
-      }
+      return {
+        success: true,
+        upvoted: false,
+      };
     } else {
-      // Get brief details to award tokens to the author
-      const brief = await db.brief.findUnique({
-        where: { id: briefId },
-        select: { userId: true },
-      });
-
       // Add upvote
       await db.briefUpvote.create({
         data: {
+          briefId: briefId,
           userId: userId,
-          briefId,
         },
       });
-
-      // Award token for giving upvote
-      try {
-        const { awardTokens, getTokenRewards } = await import('./tokens');
-        const TOKEN_REWARDS = await getTokenRewards();
-        await awardTokens(
-          TOKEN_REWARDS.GIVE_UPVOTE,
-          'Upvote given',
-          briefId
-        );
-      } catch (tokenError) {
-        console.warn('Failed to award tokens for upvote:', tokenError);
-      }
-
-      // Award token to the brief author for receiving upvote
-      try {
-        if (brief) {
-          const { awardTokens, getTokenRewards } = await import('./tokens');
-          const TOKEN_REWARDS = await getTokenRewards();
-          await awardTokens(
-            TOKEN_REWARDS.RECEIVE_UPVOTE,
-            'Received upvote',
-            briefId,
-            undefined,
-            brief.userId // Award to the brief author
-          );
-        }
-      } catch (tokenError) {
-        console.warn('Failed to award tokens for receiving upvote:', tokenError);
-      }
+      return {
+        success: true,
+        upvoted: true,
+      };
     }
-
-    revalidatePath('/my-briefs');
-    revalidatePath('/profile');
-    revalidatePath(`/briefs/${briefId}`);
-
-    return {
-      success: true,
-      upvoted: !existingUpvote,
-    };
   } catch (error) {
     console.error('Error toggling brief upvote:', error);
     return {
@@ -747,191 +823,41 @@ export async function toggleBriefUpvote(briefId: string) {
   }
 }
 
-// Add a review to a brief
-export async function addBriefReview(briefId: string, content: string, rating: number) {
-  try {
-    const userId = await getUserId();
-
-    // Check if the brief exists and get its author
-    const brief = await db.brief.findUnique({
-      where: { id: briefId },
-      select: { userId: true },
-    });
-
-    if (!brief) {
-      throw new Error('Brief not found');
-    }
-
-    // Prevent users from reviewing their own briefs
-    if (brief.userId === userId) {
-      throw new Error('You cannot review your own brief');
-    }
-
-    // Check if user has already reviewed
-    const existingReview = await db.review.findFirst({
-      where: {
-        briefId,
-        userId: userId,
-      },
-    });
-
-    if (existingReview) {
-      throw new Error('You have already reviewed this brief');
-    }
-
-    // Add review
-    const review = await db.review.create({
-      data: {
-        content,
-        rating,
-        userId: userId,
-        briefId,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            image: true,
-          },
-        },
-      },
-    });
-
-    // Award tokens for writing a review
-    try {
-      const { awardTokens, getTokenRewards } = await import('./tokens');
-      const TOKEN_REWARDS = await getTokenRewards();
-      await awardTokens(
-        TOKEN_REWARDS.WRITE_REVIEW,
-        'Review written',
-        briefId,
-        review.id
-      );
-    } catch (tokenError) {
-      console.warn('Failed to award tokens for review:', tokenError);
-      // Don't fail the review creation if token award fails
-    }
-
-    // Award tokens to the brief author for receiving a 4 or 5 star review
-    try {
-      if (rating >= 4) {
-        const { awardTokens } = await import('./tokens');
-        const rewardAmount = rating === 5 ? 5 : 3; // 5 tokens for 5-star, 3 tokens for 4-star
-        await awardTokens(
-          rewardAmount,
-          `Received ${rating}-star review`,
-          briefId,
-          review.id,
-          brief.userId // Award to the brief author, not the reviewer
-        );
-      }
-    } catch (tokenError) {
-      console.warn('Failed to award tokens for receiving review:', tokenError);
-      // Don't fail the review creation if token award fails
-    }
-
-    revalidatePath('/my-briefs');
-    revalidatePath('/profile');
-    revalidatePath(`/briefs/${briefId}`);
-
-    return {
-      success: true,
-      data: review,
-    };
-  } catch (error) {
-    console.error('Error adding brief review:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to add review',
-    };
-  }
-}
-
-// Delete a review
-export async function deleteBriefReview(reviewId: string) {
-  try {
-    const userId = await getUserId();
-
-    // Check if the review exists and get its author
-    const review = await db.review.findUnique({
-      where: { id: reviewId },
-      select: { userId: true, briefId: true },
-    });
-
-    if (!review) {
-      throw new Error('Review not found');
-    }
-
-    // Prevent users from deleting reviews they didn't write
-    if (review.userId !== userId) {
-      throw new Error('You can only delete your own reviews');
-    }
-
-    // Delete the review
-    await db.review.delete({
-      where: { id: reviewId },
-    });
-
-    revalidatePath('/my-briefs');
-    revalidatePath('/profile');
-    revalidatePath(`/briefs/${review.briefId}`);
-
-    return {
-      success: true,
-    };
-  } catch (error) {
-    console.error('Error deleting review:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete review',
-    };
-  }
-}
-
-// Toggle save/bookmark a brief
+// Toggle brief save
 export async function toggleBriefSave(briefId: string) {
   try {
     const userId = await getUserId();
 
-    // Check if brief is already saved
-    const existingSave = await db.savedBrief.findUnique({
+    // Check if user has already saved
+    const existingSave = await db.savedBrief.findFirst({
       where: {
-        userId_briefId: {
-          userId: userId,
-          briefId,
-        },
+        briefId: briefId,
+        userId: userId,
       },
     });
 
     if (existingSave) {
       // Remove save
       await db.savedBrief.delete({
-        where: {
-          userId_briefId: {
-            userId: userId,
-            briefId,
-          },
-        },
+        where: { id: existingSave.id },
       });
+      return {
+        success: true,
+        saved: false,
+      };
     } else {
       // Add save
       await db.savedBrief.create({
         data: {
+          briefId: briefId,
           userId: userId,
-          briefId,
         },
       });
+      return {
+        success: true,
+        saved: true,
+      };
     }
-
-    revalidatePath('/my-briefs');
-    revalidatePath('/profile');
-    revalidatePath(`/briefs/${briefId}`);
-
-    return {
-      success: true,
-      saved: !existingSave,
-    };
   } catch (error) {
     console.error('Error toggling brief save:', error);
     return {
@@ -941,195 +867,42 @@ export async function toggleBriefSave(briefId: string) {
   }
 }
 
-// Get saved briefs for the current user
-export async function getSavedBriefs() {
+// Add brief review
+export async function addBriefReview(briefId: string, content: string, rating: number) {
   try {
     const userId = await getUserId();
 
-    const savedBriefs = await db.savedBrief.findMany({
+    // Validate rating
+    if (rating < 1 || rating > 5) {
+      return {
+        success: false,
+        error: 'Rating must be between 1 and 5',
+      };
+    }
+
+    // Check if user has already reviewed this brief
+    const existingReview = await db.review.findFirst({
       where: {
+        briefId: briefId,
         userId: userId,
-      },
-      include: {
-        brief: {
-          include: {
-            categories: true,
-            sources: true,
-            upvotes: true,
-            reviews: true,
-            model: true,
-            author: {
-              select: {
-                id: true,
-                name: true,
-                image: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
       },
     });
 
-    return {
-      success: true,
-      data: savedBriefs.map(sb => sb.brief),
-    };
-  } catch (error) {
-    console.error('Error fetching saved briefs:', error);
-    return {
-      success: false,
-      error: 'Failed to fetch saved briefs',
-    };
-  }
-}
+    if (existingReview) {
+      return {
+        success: false,
+        error: 'You have already reviewed this brief',
+      };
+    }
 
-// Get upvotes given by the current user
-export async function getUserUpvotes() {
-  try {
-    const userId = await getUserId();
-
-    const upvotes = await db.briefUpvote.findMany({
-      where: {
+    const review = await db.review.create({
+      data: {
+        content: content,
+        rating: rating,
+        briefId: briefId,
         userId: userId,
       },
       include: {
-        brief: {
-          select: {
-            id: true,
-            title: true,
-            slug: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    return {
-      success: true,
-      data: upvotes,
-    };
-  } catch (error) {
-    console.error('Error fetching user upvotes:', error);
-    return {
-      success: false,
-      error: 'Failed to fetch upvotes',
-    };
-  }
-}
-
-// Search briefs with filters
-export async function searchBriefs(searchParams: {
-  query?: string;
-  categories?: string[];
-  model?: string;
-  sortBy?: 'popular' | 'new' | 'controversial';
-  dateRange?: 'all' | 'today' | 'week' | 'month' | 'year';
-  rating?: 'all' | '4+' | '3+' | '2+';
-  page?: number;
-  limit?: number;
-}) {
-  try {
-    const {
-      query = '',
-      categories = [],
-      model,
-      sortBy = 'popular',
-      dateRange = 'all',
-      rating = 'all',
-      page = 1,
-      limit = 20
-    } = searchParams;
-
-    console.log('Search briefs with params:', searchParams);
-
-    // First, let's see how many total briefs exist
-    const totalBriefs = await db.brief.count();
-    console.log(`Total briefs in database: ${totalBriefs}`);
-
-    // Build where clause - remove published requirement for now to test
-    const where: any = {};
-
-    // Text search in title, abstract, and response (SQLite compatible)
-    if (query) {
-      where.OR = [
-        { title: { contains: query } },
-        { abstract: { contains: query } },
-        { response: { contains: query } },
-      ];
-    }
-
-    // Category filter
-    if (categories.length > 0) {
-      where.categories = {
-        some: {
-          name: {
-            in: categories
-          }
-        }
-      };
-    }
-
-    // Model filter
-    if (model && model !== 'All Models') {
-      where.model = {
-        name: model
-      };
-    }
-
-    // Date range filter
-    if (dateRange !== 'all') {
-      const now = new Date();
-      let startDate: Date;
-
-      switch (dateRange) {
-        case 'today':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          break;
-        case 'week':
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case 'month':
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          break;
-        case 'year':
-          startDate = new Date(now.getFullYear(), 0, 1);
-          break;
-        default:
-          startDate = new Date(0);
-      }
-
-      where.createdAt = {
-        gte: startDate
-      };
-    }
-
-    // Build orderBy clause
-    let orderBy: any;
-    switch (sortBy) {
-      case 'new':
-        orderBy = { createdAt: 'desc' };
-        break;
-      case 'controversial':
-        orderBy = { reviews: { _count: 'desc' } };
-        break;
-      default: // popular
-        orderBy = { viewCount: 'desc' };
-    }
-
-    console.log('Executing search with where clause:', JSON.stringify(where, null, 2));
-    console.log('Order by:', JSON.stringify(orderBy, null, 2));
-
-    // Execute search
-    const briefs = await db.brief.findMany({
-      where,
-      include: {
-        categories: true,
-        model: true,
         author: {
           select: {
             id: true,
@@ -1137,92 +910,270 @@ export async function searchBriefs(searchParams: {
             image: true,
           },
         },
-        reviews: {
-          select: {
-            rating: true,
-          },
-        },
         upvotes: true,
+        helpfulMarks: true,
       },
-      orderBy,
-      skip: (page - 1) * limit,
-      take: limit,
     });
-
-    console.log(`Raw database query returned ${briefs.length} briefs`);
-    
-    // Log first few brief titles for debugging
-    if (briefs.length > 0) {
-      console.log('First few brief titles:');
-      briefs.slice(0, 3).forEach((brief, index) => {
-        console.log(`${index + 1}. "${brief.title}" (ID: ${brief.id})`);
-      });
-    }
-
-    // Get total count for pagination
-    const totalCount = await db.brief.count({ where });
-    console.log(`Total count from database: ${totalCount}`);
-
-    // Transform results to match expected format
-    const transformedResults = briefs
-      .map(brief => {
-        // Calculate average rating
-        const ratings = brief.reviews.map(r => r.rating);
-        const averageRating = ratings.length > 0 
-          ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length 
-          : undefined;
-
-        // Filter by rating if specified
-        if (rating !== 'all') {
-          const minRating = parseFloat(rating.replace('+', ''));
-          if (!averageRating || averageRating < minRating) {
-            return null;
-          }
-        }
-
-        // Calculate reading time (rough estimate: 200 words per minute)
-        const wordCount = brief.response?.split(' ').length || 0;
-        const readingTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
-
-        return {
-          id: brief.id,
-          title: brief.title,
-          abstract: brief.abstract || '',
-          model: brief.model?.name || 'Unknown',
-          date: brief.createdAt.toISOString().split('T')[0],
-          readTime: `${readingTimeMinutes} min`,
-          category: brief.categories[0]?.name || 'General',
-          views: brief.viewCount || 0,
-          rating: averageRating,
-          reviewCount: brief.reviews.length,
-          slug: brief.slug,
-        };
-      })
-      .filter(Boolean); // Remove null entries from rating filter
-
-    console.log(`Found ${transformedResults.length} briefs matching search criteria`);
 
     return {
       success: true,
-      data: {
-        results: transformedResults,
-        totalCount: transformedResults.length, // Adjusted for rating filter
-        page,
-        limit,
-        totalPages: Math.ceil(transformedResults.length / limit),
-      },
+      data: review,
     };
   } catch (error) {
-    console.error('Error searching briefs:');
-    console.error('Error type:', typeof error);
-    console.error('Error value:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
+    console.error('Error adding brief review:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to search briefs',
+      error: 'Failed to add review',
+    };
+  }
+}
+
+// Delete brief review
+export async function deleteBriefReview(reviewId: string) {
+  try {
+    const userId = await getUserId();
+
+    // Verify ownership
+    const review = await db.review.findUnique({
+      where: { id: reviewId },
+      select: { userId: true },
+    });
+
+    if (!review || review.userId !== userId) {
+      return {
+        success: false,
+        error: 'Not authorized to delete this review',
+      };
+    }
+
+    // Delete related records first
+    await db.reviewHelpful.deleteMany({
+      where: { reviewId: reviewId },
+    });
+
+    await db.reviewUpvote.deleteMany({
+      where: { reviewId: reviewId },
+    });
+
+    // Delete the review
+    await db.review.delete({
+      where: { id: reviewId },
+    });
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('Error deleting brief review:', error);
+    return {
+      success: false,
+      error: 'Failed to delete review',
+    };
+  }
+}
+
+// Set a version as the active version (only one can be active per brief family)
+export async function setActiveVersion(briefId: string) {
+  try {
+    const userId = await getUserId();
+
+    // Get the brief to check ownership and determine the root brief
+    const brief = await db.brief.findUnique({
+      where: { id: briefId },
+      select: { 
+        userId: true, 
+        parentBriefId: true, 
+        isDraft: true,
+        versionNumber: true 
+      },
+    });
+
+    if (!brief || brief.userId !== userId) {
+      throw new Error('Not authorized to set active version for this brief');
+    }
+
+    // Drafts cannot be set as active
+    if (brief.isDraft) {
+      throw new Error('Drafts cannot be set as the active version');
+    }
+
+    // Find the root brief ID
+    const rootBriefId = brief.parentBriefId || briefId;
+
+    // First, set all versions in this brief family to inactive
+    await db.brief.updateMany({
+      where: {
+        OR: [
+          { id: rootBriefId },
+          { parentBriefId: rootBriefId }
+        ],
+        isDraft: false, // Only update published versions
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    // Then set the specified version as active
+    await db.brief.update({
+      where: { id: briefId },
+      data: {
+        isActive: true,
+      },
+    });
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error('Error setting active version:', error);
+    return {
+      success: false,
+      error: 'Failed to set active version',
+    };
+  }
+}
+
+// Delete a brief and all its related drafts
+export async function deleteBrief(briefId: string) {
+  try {
+    const userId = await getUserId();
+
+    // Get the brief to check ownership and determine if it's a version or root brief
+    const existingBrief = await db.brief.findUnique({
+      where: { id: briefId },
+      select: { 
+        userId: true, 
+        parentBriefId: true, 
+        versionNumber: true,
+        isDraft: true,
+        isActive: true 
+      },
+    });
+
+    if (!existingBrief || existingBrief.userId !== userId) {
+      throw new Error('Not authorized to delete this brief');
+    }
+
+    // If deleting an active version, ensure another version becomes active
+    if (existingBrief.isActive && !existingBrief.isDraft) {
+      const rootBriefId = existingBrief.parentBriefId || briefId;
+      
+      // Find other published versions in this family
+      const otherVersions = await db.brief.findMany({
+        where: {
+          OR: [
+            { id: rootBriefId },
+            { parentBriefId: rootBriefId }
+          ],
+          isDraft: false,
+          id: { not: briefId }, // Exclude the one being deleted
+        },
+        orderBy: {
+          versionNumber: 'desc', // Get the latest version
+        },
+      });
+
+      if (otherVersions.length > 0) {
+        // Set the latest other version as active
+        await db.brief.update({
+          where: { id: otherVersions[0]!.id },
+          data: { isActive: true },
+        });
+      }
+    }
+
+    // Determine what to delete based on the brief type
+    let briefsToDelete: string[] = [];
+
+    if (existingBrief.isDraft) {
+      // If deleting a draft, only delete this draft
+      briefsToDelete = [briefId];
+    } else {
+      // If deleting a published version, also delete all its drafts
+      const rootBriefId = existingBrief.parentBriefId || briefId;
+      
+      // Find all drafts for this specific version
+      const relatedDrafts = await db.brief.findMany({
+        where: {
+          parentBriefId: rootBriefId,
+          versionNumber: existingBrief.versionNumber,
+          isDraft: true,
+          userId: userId,
+        },
+        select: { id: true },
+      });
+
+      briefsToDelete = [briefId, ...relatedDrafts.map(draft => draft.id)];
+    }
+
+    // Delete related records for all briefs to be deleted
+    for (const briefToDeleteId of briefsToDelete) {
+      // Delete review helpful marks first (they depend on reviews)
+      await db.reviewHelpful.deleteMany({
+        where: {
+          review: {
+            briefId: briefToDeleteId,
+          },
+        },
+      });
+
+      // Delete review upvotes (they depend on reviews)
+      await db.reviewUpvote.deleteMany({
+        where: {
+          review: {
+            briefId: briefToDeleteId,
+          },
+        },
+      });
+
+      // Delete reviews
+      await db.review.deleteMany({
+        where: { briefId: briefToDeleteId },
+      });
+
+      // Delete AI reviews
+      await db.aIReview.deleteMany({
+        where: { briefId: briefToDeleteId },
+      });
+
+      // Delete brief upvotes
+      await db.briefUpvote.deleteMany({
+        where: { briefId: briefToDeleteId },
+      });
+
+      // Delete saved briefs
+      await db.savedBrief.deleteMany({
+        where: { briefId: briefToDeleteId },
+      });
+
+      // Delete token transactions related to this brief
+      await db.tokenTransaction.deleteMany({
+        where: { briefId: briefToDeleteId },
+      });
+    }
+
+    // Finally, delete all the briefs
+    await db.brief.deleteMany({
+      where: {
+        id: {
+          in: briefsToDelete,
+        },
+      },
+    });
+
+    revalidatePath('/my-briefs');
+    revalidatePath('/profile');
+
+    return {
+      success: true,
+      deletedCount: briefsToDelete.length,
+    };
+  } catch (error) {
+    console.error('Error deleting brief:', error);
+    return {
+      success: false,
+      error: 'Failed to delete brief',
     };
   }
 }

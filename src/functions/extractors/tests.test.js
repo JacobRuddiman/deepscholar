@@ -1,4 +1,4 @@
-import { extractFromChatGPTHtml } =require('./chatgpt';
+import { extractFromChatGPT } from './chatgpt';
 
 // Mock the console.error to prevent test output pollution
 console.error = jest.fn();
@@ -45,7 +45,7 @@ describe('extractFromChatGPTHtml', () => {
       </html>
     `;
 
-    const result = await extractFromChatGPTHtml(html);
+    const result = await extractFromChatGPT(html);
 
     // Test correct extraction of main components
     expect(result.title).toBe('Neural Networks in Healthcare - ChatGPT');
@@ -103,7 +103,7 @@ describe('extractFromChatGPTHtml', () => {
       </html>
     `;
 
-    const result = await extractFromChatGPTHtml(html);
+    const result = await extractFromChatGPT(html);
     
     // This test will fail if the implementation doesn't recognize "Executive Summary" as equivalent to
     // "Abstract" or "Conclusion" and doesn't extract it properly
@@ -159,7 +159,7 @@ describe('extractFromChatGPTHtml', () => {
       </html>
     `;
 
-    const result = await extractFromChatGPTHtml(html);
+    const result = await extractFromChatGPT(html);
     
     // This test may fail if the implementation doesn't correctly handle blockquote elements
     // containing the abstract/conclusion

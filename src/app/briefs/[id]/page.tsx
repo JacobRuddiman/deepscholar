@@ -3,9 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { getBriefBySlug, toggleBriefUpvote, toggleBriefSave, addBriefReview, deleteBriefReview, deleteBrief } from '@/server/actions/briefs';
+import { getBriefBySlug, toggleBriefUpvote, toggleBriefSave, addBriefReview, deleteBriefReview, deleteBrief, getBriefVersions } from '@/server/actions/briefs';
 import ErrorPopup from '@/app/components/error_popup';
 import HelpfulButton from '@/app/components/helpful_button';
+import BriefVersionSelector from '@/app/components/BriefVersionSelector';
 import { 
   ThumbsUp, 
   MessageSquare, 
@@ -26,7 +27,8 @@ import {
   Facebook,
   Twitter,
   Linkedin,
-  Trash2
+  Trash2,
+  Edit
 } from 'lucide-react';
 
 type Brief = {
@@ -383,13 +385,22 @@ export default function BriefPage() {
             )}
 
             {brief.author.id === 'local-user-1' && (
-              <button
-                onClick={handleDeleteBrief}
-                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete</span>
-              </button>
+              <>
+                <button
+                  onClick={() => window.location.href = `/briefs/${brief.id}/edit`}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  onClick={handleDeleteBrief}
+                  className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete</span>
+                </button>
+              </>
             )}
 
             <button 

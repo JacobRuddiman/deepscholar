@@ -391,127 +391,6 @@ export async function getAdminAIReviews(params: {
   }
 }
 
-// Get all models with pagination and filtering
-export async function getAdminModels(params: {
-  page?: number;
-  limit?: number;
-  search?: string;
-  filter?: 'all' | 'research' | 'review';
-  sortBy?: 'name' | 'provider' | 'created' | 'usage';
-}) {
-  try {
-    const {
-      page = 1,
-      limit = 10,
-      search = '',
-      filter = 'all',
-      sortBy = 'name'
-    } = params;
-
-    // Get research models
-    const researchWhere: any = {};
-    if (search) {
-      researchWhere.OR = [
-        { name: { contains: search } },
-        { provider: { contains: search } }
-      ];
-    }
-
-    // Get review models
-    const reviewWhere: any = {};
-    if (search) {
-      reviewWhere.OR = [
-        { name: { contains: search } },
-        { provider: { contains: search } }
-      ];
-    }
-
-    let researchModels: any[] = [];
-    let reviewModels: any[] = [];
-
-    if (filter === 'all' || filter === 'research') {
-      researchModels = await db.researchAIModel.findMany({
-        where: researchWhere,
-        include: {
-          _count: {
-            select: { briefs: true }
-          }
-        }
-      });
-    }
-
-    if (filter === 'all' || filter === 'review') {
-      reviewModels = await db.reviewAIModel.findMany({
-        where: reviewWhere,
-        include: {
-          _count: {
-            select: { aiReviews: true }
-          }
-        }
-      });
-    }
-
-    // Combine and format models
-    const allModels = [
-      ...researchModels.map(model => ({
-        id: model.id,
-        name: model.name,
-        provider: model.provider,
-        version: model.version,
-        type: 'research' as const,
-        usageCount: model._count.briefs,
-        createdAt: model.createdAt.toISOString(),
-        updatedAt: model.updatedAt.toISOString()
-      })),
-      ...reviewModels.map(model => ({
-        id: model.id,
-        name: model.name,
-        provider: model.provider,
-        version: model.version,
-        type: 'review' as const,
-        usageCount: model._count.aiReviews,
-        createdAt: model.createdAt.toISOString(),
-        updatedAt: model.updatedAt.toISOString()
-      }))
-    ];
-
-    // Sort models
-    allModels.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'provider':
-          return a.provider.localeCompare(b.provider);
-        case 'usage':
-          return b.usageCount - a.usageCount;
-        case 'created':
-        default:
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-    });
-
-    // Paginate
-    const totalCount = allModels.length;
-    const paginatedModels = allModels.slice((page - 1) * limit, page * limit);
-
-    return {
-      success: true,
-      data: {
-        models: paginatedModels,
-        totalCount,
-        totalPages: Math.ceil(totalCount / limit),
-        currentPage: page
-      }
-    };
-  } catch (error) {
-    console.error('Error fetching admin models:', error);
-    return {
-      success: false,
-      error: 'Failed to fetch models'
-    };
-  }
-}
-
 
 // Helper function to get admin user ID with LOCAL mode support
 async function getAdminUserId() {
@@ -671,6 +550,86 @@ export async function getAdminReviews({
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch reviews',
+    };
+  }
+}
+// Get all models for admin management
+export async function getAdminModels({
+  page = 1,
+  limit = 10,
+  search = '',
+  filter = 'all',
+  sortBy = 'created'
+}: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  filter?: string;
+  sortBy?: string;
+} = {}) {
+  try {
+    console.log('Starting getAdminModels');
+    
+    // Check if user is admin
+    const session = await auth();
+    if (!session?.user?.id) {
+      return {
+        success: false,
+        error: 'Not authenticated',
+      };
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { isAdmin: true },
+    });
+
+    if (!user?.isAdmin) {
+      return {
+        success: false,
+        error: 'Not authorized',
+      };
+    }
+
+    console.log('Querying database for models');
+    const models = await db.researchAIModel.findMany({
+      include: {
+        _count: {
+          select: {
+            briefs: true,
+          },
+        },
+        briefs: {
+          select: {
+            id: true,
+            title: true,
+            viewCount: true,
+            upvoteCount: true,
+            averageRating: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    console.log(`Found ${models.length} models`);
+
+    return {
+      success: true,
+      data: {
+        models,
+        total: models.length,
+        page,
+        limit,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching admin models:', error);
+    return {
+      success: false,
+      error: 'Failed to fetch models',
     };
   }
 }

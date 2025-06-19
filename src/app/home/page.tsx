@@ -8,6 +8,8 @@ import SearchBar from '../components/SearchBar';
 import { getBriefStats, getRecentBriefs } from '@/server/actions/home';
 import BriefCard from '../components/brief_card';
 import type { BriefCardProps } from '../components/brief_card';
+import TooltipWrapper from '../components/TooltipWrapper';
+
 
 // Transform database brief to BriefCardProps
 const transformBrief = (brief: any): BriefCardProps => {
@@ -106,29 +108,44 @@ export default function HomePage() {
             />
             
             <div className="flex justify-center mt-4 space-x-6">
-              <button 
-                type="button" 
-                onClick={() => handleFilterClick('trending')}
-                className="flex items-center text-blue-100 hover:text-white transition-colors"
+              <TooltipWrapper 
+                content="View the most popular research briefs based on views and engagement"
+                position="bottom"
               >
-                <TrendingUp className="h-4 w-4 mr-1" />
-                <span className="text-sm">Trending</span>
-              </button>
-              <button 
-                type="button" 
-                onClick={() => handleFilterClick('recent')}
-                className="flex items-center text-blue-100 hover:text-white transition-colors"
+                <button 
+                  type="button" 
+                  onClick={() => handleFilterClick('trending')}
+                  className="flex items-center text-blue-100 hover:text-white transition-colors"
+                >
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                  <span className="text-sm">Trending</span>
+                </button>
+              </TooltipWrapper>
+              <TooltipWrapper 
+                content="View the most recently published research briefs"
+                position="bottom"
               >
-                <Clock className="h-4 w-4 mr-1" />
-                <span className="text-sm">Recent</span>
-              </button>
-              <a 
-                href="/briefs" 
-                className="flex items-center text-blue-100 hover:text-white transition-colors"
+                <button 
+                  type="button" 
+                  onClick={() => handleFilterClick('recent')}
+                  className="flex items-center text-blue-100 hover:text-white transition-colors"
+                >
+                  <Clock className="h-4 w-4 mr-1" />
+                  <span className="text-sm">Recent</span>
+                </button>
+              </TooltipWrapper>
+              <TooltipWrapper 
+                content="Browse all research briefs with advanced filtering options"
+                position="bottom"
               >
-                <Filter className="h-4 w-4 mr-1" />
-                <span className="text-sm">Browse All</span>
-              </a>
+                <a 
+                  href="/briefs" 
+                  className="flex items-center text-blue-100 hover:text-white transition-colors"
+                >
+                  <Filter className="h-4 w-4 mr-1" />
+                  <span className="text-sm">Browse All</span>
+                </a>
+              </TooltipWrapper>
             </div>
           </div>
         </div>
@@ -188,36 +205,51 @@ export default function HomePage() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <a 
-              href="/brief_upload" 
-              className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group"
+            <TooltipWrapper 
+              content="Upload and share your AI-generated research insights with the community"
+              position="top"
             >
-              <div className="flex-1">
-                <h3 className="font-semibold text-blue-900">Create Research Brief</h3>
-                <p className="text-sm text-blue-700">Share your AI-generated insights</p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
-            </a>
-            <a 
-              href="/briefs" 
-              className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors group"
+              <a 
+                href="/brief_upload" 
+                className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group"
+              >
+                <div className="flex-1">
+                  <h3 className="font-semibold text-blue-900">Create Research Brief</h3>
+                  <p className="text-sm text-blue-700">Share your AI-generated insights</p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
+              </a>
+            </TooltipWrapper>
+            <TooltipWrapper 
+              content="Explore the complete library of research briefs with search and filtering"
+              position="top"
             >
-              <div className="flex-1">
-                <h3 className="font-semibold text-green-900">Browse Research</h3>
-                <p className="text-sm text-green-700">Explore all available insights</p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-green-600 group-hover:translate-x-1 transition-transform" />
-            </a>
-            <a 
-              href="/my-briefs" 
-              className="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group"
+              <a 
+                href="/briefs" 
+                className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors group"
+              >
+                <div className="flex-1">
+                  <h3 className="font-semibold text-green-900">Browse Research</h3>
+                  <p className="text-sm text-green-700">Explore all available insights</p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-green-600 group-hover:translate-x-1 transition-transform" />
+              </a>
+            </TooltipWrapper>
+            <TooltipWrapper 
+              content="View and manage all the research briefs you've contributed to the platform"
+              position="top"
             >
-              <div className="flex-1">
-                <h3 className="font-semibold text-purple-900">My Contributions</h3>
-                <p className="text-sm text-purple-700">View your research briefs</p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
-            </a>
+              <a 
+                href="/my-briefs" 
+                className="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group"
+              >
+                <div className="flex-1">
+                  <h3 className="font-semibold text-purple-900">My Contributions</h3>
+                  <p className="text-sm text-purple-700">View your research briefs</p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
+              </a>
+            </TooltipWrapper>
           </div>
         </div>
         
@@ -231,9 +263,14 @@ export default function HomePage() {
             <section className="py-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-900">Latest Research</h2>
-                <a href="/briefs?sort=recent" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                  View all
-                </a>
+                <TooltipWrapper 
+                  content="View all recent research briefs with sorting and filtering options"
+                  position="left"
+                >
+                  <a href="/briefs?sort=recent" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                    View all
+                  </a>
+                </TooltipWrapper>
               </div>
               
               {loadingRecent ? (
@@ -274,10 +311,18 @@ export default function HomePage() {
             </div>
             
             <div className="flex space-x-6">
-              <a href="/about" className="text-gray-600 hover:text-blue-600 transition-colors">About</a>
-              <a href="/privacy" className="text-gray-600 hover:text-blue-600 transition-colors">Privacy</a>
-              <a href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors">Terms</a>
-              <a href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors">Contact</a>
+              <TooltipWrapper content="Learn more about DeepScholar and our mission" position="top">
+                <a href="/about" className="text-gray-600 hover:text-blue-600 transition-colors">About</a>
+              </TooltipWrapper>
+              <TooltipWrapper content="Read our privacy policy and data handling practices" position="top">
+                <a href="/privacy" className="text-gray-600 hover:text-blue-600 transition-colors">Privacy</a>
+              </TooltipWrapper>
+              <TooltipWrapper content="View our terms of service and usage guidelines" position="top">
+                <a href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors">Terms</a>
+              </TooltipWrapper>
+              <TooltipWrapper content="Get in touch with our support team" position="top">
+                <a href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors">Contact</a>
+              </TooltipWrapper>
             </div>
           </div>
           

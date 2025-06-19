@@ -10,6 +10,8 @@ export async function getPopularBriefs(limit = 8) {
     const briefs = await db.brief.findMany({
       where: {
         published: true,
+        isActive: true,
+        isDraft: false,
       },
       include: {
         categories: true,
@@ -55,6 +57,8 @@ export async function getRecentBriefs(limit = 8) {
     const briefs = await db.brief.findMany({
       where: {
         published: true,
+        isActive: true,
+        isDraft: false,
       },
       include: {
         categories: true,
@@ -98,6 +102,8 @@ export async function getBriefsByCategory(categoryName?: string, limit = 4) {
     
     const whereClause: any = {
       published: true,
+      isActive: true,
+      isDraft: false,
     };
     
     if (categoryName) {
@@ -156,7 +162,11 @@ export async function getBriefStats() {
     
     const [briefCount, modelCount, userCount] = await Promise.all([
       db.brief.count({
-        where: { published: true },
+        where: { 
+          published: true,
+          isActive: true,
+          isDraft: false,
+        },
       }),
       db.researchAIModel.count(),
       db.user.count(),
@@ -193,6 +203,8 @@ export async function getFeaturedCategories() {
             briefs: {
               where: {
                 published: true,
+                isActive: true,
+                isDraft: false,
               },
             },
           },

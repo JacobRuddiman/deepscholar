@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getUserTokenBalance, getUserTokenTransactions } from '@/server/actions/tokens';
 import { getProfileImageSrc, profileImageClasses } from '@/lib/profileUtils';
+import { useTooltipSettings } from '@/app/components/TooltipProvider';
 
 type SettingsSection = 'profile' | 'notifications' | 'tokens' | 'account';
 
@@ -26,6 +27,9 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  
+  // Tooltip settings
+  const { settings: tooltipSettings, updateSettings: updateTooltipSettings } = useTooltipSettings();
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -336,6 +340,62 @@ export default function SettingsPage() {
                         <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 ${!notificationPrefs.emailNotifications ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
                       </label>
                     </div>
+                  </div>
+
+                  {/* Tooltip Settings Section */}
+                  <div className="mt-8 pt-6 border-t border-gray-200">
+                    <div className="flex items-center justify-between p-6 bg-purple-50 border-2 border-purple-200 rounded-lg mb-4">
+                      <div>
+                        <h3 className="font-semibold text-lg text-purple-900">Tooltip Help</h3>
+                        <p className="text-sm text-purple-700">
+                          Show helpful tooltips when hovering over buttons and interface elements.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={tooltipSettings.enabled}
+                          onChange={(e) => {
+                            updateTooltipSettings({ enabled: e.target.checked });
+                            setNotification({ 
+                              type: 'success', 
+                              message: `Tooltips ${e.target.checked ? 'enabled' : 'disabled'}!` 
+                            });
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+
+                    {tooltipSettings.enabled && (
+                      <div className="ml-6 p-4 bg-gray-50 rounded-md border-l-4 border-purple-300">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-medium">Tooltip Delay</h3>
+                            <p className="text-sm text-gray-500">
+                              How long to wait before showing tooltips (in seconds)
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="range"
+                              min="500"
+                              max="3000"
+                              step="500"
+                              value={tooltipSettings.delay}
+                              onChange={(e) => {
+                                updateTooltipSettings({ delay: parseInt(e.target.value) });
+                              }}
+                              className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                            />
+                            <span className="text-sm font-medium text-gray-600 min-w-[3rem]">
+                              {(tooltipSettings.delay / 1000).toFixed(1)}s
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <button

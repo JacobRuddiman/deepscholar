@@ -16,7 +16,7 @@ import {
   AlertCircle,
   ArrowLeft
 } from 'lucide-react';
-import { getUserProfile } from '@/server/actions/users';
+import { getUserProfile, getUserActivityBriefs } from '@/server/actions/users';
 import Link from 'next/link';
 
 type ActivityType = 'all' | 'briefs' | 'reviews' | 'upvotes' | 'saves';
@@ -75,6 +75,7 @@ export default function UserProfilePage() {
   const userId = params.userId as string;
   
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [allBriefs, setAllBriefs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActivityType>('all');
@@ -89,12 +90,20 @@ export default function UserProfilePage() {
       setIsLoading(true);
       setError(null);
       
-      const result = await getUserProfile(userId);
-      if (!result.success || !result.data) {
-        throw new Error(result.error || 'User not found');
+      const [profileResult, activityResult] = await Promise.all([
+        getUserProfile(userId),
+        getUserActivityBriefs(userId)
+      ]);
+      
+      if (!profileResult.success || !profileResult.data) {
+        throw new Error(profileResult.error || 'User not found');
       }
       
-      setUser(result.data);
+      setUser(profileResult.data);
+      
+      if (activityResult.success && activityResult.data) {
+        setAllBriefs(activityResult.data);
+      }
     } catch (error) {
       setError('Failed to load user profile. Please try again later.');
       console.error('Error loading user profile:', error);
@@ -141,19 +150,31 @@ export default function UserProfilePage() {
   const getActivityContent = () => {
     if (!user) return null;
     
-    const filteredBriefs = filterByTime(user.briefs, timeFilter);
+    const filteredAllBriefs = filterByTime(allBriefs, timeFilter);
 
     switch (activeTab) {
       case 'briefs':
-        return filteredBriefs.map((brief) => (
-          <ActivityItem
-            key={`brief-${brief.id}`}
-            icon={<Book className="w-4 h-4 text-blue-600" />}
-            title={`Created: ${brief.title}`}
-            date={brief.createdAt}
-            link={`/briefs/${brief.id}`}
-          />
-        ));
+        return filteredAllBriefs.map((brief) => {
+          let title = `Created: ${brief.title}`;
+          if (brief.isDraft) {
+            title += ` (Draft)`;
+          } else if (brief.versionNumber > 1) {
+            title += ` (Version ${brief.versionNumber})`;
+          }
+          if (brief.changeLog) {
+            title += ` - ${brief.changeLog}`;
+          }
+          
+          return (
+            <ActivityItem
+              key={`brief-${brief.id}`}
+              icon={<Book className="w-4 h-4 text-blue-600" />}
+              title={title}
+              date={brief.createdAt}
+              link={`/briefs/${brief.id}`}
+            />
+          );
+        });
       
       case 'reviews':
         const filteredReviews = filterByTime(user.reviews, timeFilter);
@@ -196,15 +217,27 @@ export default function UserProfilePage() {
       
       case 'all':
       default:
-        return filteredBriefs.map((brief) => (
-          <ActivityItem
-            key={`brief-${brief.id}`}
-            icon={<Book className="w-4 h-4 text-blue-600" />}
-            title={`Created: ${brief.title}`}
-            date={brief.createdAt}
-            link={`/briefs/${brief.id}`}
-          />
-        ));
+        return filteredAllBriefs.map((brief) => {
+          let title = `Created: ${brief.title}`;
+          if (brief.isDraft) {
+            title += ` (Draft)`;
+          } else if (brief.versionNumber > 1) {
+            title += ` (Version ${brief.versionNumber})`;
+          }
+          if (brief.changeLog) {
+            title += ` - ${brief.changeLog}`;
+          }
+          
+          return (
+            <ActivityItem
+              key={`brief-${brief.id}`}
+              icon={<Book className="w-4 h-4 text-blue-600" />}
+              title={title}
+              date={brief.createdAt}
+              link={`/briefs/${brief.id}`}
+            />
+          );
+        });
     }
   };
 

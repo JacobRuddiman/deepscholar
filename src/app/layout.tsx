@@ -4,6 +4,7 @@ import { type Metadata } from "next";
 import NavTriangles from "./components/nav_triangles";
 import ClientSessionProvider from "./auth/SessionProvider";
 import ErrorBoundary from "./components/error_boundary";
+import { TooltipProvider } from "./components/TooltipProvider";
 
 export const metadata: Metadata = {
   title: "Deep Scholar",
@@ -23,12 +24,14 @@ export default function RootLayout({
           
           {/* Use SessionProvider without server-side session */}
           <ClientSessionProvider>
-            <ErrorBoundary>
-              {/* Content with appropriate padding and z-index */}
-              <main className="relative z-10 pt-18">
-                {children}
-              </main>
-            </ErrorBoundary>
+            <TooltipProvider>
+              <ErrorBoundary>
+                {/* Content with appropriate padding and z-index */}
+                <main className="relative z-10 pt-18">
+                  {children}
+                </main>
+              </ErrorBoundary>
+            </TooltipProvider>
           </ClientSessionProvider>
         </div>
       </body>
