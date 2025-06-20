@@ -20,7 +20,6 @@ export const briefContentSchema = z
 
 export const briefAbstractSchema = z
   .string()
-  .max(1000, 'Abstract must be less than 1,000 characters')
   .optional();
 
 export const reviewContentSchema = z

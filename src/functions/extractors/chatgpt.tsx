@@ -30,6 +30,32 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
     
     // Extract the main content, abstract, and references
       const { mainContent, abstractContent, referencesList } = await page.evaluate(() => {
+        // Helper function to convert inline links to markdown format
+        const preserveLinksAsMarkdown = (element) => {
+          if (!element) return '';
+          
+          // Clone the element to avoid modifying the original
+          const clone = element.cloneNode(true);
+          
+          // Find all anchor tags within the element
+          const links = clone.querySelectorAll('a');
+          
+          links.forEach(link => {
+            const url = link.getAttribute('href') || '';
+            const text = link.textContent || '';
+            
+            // Create a markdown link format
+            const markdownLink = ` [${text}](${url}) `;
+            
+            // Replace the link element with the markdown text
+            const textNode = document.createTextNode(markdownLink);
+            link.parentNode.replaceChild(textNode, link);
+          });
+          
+          // Return the text content with preserved markdown links
+          return clone.textContent || '';
+        };
+        
         // Helper function to get text content from elements
       const getTextFromElements = (elements: Element[]) => {
           // elements parameter is typed as Element[] to ensure the function accepts an array of DOM Elements
@@ -71,26 +97,16 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
           });
           
           if (conclusionHeader) {
-            // Extract conclusion/summary section
-            let fullConclusionText = '';
-            let currentElement = conclusionHeader.nextElementSibling;
+            let fullConclusionElement = conclusionHeader.nextElementSibling;
+            let abstractWithLinks = '';
             
-            // Collect all elements until the next header or end
-            while (currentElement && 
-                  !['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(currentElement.tagName)) {
-              fullConclusionText += currentElement.textContent + '\n\n';
-              currentElement = currentElement.nextElementSibling;
+            while (fullConclusionElement && 
+                  !['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(fullConclusionElement.tagName)) {
+              abstractWithLinks += preserveLinksAsMarkdown(fullConclusionElement) + '\n\n';
+              fullConclusionElement = fullConclusionElement.nextElementSibling;
             }
             
-            // Check if the conclusion text contains references
-            const referencesMatch = fullConclusionText.match(/\breferences\b/i);
-            if (referencesMatch && referencesMatch.index !== undefined) {
-              const referencesIndex = referencesMatch.index;
-              abstractSection = fullConclusionText.substring(0, referencesIndex).trim();
-              referenceSection = fullConclusionText.substring(referencesIndex).trim();
-            } else {
-              abstractSection = fullConclusionText;
-            }
+            abstractSection = abstractWithLinks.trim();
             
             // Extract main content (everything before conclusion)
             mainSection = '';
@@ -124,9 +140,9 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
                 }
               }
               
-              // If we're still in main section, add this element's content
+              // If we're still in main section, add this element's content with preserved links
               if (inMainSection) {
-                mainSection += element.textContent + '\n\n';
+                mainSection += preserveLinksAsMarkdown(element) + '\n\n';
               }
             }
           } else {
@@ -182,7 +198,7 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
               const paragraphs = mainSection.split('\n\n');
               if (paragraphs.length > 2) {
                 const lastPara = paragraphs[paragraphs.length - 1];
-                if (lastPara && lastPara.length < 1000) {
+                if (lastPara) {
                   abstractSection = lastPara;
                 mainSection = paragraphs.slice(0, -1).join('\n\n');
                 }
@@ -224,7 +240,7 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
                 // If no conclusion paragraph found, use the last paragraph as abstract
               if (!abstractSection && paragraphs.length > 2) {
                 const lastPara = paragraphs[paragraphs.length - 1];
-                  if (lastPara && lastPara.length < 1000) {
+                  if (lastPara) {
                   abstractSection = lastPara;
                   mainSection = paragraphs.slice(0, -1).join('\n\n');
                 }
@@ -243,6 +259,32 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
           referencesList: referenceSection.trim()
         };
       });
+      
+    // Extract inline links from abstract and content
+    const inlineReferences = await page.evaluate(() => {
+      const references = [];
+      const seenUrls = new Set();
+      
+      // Find all links in the research result
+      const links = document.querySelectorAll('div.deep-research-result a[href^="http"]');
+      
+      links.forEach(link => {
+        const url = link.getAttribute('href') || '';
+        const text = link.textContent?.trim() || '';
+        const context = link.parentElement?.textContent?.trim() || '';
+        
+        if (!seenUrls.has(url) && !url.includes('chatgpt.com')) {
+          seenUrls.add(url);
+          references.push({
+            url,
+            title: text || new URL(url).hostname,
+            context: context.substring(0, 200) // First 200 chars of context
+          });
+        }
+      });
+      
+      return references;
+    });
       
     // Extract sources (links)
       const sources = await page.evaluate(() => {
@@ -268,28 +310,27 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
         return sourceLinks;
       });
       
+    // Add these to the references section
+    const enhancedReferences = [
+      ...referencesList.split('\n').filter(line => line.trim()).filter((line, index) => {
+        // Remove first line if it has less than 4 words
+        if (index === 0) {
+          const wordCount = line.trim().split(/\s+/).length;
+          return wordCount >= 4;
+        }
+        return true;
+      }).map(line => `• ${line.trim()}`),
+      ...inlineReferences.map(ref => `• [${ref.title}](${ref.url}) - ${ref.context}`)
+    ].join('\n');
+    
     // Format references to have bullet points
-    const formattedReferences = referencesList
-      ? referencesList
-          .split('\n')
-          .filter(line => line.trim())
-          .filter((line, index) => {
-            // Remove first line if it has less than 4 words
-            if (index === 0) {
-              const wordCount = line.trim().split(/\s+/).length;
-              return wordCount >= 4;
-            }
-            return true;
-          })
-          .map(line => `• ${line.trim()}`)
-          .join('\n')
-      : "No references available";
+    const formattedReferences = enhancedReferences || "No references available";
     
       // Get model information if available
       console.info(url)
-    const model: "OpenAI" | "Perplexity" | "Anthropic" | "Other" = "OpenAI";
+    const model: "openai" | "perplexity" | "anthropic" | "other" = "openai";
       // model is explicitly typed with a union type to restrict its value to only these specific string literals
-      // Note: This will be normalized to lowercase when passed to the model lookup function
+      // Using lowercase to match database provider values
       
       // Extract thinking content (this is usually not visible in ChatGPT responses,
       // but we keep this as a placeholder)

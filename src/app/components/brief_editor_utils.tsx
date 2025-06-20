@@ -132,8 +132,17 @@ export const markdownComponents: Components = {
   h4: ({children, ...props}) => <h4 className="text-base font-bold my-2" {...props}>{children}</h4>,
   h5: ({children, ...props}) => <h5 className="text-sm font-bold my-2" {...props}>{children}</h5>,
   h6: ({children, ...props}) => <h6 className="text-xs font-bold my-2" {...props}>{children}</h6>,
-  p: ({children, ...props}) => <p className="text-gray-800 my-2" {...props}>{children}</p>,
-  a: ({children, ...props}) => <a className="text-blue-600 hover:underline" {...props}>{children}</a>,
+  p: ({children, ...props}) => <p className="mb-4 leading-relaxed" {...props}>{children}</p>,
+  a: ({ href, children }) => (
+    <a 
+      href={href} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="text-blue-600 hover:text-blue-800 underline mx-1"
+    >
+      {children}
+    </a>
+  ),
   ul: ({children, ...props}) => <ul className="list-disc pl-5 my-3" {...props}>{children}</ul>,
   ol: ({children, ...props}) => <ol className="list-decimal pl-5 my-3" {...props}>{children}</ol>,
   li: ({children, ...props}) => <li className="my-1" {...props}>{children}</li>,

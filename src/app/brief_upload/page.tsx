@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import BriefEditor from "../components/bried_editor";
+import BriefUploadEditor from "../components/BriefUploadEditor";
 import type { BriefData } from '@/functions/types';
 import { createBrief } from "@/server/actions/briefs";
 import { getDefaultModel } from "@/server/actions/models";
@@ -16,6 +16,10 @@ export default function BriefUploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [defaultModelId, setDefaultModelId] = useState<string | null>(null);
+  
+  // New state for input mode
+  const [inputMode, setInputMode] = useState<'url' | 'content'>('url');
+  const [pastedContent, setPastedContent] = useState('');
 
   console.log('=== BriefUploadPage Render ===');
   console.log('Session status:', status);
@@ -168,6 +172,38 @@ export default function BriefUploadPage() {
     }
   };
   
+  // Handle content paste and fetch
+  const handleFetchFromContent = async () => {
+    if (!pastedContent.trim()) {
+      setError('Please paste some content first');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setError(null);
+
+      // For now, create a basic brief from the pasted content
+      // In the future, this could be enhanced to parse the content more intelligently
+      const briefData: BriefData = {
+        title: 'Pasted Content Brief',
+        content: pastedContent,
+        abstract: pastedContent.substring(0, 200) + '...',
+        thinking: '',
+        model: 'other' as const,
+        sources: [],
+        references: ''
+      };
+
+      await handleSubmit(briefData);
+    } catch (err: unknown) {
+      console.error('Error processing pasted content:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process content');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <ErrorPopup
@@ -176,7 +212,35 @@ export default function BriefUploadPage() {
         onClose={() => setError(null)}
         autoClose={true}
       />
-      <BriefEditor onSubmit={handleSubmit} />
+      
+      {/* Content Paste Option */}
+      <div className="max-w-4xl mx-auto mb-6">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold mb-4">Paste Your Content</h2>
+          <textarea
+            value={pastedContent}
+            onChange={(e) => setPastedContent(e.target.value)}
+            placeholder="Paste your research content, article, or any text you want to create a brief from..."
+            className="w-full h-64 p-4 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          />
+          <div className="flex justify-between items-center mt-4">
+            <span className="text-sm text-gray-500">
+              {pastedContent.length} characters
+            </span>
+            <button
+              onClick={handleFetchFromContent}
+              disabled={!pastedContent.trim() || isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-md transition-colors"
+            >
+              {isSubmitting ? 'Processing...' : 'Create Brief'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <BriefUploadEditor 
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }

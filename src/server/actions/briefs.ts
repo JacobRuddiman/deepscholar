@@ -45,6 +45,86 @@ async function getUserId() {
   }
 }
 
+// Create a new brief (initial version)
+export async function createBrief(briefData: CreateBriefInput) {
+  try {
+    const userId = await getUserId();
+
+    // Validate input
+    const validationResult = validateInput(createBriefSchema, briefData);
+    if (!validationResult.success) {
+      return {
+        success: false,
+        error: validationResult.errors?.join(', ') ?? 'Validation failed',
+      };
+    }
+
+    // Sanitize content
+    const sanitizedData = {
+      ...briefData,
+      title: sanitizeText(briefData.title),
+      abstract: briefData.abstract ? sanitizeText(briefData.abstract) : null,
+      prompt: sanitizeText(briefData.prompt),
+      response: sanitizeHtml(briefData.response),
+      thinking: briefData.thinking ? sanitizeText(briefData.thinking) : undefined,
+    };
+
+    // Create the brief
+    const brief = await db.brief.create({
+      data: {
+        title: sanitizedData.title,
+        abstract: sanitizedData.abstract,
+        prompt: sanitizedData.prompt,
+        response: sanitizedData.response,
+        thinking: sanitizedData.thinking,
+        modelId: briefData.modelId,
+        userId: userId,
+        slug: briefData.slug,
+        versionNumber: 1, // First version
+        isDraft: false,
+        published: true,
+        isActive: true, // New briefs are active by default
+        ...(briefData.categoryIds && briefData.categoryIds.length > 0 && {
+          categories: {
+            connect: briefData.categoryIds.map((id: string) => ({ id })),
+          },
+        }),
+        ...(briefData.sourceIds && briefData.sourceIds.length > 0 && {
+          sources: {
+            connect: briefData.sourceIds.map((id: string) => ({ id })),
+          },
+        }),
+      },
+      include: {
+        categories: true,
+        sources: true,
+        model: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    revalidatePath('/my-briefs');
+    revalidatePath('/briefs');
+
+    return {
+      success: true,
+      data: brief,
+    };
+  } catch (error) {
+    console.error('Error creating brief:', error);
+    return {
+      success: false,
+      error: 'Failed to create brief',
+    };
+  }
+}
+
 // Get all briefs for the current user (only active versions)
 export async function getUserBriefs() {
   try {
@@ -164,7 +244,7 @@ export async function getBriefVersions(briefId: string) {
         userId: true,
         versionNumber: true 
       },
-    }) as any;
+    });
 
     if (!brief) {
       return {
@@ -174,7 +254,7 @@ export async function getBriefVersions(briefId: string) {
     }
 
     // Find the root brief ID (either this brief if it's the original, or its parent)
-    const rootBriefId = brief.parentBriefId || brief.id;
+    const rootBriefId = brief.parentBriefId ?? brief.id;
 
     // Get all versions (including the root brief)
     const versions = await db.brief.findMany({
@@ -183,7 +263,7 @@ export async function getBriefVersions(briefId: string) {
           { id: rootBriefId },
           { parentBriefId: rootBriefId }
         ]
-      } as any,
+      },
       select: {
         id: true,
         versionNumber: true,
@@ -193,10 +273,10 @@ export async function getBriefVersions(briefId: string) {
         isDraft: true,
         isActive: true,
         userId: true,
-      } as any,
+      },
       orderBy: {
         versionNumber: 'desc',
-      } as any,
+      },
     });
 
     return {
@@ -238,15 +318,15 @@ export async function createBriefVersion(
         parentBriefId: true, 
         modelId: true,
         versionNumber: true 
-      } as any,
-    }) as any;
+      },
+    });
 
     if (!parentBrief || parentBrief.userId !== userId) {
       throw new Error('Not authorized to create version of this brief');
     }
 
     // Find the root brief ID and get the highest version number
-    const rootBriefId = parentBrief.parentBriefId || parentBriefId;
+    const rootBriefId = parentBrief.parentBriefId ?? parentBriefId;
     
     const highestVersion = await db.brief.findFirst({
       where: {
@@ -263,7 +343,7 @@ export async function createBriefVersion(
       },
     });
 
-    const newVersionNumber = (highestVersion?.versionNumber || 0) + 1;
+    const newVersionNumber = (highestVersion?.versionNumber ?? 0) + 1;
 
     // First, set all existing versions in this brief family to inactive
     await db.brief.updateMany({
@@ -360,7 +440,7 @@ export async function updateBriefVersion(
         userId: true, 
         isDraft: true 
       },
-    }) as any;
+    });
 
     if (!brief || brief.userId !== userId) {
       throw new Error('Not authorized to update this brief');
@@ -438,7 +518,7 @@ export async function pushDraftToVersion(
         versionNumber: true,
         isDraft: true 
       },
-    }) as any;
+    });
 
     if (!draft || draft.userId !== userId || !draft.isDraft) {
       throw new Error('Not authorized or invalid draft');
@@ -448,8 +528,8 @@ export async function pushDraftToVersion(
     const publishedVersion = await db.brief.findFirst({
       where: {
         OR: [
-          { id: draft.parentBriefId },
-          { parentBriefId: draft.parentBriefId }
+          ...(draft.parentBriefId ? [{ id: draft.parentBriefId }] : []),
+          ...(draft.parentBriefId ? [{ parentBriefId: draft.parentBriefId }] : [])
         ],
         versionNumber: draft.versionNumber,
         isDraft: false,
@@ -590,11 +670,11 @@ export async function saveBriefDraft(
     if (currentBrief.isDraft) {
       // If current is already a draft, use its version number and parent
       targetVersionNumber = currentBrief.versionNumber;
-      rootBriefId = currentBrief.parentBriefId || briefId;
+      rootBriefId = currentBrief.parentBriefId ?? briefId;
     } else {
       // If current is a published version, use its version number
       targetVersionNumber = currentBrief.versionNumber;
-      rootBriefId = currentBrief.parentBriefId || briefId;
+      rootBriefId = currentBrief.parentBriefId ?? briefId;
     }
     
     // Get existing drafts for this specific version to determine draft number
@@ -998,7 +1078,7 @@ export async function setActiveVersion(briefId: string) {
     }
 
     // Find the root brief ID
-    const rootBriefId = brief.parentBriefId || briefId;
+    const rootBriefId = brief.parentBriefId ?? briefId;
 
     // First, set all versions in this brief family to inactive
     await db.brief.updateMany({
@@ -1057,7 +1137,7 @@ export async function deleteBrief(briefId: string) {
 
     // If deleting an active version, ensure another version becomes active
     if (existingBrief.isActive && !existingBrief.isDraft) {
-      const rootBriefId = existingBrief.parentBriefId || briefId;
+      const rootBriefId = existingBrief.parentBriefId ?? briefId;
       
       // Find other published versions in this family
       const otherVersions = await db.brief.findMany({
@@ -1091,7 +1171,7 @@ export async function deleteBrief(briefId: string) {
       briefsToDelete = [briefId];
     } else {
       // If deleting a published version, also delete all its drafts
-      const rootBriefId = existingBrief.parentBriefId || briefId;
+      const rootBriefId = existingBrief.parentBriefId ?? briefId;
       
       // Find all drafts for this specific version
       const relatedDrafts = await db.brief.findMany({

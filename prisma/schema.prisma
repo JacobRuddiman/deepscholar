@@ -132,7 +132,7 @@ model Brief {
   title            String
   prompt           String
   response         String
-  abstract         String?           // Optional summary/abstract
+  abstract         String?           // Optional summary/abstract with markdown-formatted links
   thinking         String?           // Optional AI's thinking process
   modelId          String
   model            ResearchAIModel   @relation(fields: [modelId], references: [id])

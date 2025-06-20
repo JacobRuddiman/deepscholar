@@ -13,7 +13,7 @@ export type BriefData = {
   abstract: string; // string type ensures abstract is always text
   sources: BriefSource[]; // Array of BriefSource objects to store all sources
   thinking: string; // string type ensures thinking notes are always text
-  model: "OpenAI" | "Perplexity" | "Anthropic" | "Other"; // Union type restricts model to only these specific string values
+  model: "openai" | "perplexity" | "anthropic" | "other"; // Union type restricts model to only these specific string values (lowercase to match database)
   rawHtml?: string; // optional string with ? modifier allows this field to be undefined
   references?: string; // optional string with ? modifier allows this field to be undefined
 };
