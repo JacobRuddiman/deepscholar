@@ -177,6 +177,155 @@ export async function getUserBriefs() {
   }
 }
 
+// Get all briefs saved by the current user
+export async function getSavedBriefs() {
+  try {
+    console.log('Starting getSavedBriefs');
+    
+    const userId = await getUserId();
+    console.log('Using userId:', userId);
+
+    console.log('Querying database for saved briefs');
+    const savedBriefs = await db.savedBrief.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        brief: {
+          include: {
+            categories: true,
+            sources: true,
+            upvotes: true,
+            reviews: true,
+            model: true,
+            author: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    console.log(`Found ${savedBriefs.length} saved briefs`);
+
+    // Extract the brief data from the savedBrief relationship
+    const briefs = savedBriefs.map(savedBrief => savedBrief.brief);
+
+    return {
+      success: true,
+      data: briefs,
+    };
+  } catch (error) {
+    console.error('Error fetching saved briefs:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    return {
+      success: false,
+      error: 'Failed to fetch saved briefs',
+    };
+  }
+}
+
+// Get all reviews written by the current user
+export async function getUserReviews() {
+  try {
+    console.log('Starting getUserReviews');
+    
+    const userId = await getUserId();
+    console.log('Using userId:', userId);
+
+    console.log('Querying database for user reviews');
+    const reviews = await db.review.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        brief: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          },
+        },
+        upvotes: true,
+        helpfulMarks: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    console.log(`Found ${reviews.length} user reviews`);
+
+    return {
+      success: true,
+      data: reviews,
+    };
+  } catch (error) {
+    console.error('Error fetching user reviews:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    return {
+      success: false,
+      error: 'Failed to fetch user reviews',
+    };
+  }
+}
+
+// Get all upvotes given by the current user
+export async function getUserUpvotes() {
+  try {
+    console.log('Starting getUserUpvotes');
+    
+    const userId = await getUserId();
+    console.log('Using userId:', userId);
+
+    console.log('Querying database for user upvotes');
+    const upvotes = await db.briefUpvote.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        brief: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    console.log(`Found ${upvotes.length} user upvotes`);
+
+    return {
+      success: true,
+      data: upvotes,
+    };
+  } catch (error) {
+    console.error('Error fetching user upvotes:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    return {
+      success: false,
+      error: 'Failed to fetch user upvotes',
+    };
+  }
+}
+
 export async function getBriefById(briefId: string) {
   try {
     console.log('Starting getBriefById');

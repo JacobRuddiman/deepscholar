@@ -1,3 +1,4 @@
+// app/components/conditional_navbar.tsx
 "use client";
 
 import Link from "next/link";
@@ -16,8 +17,8 @@ export default function ConditionalNavbar() {
   
   return (
     <>
-      {/* NavBar with Deep Scholar button */}
-      <div className="fixed top-0 left-1/2 transform -translate-x-1/2 z-30 flex items-start">
+      {/* NavBar with Deep Scholar button - Hidden on mobile */}
+      <div className="fixed top-0 left-1/2 transform -translate-x-1/2 z-30 hidden md:flex items-start">
         {/* Left triangle */}
         <div 
           className="h-12 w-8 bg-blue-600 shadow-lg"

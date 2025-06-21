@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import BriefEditor from '@/app/components/bried_editor'; // Assuming this is the editor component
+import BriefEditor from '@/app/components/brief/BriefEditor'; // Assuming this is the editor component
 import { getBriefById } from '@/server/actions/briefs';
 
 export default function EditBriefPage() {

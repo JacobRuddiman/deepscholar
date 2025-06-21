@@ -1,7 +1,8 @@
+// app/home/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Clock, Filter, BookOpen, Users, Brain, ArrowRight } from 'lucide-react';
+import { TrendingUp, Clock, Filter, BookOpen, Users, Brain, ArrowRight, ChevronDown } from 'lucide-react';
 import PopularBriefs from '../components/popular_briefs';
 import TopBriefsByCategory from '../components/top_briefs_by_category';
 import SearchBar from '../components/SearchBar';
@@ -9,7 +10,7 @@ import { getBriefStats, getRecentBriefs } from '@/server/actions/home';
 import BriefCard from '../components/brief_card';
 import type { BriefCardProps } from '../components/brief_card';
 import TooltipWrapper from '../components/TooltipWrapper';
-
+import { useDeviceDetection } from '../hooks/useDeviceDetection';
 
 // Transform database brief to BriefCardProps
 const transformBrief = (brief: any): BriefCardProps => {
@@ -40,6 +41,8 @@ export default function HomePage() {
   const [recentBriefs, setRecentBriefs] = useState<BriefCardProps[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingRecent, setLoadingRecent] = useState(true);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const { isMobile, isTablet } = useDeviceDetection();
 
   useEffect(() => {
     // Fetch statistics
@@ -59,7 +62,7 @@ export default function HomePage() {
     // Fetch recent briefs
     const fetchRecent = async () => {
       try {
-        const result = await getRecentBriefs(3);
+        const result = await getRecentBriefs(isMobile ? 2 : 3);
         if (result.success && result.data) {
           setRecentBriefs(result.data.map(transformBrief));
         }
@@ -72,7 +75,7 @@ export default function HomePage() {
 
     fetchStats();
     fetchRecent();
-  }, []);
+  }, [isMobile]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,66 +96,90 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section with Search */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
-        <div className="container mx-auto px-4 py-12">
-          <h1 className="text-4xl font-bold text-center mb-3">DeepScholar</h1>
-          <p className="text-center text-blue-100 text-lg max-w-3xl mx-auto mb-8">
-            Discover, search, and share AI-generated research insights from leading models
+        <div className="container mx-auto px-4 py-8 md:py-12">
+          <h1 className="text-3xl md:text-4xl font-bold text-center mb-2 md:mb-3">DeepScholar</h1>
+          <p className="text-center text-blue-100 text-base md:text-lg max-w-3xl mx-auto mb-6 md:mb-8 px-4">
+            Discover, search, and share AI-generated research insights
           </p>
           
           <div className="max-w-4xl mx-auto">
             <SearchBar 
-              placeholder="Search for research topics, questions, or specific insights..."
-              showFilters={true}
-              size="lg"
+              placeholder={isMobile ? "Search research..." : "Search for research topics, questions, or specific insights..."}
+              showFilters={!isMobile}
+              size={isMobile ? "md" : "lg"}
               className="mb-4"
             />
             
-            <div className="flex justify-center mt-4 space-x-6">
-              <TooltipWrapper 
-                content="View the most popular research briefs based on views and engagement"
-                position="bottom"
-              >
+            {/* Mobile Filter Buttons */}
+            {isMobile ? (
+              <div className="flex justify-center space-x-4 mt-4">
                 <button 
-                  type="button" 
                   onClick={() => handleFilterClick('trending')}
-                  className="flex items-center text-blue-100 hover:text-white transition-colors"
+                  className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-medium"
                 >
-                  <TrendingUp className="h-4 w-4 mr-1" />
-                  <span className="text-sm">Trending</span>
+                  Trending
                 </button>
-              </TooltipWrapper>
-              <TooltipWrapper 
-                content="View the most recently published research briefs"
-                position="bottom"
-              >
                 <button 
-                  type="button" 
                   onClick={() => handleFilterClick('recent')}
-                  className="flex items-center text-blue-100 hover:text-white transition-colors"
+                  className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-medium"
                 >
-                  <Clock className="h-4 w-4 mr-1" />
-                  <span className="text-sm">Recent</span>
+                  Recent
                 </button>
-              </TooltipWrapper>
-              <TooltipWrapper 
-                content="Browse all research briefs with advanced filtering options"
-                position="bottom"
-              >
                 <a 
-                  href="/briefs" 
-                  className="flex items-center text-blue-100 hover:text-white transition-colors"
+                  href="/briefs"
+                  className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-medium"
                 >
-                  <Filter className="h-4 w-4 mr-1" />
-                  <span className="text-sm">Browse All</span>
+                  Browse All
                 </a>
-              </TooltipWrapper>
-            </div>
+              </div>
+            ) : (
+              <div className="flex justify-center mt-4 space-x-6">
+                <TooltipWrapper 
+                  content="View the most popular research briefs based on views and engagement"
+                  position="bottom"
+                >
+                  <button 
+                    type="button" 
+                    onClick={() => handleFilterClick('trending')}
+                    className="flex items-center text-blue-100 hover:text-white transition-colors"
+                  >
+                    <TrendingUp className="h-4 w-4 mr-1" />
+                    <span className="text-sm">Trending</span>
+                  </button>
+                </TooltipWrapper>
+                <TooltipWrapper 
+                  content="View the most recently published research briefs"
+                  position="bottom"
+                >
+                  <button 
+                    type="button" 
+                    onClick={() => handleFilterClick('recent')}
+                    className="flex items-center text-blue-100 hover:text-white transition-colors"
+                  >
+                    <Clock className="h-4 w-4 mr-1" />
+                    <span className="text-sm">Recent</span>
+                  </button>
+                </TooltipWrapper>
+                <TooltipWrapper 
+                  content="Browse all research briefs with advanced filtering options"
+                  position="bottom"
+                >
+                  <a 
+                    href="/briefs" 
+                    className="flex items-center text-blue-100 hover:text-white transition-colors"
+                  >
+                    <Filter className="h-4 w-4 mr-1" />
+                    <span className="text-sm">Browse All</span>
+                  </a>
+                </TooltipWrapper>
+              </div>
+            )}
           </div>
         </div>
         
-        {/* Wave Separator */}
-        <div className="h-16 bg-gradient-to-r from-blue-600 to-indigo-700 relative">
-          <svg className="absolute bottom-0 w-full h-16" preserveAspectRatio="none" viewBox="0 0 1440 54">
+        {/* Wave Separator - Hidden on mobile */}
+        <div className="h-8 md:h-16 bg-gradient-to-r from-blue-600 to-indigo-700 relative">
+          <svg className="absolute bottom-0 w-full h-8 md:h-16" preserveAspectRatio="none" viewBox="0 0 1440 54">
             <path
               fill="#f9fafb"
               fillOpacity="1"
@@ -163,95 +190,143 @@ export default function HomePage() {
       </div>
       
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-4 md:py-6">
         {/* Stats Section */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-sm text-center">
-            <div className="flex items-center justify-center mb-2">
-              <BookOpen className="h-8 w-8 text-blue-600" />
+        <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm text-center">
+            <div className="flex items-center justify-center mb-1 md:mb-2">
+              <BookOpen className="h-6 md:h-8 w-6 md:w-8 text-blue-600" />
             </div>
-            <p className="text-gray-500 text-sm">Research Insights</p>
+            <p className="text-gray-500 text-xs md:text-sm">Research</p>
             {loadingStats ? (
-              <div className="h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
+              <div className="h-6 md:h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
             ) : (
-              <p className="text-3xl font-bold text-gray-900">{stats.briefCount.toLocaleString()}</p>
+              <p className="text-xl md:text-3xl font-bold text-gray-900">{stats.briefCount.toLocaleString()}</p>
             )}
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm text-center">
-            <div className="flex items-center justify-center mb-2">
-              <Brain className="h-8 w-8 text-green-600" />
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm text-center">
+            <div className="flex items-center justify-center mb-1 md:mb-2">
+              <Brain className="h-6 md:h-8 w-6 md:w-8 text-green-600" />
             </div>
-            <p className="text-gray-500 text-sm">AI Models</p>
+            <p className="text-gray-500 text-xs md:text-sm">AI Models</p>
             {loadingStats ? (
-              <div className="h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
+              <div className="h-6 md:h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
             ) : (
-              <p className="text-3xl font-bold text-gray-900">{stats.modelCount}</p>
+              <p className="text-xl md:text-3xl font-bold text-gray-900">{stats.modelCount}</p>
             )}
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm text-center">
-            <div className="flex items-center justify-center mb-2">
-              <Users className="h-8 w-8 text-purple-600" />
+          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm text-center">
+            <div className="flex items-center justify-center mb-1 md:mb-2">
+              <Users className="h-6 md:h-8 w-6 md:w-8 text-purple-600" />
             </div>
-            <p className="text-gray-500 text-sm">Contributors</p>
+            <p className="text-gray-500 text-xs md:text-sm">Contributors</p>
             {loadingStats ? (
-              <div className="h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
+              <div className="h-6 md:h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
             ) : (
-              <p className="text-3xl font-bold text-gray-900">{stats.userCount.toLocaleString()}</p>
+              <p className="text-xl md:text-3xl font-bold text-gray-900">{stats.userCount.toLocaleString()}</p>
             )}
           </div>
         </div>
         
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <TooltipWrapper 
-              content="Upload and share your AI-generated research insights with the community"
-              position="top"
+        {/* Quick Actions - Mobile Dropdown */}
+        {isMobile ? (
+          <div className="bg-white rounded-lg shadow-sm mb-6">
+            <button
+              onClick={() => setShowQuickActions(!showQuickActions)}
+              className="w-full p-4 flex items-center justify-between"
             >
-              <a 
-                href="/brief_upload" 
-                className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group"
-              >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-blue-900">Create Research Brief</h3>
-                  <p className="text-sm text-blue-700">Share your AI-generated insights</p>
-                </div>
-                <ArrowRight className="h-5 w-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
-              </a>
-            </TooltipWrapper>
-            <TooltipWrapper 
-              content="Explore the complete library of research briefs with search and filtering"
-              position="top"
-            >
-              <a 
-                href="/briefs" 
-                className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors group"
-              >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-green-900">Browse Research</h3>
-                  <p className="text-sm text-green-700">Explore all available insights</p>
-                </div>
-                <ArrowRight className="h-5 w-5 text-green-600 group-hover:translate-x-1 transition-transform" />
-              </a>
-            </TooltipWrapper>
-            <TooltipWrapper 
-              content="View and manage all the research briefs you've contributed to the platform"
-              position="top"
-            >
-              <a 
-                href="/my-briefs" 
-                className="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group"
-              >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-purple-900">My Contributions</h3>
-                  <p className="text-sm text-purple-700">View your research briefs</p>
-                </div>
-                <ArrowRight className="h-5 w-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
-              </a>
-            </TooltipWrapper>
+              <h2 className="text-lg font-bold text-gray-900">Quick Actions</h2>
+              <ChevronDown className={`h-5 w-5 text-gray-600 transform transition-transform ${showQuickActions ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {showQuickActions && (
+              <div className="px-4 pb-4 space-y-3">
+                <a 
+                  href="/brief_upload" 
+                  className="flex items-center p-3 bg-blue-50 rounded-lg"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-blue-900 text-sm">Create Research Brief</h3>
+                    <p className="text-xs text-blue-700">Share your AI insights</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-blue-600" />
+                </a>
+                <a 
+                  href="/briefs" 
+                  className="flex items-center p-3 bg-green-50 rounded-lg"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-green-900 text-sm">Browse Research</h3>
+                    <p className="text-xs text-green-700">Explore all insights</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-green-600" />
+                </a>
+                <a 
+                  href="/my-briefs" 
+                  className="flex items-center p-3 bg-purple-50 rounded-lg"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-purple-900 text-sm">My Contributions</h3>
+                    <p className="text-xs text-purple-700">View your briefs</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-purple-600" />
+                </a>
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          /* Desktop Quick Actions */
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <TooltipWrapper 
+                content="Upload and share your AI-generated research insights with the community"
+                position="top"
+              >
+                <a 
+                  href="/brief_upload" 
+                  className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-blue-900">Create Research Brief</h3>
+                    <p className="text-sm text-blue-700">Share your AI-generated insights</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
+                </a>
+              </TooltipWrapper>
+              <TooltipWrapper 
+                content="Explore the complete library of research briefs with search and filtering"
+                position="top"
+              >
+                <a 
+                  href="/briefs" 
+                  className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors group"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-green-900">Browse Research</h3>
+                    <p className="text-sm text-green-700">Explore all available insights</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-green-600 group-hover:translate-x-1 transition-transform" />
+                </a>
+              </TooltipWrapper>
+              <TooltipWrapper 
+                content="View and manage all the research briefs you've contributed to the platform"
+                position="top"
+              >
+                <a 
+                  href="/my-briefs" 
+                  className="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-purple-900">My Contributions</h3>
+                    <p className="text-sm text-purple-700">View your research briefs</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
+                </a>
+              </TooltipWrapper>
+            </div>
+          </div>
+        )}
         
         {/* Popular Briefs Section */}
         <PopularBriefs />
@@ -259,13 +334,14 @@ export default function HomePage() {
         {/* Recent Briefs Section */}
         {recentBriefs.length > 0 && (
           <>
-            <div className="border-t border-gray-200 my-8"></div>
-            <section className="py-6">
+            <div className="border-t border-gray-200 my-6 md:my-8"></div>
+            <section className="py-4 md:py-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-900">Latest Research</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900">Latest Research</h2>
                 <TooltipWrapper 
                   content="View all recent research briefs with sorting and filtering options"
                   position="left"
+                  disabled={isMobile}
                 >
                   <a href="/briefs?sort=recent" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
                     View all
@@ -274,8 +350,8 @@ export default function HomePage() {
               </div>
               
               {loadingRecent ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {[...Array(3)].map((_, i) => (
+                <div className={`grid grid-cols-1 ${isMobile ? 'gap-3' : 'md:grid-cols-3 gap-4'}`}>
+                  {[...Array(isMobile ? 2 : 3)].map((_, i) => (
                     <div key={i} className="bg-white rounded-lg shadow-sm p-4 animate-pulse">
                       <div className="h-4 bg-gray-200 rounded mb-2"></div>
                       <div className="h-3 bg-gray-200 rounded mb-2"></div>
@@ -284,7 +360,7 @@ export default function HomePage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={`grid grid-cols-1 ${isMobile ? 'gap-3' : 'md:grid-cols-3 gap-4'}`}>
                   {recentBriefs.map((brief) => (
                     <BriefCard key={brief.id} {...brief} compact />
                   ))}
@@ -295,38 +371,30 @@ export default function HomePage() {
         )}
         
         {/* Divider */}
-        <div className="border-t border-gray-200 my-8"></div>
+        <div className="border-t border-gray-200 my-6 md:my-8"></div>
         
         {/* Top Briefs By Category Section */}
         <TopBriefsByCategory />
       </div>
       
-      {/* Footer */}
-      <footer className="bg-gray-100 mt-12 py-8">
+      {/* Footer - Responsive */}
+      <footer className="bg-gray-100 mt-8 md:mt-12 py-6 md:py-8">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-4 md:mb-0">
+            <div className="mb-4 md:mb-0 text-center md:text-left">
               <h3 className="text-lg font-bold text-gray-900">DeepScholar</h3>
               <p className="text-gray-600 text-sm">Collaborative AI research repository</p>
             </div>
             
-            <div className="flex space-x-6">
-              <TooltipWrapper content="Learn more about DeepScholar and our mission" position="top">
-                <a href="/about" className="text-gray-600 hover:text-blue-600 transition-colors">About</a>
-              </TooltipWrapper>
-              <TooltipWrapper content="Read our privacy policy and data handling practices" position="top">
-                <a href="/privacy" className="text-gray-600 hover:text-blue-600 transition-colors">Privacy</a>
-              </TooltipWrapper>
-              <TooltipWrapper content="View our terms of service and usage guidelines" position="top">
-                <a href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors">Terms</a>
-              </TooltipWrapper>
-              <TooltipWrapper content="Get in touch with our support team" position="top">
-                <a href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors">Contact</a>
-              </TooltipWrapper>
+            <div className="flex flex-wrap justify-center md:justify-end gap-4 md:space-x-6">
+              <a href="/about" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">About</a>
+              <a href="/privacy" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Privacy</a>
+              <a href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Terms</a>
+              <a href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Contact</a>
             </div>
           </div>
           
-          <div className="mt-6 text-center text-gray-500 text-sm">
+          <div className="mt-6 text-center text-gray-500 text-xs md:text-sm">
             © 2025 DeepScholar. All rights reserved.
           </div>
         </div>
