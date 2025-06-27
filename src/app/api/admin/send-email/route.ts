@@ -1,94 +1,77 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/server/db';
+// app/api/admin/send-email/route.ts
+import { NextResponse } from 'next/server';
 
-// Helper function to format email-like console log
-function logEmail(to: string, subject: string, body: string, footer: string) {
-  console.log('\n' + '='.repeat(80));
-  console.log('📧 ADMIN EMAIL NOTIFICATION');
-  console.log('='.repeat(80));
-  console.log(`To: ${to}`);
-  console.log(`Subject: ${subject}`);
-  console.log('-'.repeat(80));
-  console.log(body);
-  console.log('-'.repeat(80));
-  console.log(footer);
-  console.log('='.repeat(80) + '\n');
-}
+import { prisma } from '@/lib/prisma';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const requestBody = await request.json() as {
-      subject: string;
-      body: string;
-      footer: string;
-      recipients: string | string[];
-    };
-    const { subject, body, footer, recipients } = requestBody;
+    
 
+    const { subject, body, footer, recipients } = await request.json();
+
+    // Validate inputs
     if (!subject || !body) {
-      return NextResponse.json(
-        { success: false, error: 'Subject and body are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    let users;
+    // Get recipient emails
+    let recipientEmails: string[] = [];
+    
     if (recipients === 'all') {
-      users = await db.user.findMany({
-        where: {
-          email: { not: null }
+      const users = await prisma.user.findMany({
+        where: { 
+          email: { not: null },
+          emailNotifications: true 
         },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
+        select: { email: true }
       });
+      recipientEmails = users.map(u => u.email!).filter(Boolean);
     } else if (Array.isArray(recipients)) {
-      users = await db.user.findMany({
-        where: {
-          id: { in: recipients },
-          email: { not: null }
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, error: 'Invalid recipients format' },
-        { status: 400 }
-      );
+      // Handle both user IDs and email addresses
+      const userIds = recipients.filter(r => !r.includes('@'));
+      const directEmails = recipients.filter(r => r.includes('@'));
+      
+      if (userIds.length > 0) {
+        const users = await prisma.user.findMany({
+          where: { 
+            id: { in: userIds },
+            email: { not: null },
+            emailNotifications: true
+          },
+          select: { email: true }
+        });
+        recipientEmails = [...users.map(u => u.email!).filter(Boolean), ...directEmails];
+      } else {
+        recipientEmails = directEmails;
+      }
     }
 
-    console.log(`📧 ADMIN: Sending email to ${users.length} users`);
-    console.log(`📧 Subject: ${subject}`);
-
-    // Send email to each user (console log for now)
-    for (const user of users) {
-      const personalizedBody = body.replace(/\{name\}/g, user.name ?? 'Researcher');
-      logEmail(
-        user.email ?? `${user.name} (${user.id})`,
+    // Save email send record
+    await prisma.emailSend.create({
+      data: {
         subject,
-        personalizedBody,
-        footer
-      );
-    }
+        body,
+        footer: footer || '',
+        recipients: JSON.stringify(recipients),
+        sentBy: session.user.id
+      }
+    });
 
-    console.log(`✅ ADMIN: Email sent to ${users.length} users`);
+    // Here you would integrate with your email service
+    // For now, we'll just log it
+    console.log('Sending email:', {
+      subject,
+      to: recipientEmails,
+      body: `${body}\n\n${footer}`,
+      sentBy: session.user.email
+    });
 
-    return NextResponse.json({
-      success: true,
-      message: `Email sent to ${users.length} users`,
-      recipientCount: users.length,
+    return NextResponse.json({ 
+      success: true, 
+      recipientCount: recipientEmails.length 
     });
   } catch (error) {
-    console.error('❌ ADMIN: Send email failed:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to send email' },
-      { status: 500 }
-    );
+    console.error('Failed to send email:', error);
+    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
   }
 }

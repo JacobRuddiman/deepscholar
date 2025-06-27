@@ -7,6 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Email Footer model
+model EmailFooter {
+  id        String   @id @default(cuid())
+  content   String   // The footer content
+  isActive  Boolean  @default(true) // Whether this footer is currently active
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Email Send History
+model EmailSend {
+  id         String   @id @default(cuid())
+  subject    String
+  body       String
+  footer     String
+  recipients String   // JSON array of recipient emails or "all"
+  sentBy     String   // User ID who sent the email
+  sentByUser User     @relation(fields: [sentBy], references: [id])
+  sentAt     DateTime @default(now())
+}
+
+
 // User model (extends NextAuth)
 model User {
   id                    String          @id @default(cuid())
@@ -36,6 +58,7 @@ model User {
   exportUsage           ExportUsage[]   // Export usage tracking for rate limiting
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+  sentEmails EmailSend[] // Add this line to your existing User model
 }
 
 // NextAuth required models

@@ -3517,4 +3517,124 @@ video {
   .dark\:focus\:ring-offset-gray-800:focus {
     --tw-ring-offset-color: #1f2937;
   }
+
+.email-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  font-size: 12px;
+  background-color: #ebf5ff;
+  color: #1a56db;
+  border-radius: 9999px;
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+.email-tag button {
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+.email-tag button:hover {
+  opacity: 1;
+}
+
+.panel-transition {
+  transition: all 0.3s ease-in-out;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #9ca3af;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+}
+
+.preview-button {
+  position: fixed;
+  right: 20px;
+  top: 100px;
+  background-color: #111827;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: move;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-button:hover {
+  background-color: #374151;
+}
+
+.preview-button-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.email-input-container {
+  position: relative;
+}
+
+.email-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  min-height: 42px;
+}
+
+.email-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  outline: none;
+}
+
+.email-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+}
+
+.email-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 20;
+  margin-top: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.email-suggestion-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.email-suggestion-item:hover {
+  background-color: #f3f4f6;
+}
 }
