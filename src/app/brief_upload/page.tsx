@@ -1,4 +1,3 @@
-// app/brief_upload/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -155,7 +154,7 @@ export default function BriefUploadPage() {
   };
 
   return (
-    <div className={`${isMobile ? 'px-2 py-4' : 'px-4 py-8'}`}>
+    <div className={`${isMobile ? 'px-2 py-4' : 'px-4 py-8'} overflow-x-hidden`}>
       <ErrorPopup
         isVisible={!!error}
         message={error ?? ''}

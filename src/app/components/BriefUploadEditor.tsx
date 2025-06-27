@@ -1,5 +1,4 @@
-// app/components/BriefUploadEditor.tsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -97,7 +96,9 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
   // Toggle states for collapsible sections
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(!isMobile);
   const [isReferencesExpanded, setIsReferencesExpanded] = useState(!isMobile);
-  const [isContentExpanded, setIsContentExpanded] = useState(true);
+  const [isContentExpanded,
+
+ setIsContentExpanded] = useState(true);
   
   // Edit mode states
   const [isTitleEditing, setIsTitleEditing] = useState(false);
@@ -110,6 +111,7 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
   
   // Refs
   const bottomControlsRef = useRef<HTMLDivElement>(null);
+  const urlValidationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Store original data for diff highlighting
   const [originalAbstract, setOriginalAbstract] = useState<string>("");
@@ -135,11 +137,48 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
       const text = await navigator.clipboard.readText();
       if (text) {
         setUrl(text);
-        handleUrlChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
+        validateUrl(text);
       }
     } catch (err) {
       setError("Failed to read from clipboard. Please paste manually.");
     }
+  };
+
+  // Validate URL with debouncing
+  const validateUrl = useCallback((value: string) => {
+    // Clear previous timeout
+    if (urlValidationTimeoutRef.current) {
+      clearTimeout(urlValidationTimeoutRef.current);
+    }
+
+    // Don't validate empty strings
+    if (!value) {
+      setIsValidUrl(null);
+      setError(null);
+      return;
+    }
+
+    // Set a new timeout for validation
+    urlValidationTimeoutRef.current = setTimeout(() => {
+      try {
+        urlSchema.parse(value);
+        setIsValidUrl(true);
+        setError(null);
+      } catch {
+        setIsValidUrl(false);
+        // Only show error if there's actually text
+        if (value.length > 0) {
+          setError("Please enter a valid URL");
+        }
+      }
+    }, 500); // 500ms delay
+  }, []);
+
+  // Handle URL input change
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newUrl = e.target.value;
+    setUrl(newUrl);
+    validateUrl(newUrl);
   };
 
   // Handle adding a new reference
@@ -186,20 +225,14 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
     }
   }, [initialData]);
 
-  // Handle URL input change
-  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newUrl = e.target.value;
-    setUrl(newUrl);
-    
-    try {
-      urlSchema.parse(newUrl);
-      setIsValidUrl(true);
-      setError(null);
-    } catch {
-      setIsValidUrl(newUrl.length > 0 ? false : null);
-      setError(newUrl.length > 0 ? "Please enter a valid URL" : null);
-    }
-  };
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (urlValidationTimeoutRef.current) {
+        clearTimeout(urlValidationTimeoutRef.current);
+      }
+    };
+  }, []);
   
   // Handle fetch brief action
   const handleFetchBrief = async () => {
@@ -261,6 +294,7 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
     setIsContentEditing(false);
     setTheme(determineTheme(null));
     setActiveTab('url');
+    setShowMobileSidebar(false);
   };
   
   // Handle title edit
@@ -335,34 +369,37 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
   
   const colors = themeColors[theme];
 
-  // Mobile sidebar content
+  // Mobile sidebar content - Only show when there's no brief data
   const renderSidebarContent = () => (
     <>
-      {/* Mobile Tabs */}
-      <div className="flex border-b border-gray-200 mb-4">
-        <button
-          onClick={() => setActiveTab('url')}
-          className={`flex-1 py-2 px-4 text-sm font-medium ${
-            activeTab === 'url' 
-              ? 'text-blue-600 border-b-2 border-blue-600' 
-              : 'text-gray-600'
-          }`}
-        >
-          URL Input
-        </button>
-        <button
-          onClick={() => setActiveTab('sources')}
-          className={`flex-1 py-2 px-4 text-sm font-medium ${
-            activeTab === 'sources' 
-              ? 'text-blue-600 border-b-2 border-blue-600' 
-              : 'text-gray-600'
-          }`}
-        >
-          Sources
-        </button>
-      </div>
+      {/* Mobile Tabs - Only show when brief data exists */}
+      {briefData && isSmallScreen && (
+        <div className="flex border-b border-gray-200 mb-4">
+          <button
+            onClick={() => setActiveTab('url')}
+            className={`flex-1 py-2 px-4 text-sm font-medium ${
+              activeTab === 'url' 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-gray-600'
+            }`}
+          >
+            URL Input
+          </button>
+          <button
+            onClick={() => setActiveTab('sources')}
+            className={`flex-1 py-2 px-4 text-sm font-medium ${
+              activeTab === 'sources' 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-gray-600'
+            }`}
+          >
+            Sources
+          </button>
+        </div>
+      )}
 
-      {activeTab === 'url' ? (
+      {/* Show URL input when no brief data or when URL tab is active */}
+      {(!briefData || activeTab === 'url') && (
         /* URL Input Section */
         <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4">
           <label htmlFor="brief-url" className="block text-sm font-medium text-gray-700 mb-2">
@@ -438,7 +475,10 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
             Supports OpenAI and Perplexity deep research URLs
           </p>
         </div>
-      ) : (
+      )}
+
+      {/* Only show sources tab content when brief data exists and sources tab is active */}
+      {briefData && activeTab === 'sources' && isSmallScreen && (
         /* Sources Section */
         <motion.div
           initial="hidden"
@@ -552,11 +592,117 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
       />
     </>
   );
+
+  // Desktop sources section (always visible when brief data exists)
+  const renderDesktopSources = () => (
+    <motion.div
+      initial="hidden"
+      animate={showSourcesSection ? "visible" : "hidden"}
+      variants={sectionVariants}
+      className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4 mt-4"
+    >
+      <div 
+        className="flex justify-between items-center cursor-pointer"
+        onClick={() => setIsSourcesExpanded(!isSourcesExpanded)}
+      >
+        <h2 className="text-lg font-semibold">Sources</h2>
+        <button className="text-gray-500 p-1" aria-label="Toggle sources">
+          {isSourcesExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+      </div>
+      
+      {isSourcesExpanded && (
+        <div className="mt-3">
+          {briefData?.sources && briefData.sources.length > 0 ? (
+            <div>
+              {(() => {
+                const sourceGroups = groupSourcesByDomain(briefData.sources);
+                const domains = Array.from(sourceGroups.keys());
+                
+                if (!activeSourcesDomain && domains.length > 0) {
+                  setActiveSourcesDomain(domains[0] as string);
+                }
+                
+                return (
+                  <>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {(domains as string[]).map((domain: string) => (
+                        <button
+                          key={domain}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveSourcesDomain(domain);
+                          }}
+                          className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                            activeSourcesDomain === domain
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {domain}
+                          <span className="ml-1 text-xs">
+                            ({sourceGroups.get(domain)?.length})
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {activeSourcesDomain && sourceGroups.get(activeSourcesDomain)?.map((source: BriefData['sources'][0], index: number) => {
+                        const favicon = getFaviconUrl(activeSourcesDomain);
+                        return (
+                          <div 
+                            key={index} 
+                            className="p-2 border rounded-md border-gray-200 text-sm break-words"
+                          >
+                            <div className="flex items-start gap-2">
+                              <img 
+                                src={favicon} 
+                                alt={`${activeSourcesDomain} favicon`}
+                                className="w-4 h-4 mt-1 flex-shrink-0"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                              <Link className="text-gray-500 mt-1 flex-shrink-0 hidden" size={14} />
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium line-clamp-2">{source.title}</p>
+                                <a 
+                                  href={source.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 hover:underline block truncate"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={source.url}
+                                >
+                                  {getUrlPath(source.url)}
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="py-3 text-center text-gray-500 text-sm">
+              <p>No sources found.</p>
+              <button className="mt-1 text-blue-600 hover:underline text-xs">Add Source</button>
+            </div>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
   
   return (
     <>
       <style>{customStyles}</style>
-      <div className="relative min-h-screen">
+      <div className="relative min-h-screen overflow-x-hidden">
         {/* Background gradient */}
         <div className={`fixed inset-0 bg-gradient-to-b ${colors.primary} pointer-events-none z-0`} />
         
@@ -590,8 +736,8 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
           {/* Mobile Layout */}
           {isSmallScreen ? (
             <div className="flex flex-col">
-              {/* Mobile Menu Button */}
-              {showTitleSection && (
+              {/* Mobile Menu Button - Only show when brief data exists */}
+              {showTitleSection && briefData && (
                 <button
                   onClick={() => setShowMobileSidebar(!showMobileSidebar)}
                   className="fixed top-20 left-4 z-50 bg-white rounded-full p-2 shadow-lg md:hidden"
@@ -600,21 +746,25 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
                 </button>
               )}
               
-              {/* Mobile Sidebar */}
-              <div className={`fixed inset-y-0 left-0 z-40 w-80 bg-white shadow-xl transform transition-transform duration-300 ${
-                showMobileSidebar ? 'translate-x-0' : '-translate-x-full'
-              } md:hidden`}>
-                <div className="p-4 pt-20 h-full overflow-y-auto">
-                  {renderSidebarContent()}
-                </div>
-              </div>
-              
-              {/* Mobile Overlay */}
-              {showMobileSidebar && (
-                <div 
-                  className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
-                  onClick={() => setShowMobileSidebar(false)}
-                />
+              {/* Mobile Sidebar - Only show when brief data exists */}
+              {briefData && (
+                <>
+                  <div className={`fixed inset-y-0 left-0 z-40 w-80 bg-white shadow-xl transform transition-transform duration-300 ${
+                    showMobileSidebar ? 'translate-x-0' : '-translate-x-full'
+                  } md:hidden`}>
+                    <div className="p-4 pt-20 h-full overflow-y-auto">
+                      {renderSidebarContent()}
+                    </div>
+                  </div>
+                  
+                  {/* Mobile Overlay */}
+                  {showMobileSidebar && (
+                    <div 
+                      className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+                      onClick={() => setShowMobileSidebar(false)}
+                    />
+                  )}
+                </>
               )}
               
               {/* Main Content - Full Width on Mobile */}
@@ -922,6 +1072,8 @@ export default function BriefUploadEditor({ onSubmit, initialData }: BriefUpload
                 animate={showTitleSection ? "left" : "center"}
               >
                 {renderSidebarContent()}
+                {/* Show sources on desktop when brief data exists */}
+                {briefData && showTitleSection && renderDesktopSources()}
               </motion.div>
 
               {/* Main Content Area - Desktop */}

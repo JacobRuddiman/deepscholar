@@ -1,3 +1,4 @@
+// app/admin/components/Sidebar.tsx
 'use client';
 
 import React from 'react';
@@ -11,17 +12,22 @@ import {
   Settings, 
   Home,
   Database,
-  BarChart3
+  BarChart3,
+  TrendingUp,
+  Sparkles,
+  Mail
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: BarChart3 },
+  { name: 'Analytics', href: '/admin/analytics', icon: TrendingUp },
   { name: 'Users', href: '/admin/users', icon: Users },
   { name: 'Briefs', href: '/admin/briefs', icon: FileText },
   { name: 'Reviews', href: '/admin/reviews', icon: MessageSquare },
   { name: 'AI Reviews', href: '/admin/ai-reviews', icon: Bot },
   { name: 'Models', href: '/admin/models', icon: Database },
-  { name: 'Email Builder', href: '/admin/emailbuilder', icon: Settings },
+  { name: 'Data Synthesis', href: '/admin/seeding', icon: Sparkles },
+  { name: 'Email Builder', href: '/admin/emailbuilder', icon: Mail },
 ];
 
 export default function Sidebar() {

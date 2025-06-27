@@ -1,4 +1,3 @@
-// app/home/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -93,10 +92,10 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       {/* Hero Section with Search */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
-        <div className="container mx-auto px-4 py-8 md:py-12">
+        <div className="container mx-auto px-4 py-8 md:py-12 max-w-full">
           <h1 className="text-3xl md:text-4xl font-bold text-center mb-2 md:mb-3">DeepScholar</h1>
           <p className="text-center text-blue-100 text-base md:text-lg max-w-3xl mx-auto mb-6 md:mb-8 px-4">
             Discover, search, and share AI-generated research insights
@@ -178,8 +177,8 @@ export default function HomePage() {
         </div>
         
         {/* Wave Separator - Hidden on mobile */}
-        <div className="h-8 md:h-16 bg-gradient-to-r from-blue-600 to-indigo-700 relative">
-          <svg className="absolute bottom-0 w-full h-8 md:h-16" preserveAspectRatio="none" viewBox="0 0 1440 54">
+        <div className="h-8 md:h-16 bg-gradient-to-r from-blue-600 to-indigo-700 relative overflow-hidden">
+          <svg className="absolute bottom-0 w-full h-8 md:h-16 min-w-full" preserveAspectRatio="none" viewBox="0 0 1440 54">
             <path
               fill="#f9fafb"
               fillOpacity="1"
@@ -190,7 +189,7 @@ export default function HomePage() {
       </div>
       
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-4 md:py-6">
+      <div className="container mx-auto px-4 py-4 md:py-6 max-w-full overflow-x-hidden">
         {/* Stats Section */}
         <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
           <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm text-center">
@@ -378,8 +377,8 @@ export default function HomePage() {
       </div>
       
       {/* Footer - Responsive */}
-      <footer className="bg-gray-100 mt-8 md:mt-12 py-6 md:py-8">
-        <div className="container mx-auto px-4">
+      <footer className="bg-gray-100 mt-8 md:mt-12 py-6 md:py-8 overflow-x-hidden">
+        <div className="container mx-auto px-4 max-w-full">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0 text-center md:text-left">
               <h3 className="text-lg font-bold text-gray-900">DeepScholar</h3>
