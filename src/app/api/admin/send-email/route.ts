@@ -2,11 +2,11 @@
 import { NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
-
+import {getLocalSession } from '@/lib/localMode';
 export async function POST(request: Request) {
   try {
     
-
+    const session = getLocalSession();
     const { subject, body, footer, recipients } = await request.json();
 
     // Validate inputs

@@ -28,6 +28,25 @@ model EmailSend {
   sentAt     DateTime @default(now())
 }
 
+// Scheduled Email model
+model ScheduledEmail {
+  id            String   @id @default(cuid())
+  subject       String
+  body          String
+  footer        String
+  recipients    String   // JSON array of recipient emails or user IDs
+  scheduledFor  DateTime // When to send the email
+  status        String   @default("pending") // "pending", "sent", "failed", "cancelled"
+  sentBy        String   // User ID who scheduled the email
+  sentByUser    User     @relation(fields: [sentBy], references: [id])
+  sentAt        DateTime? // Actual send time
+  errorMessage  String?   // Error message if failed
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([scheduledFor])
+  @@index([status])
+}
 
 // User model (extends NextAuth)
 model User {
@@ -58,7 +77,8 @@ model User {
   exportUsage           ExportUsage[]   // Export usage tracking for rate limiting
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
-  sentEmails EmailSend[] // Add this line to your existing User model
+  sentEmails      EmailSend[]
+  scheduledEmails ScheduledEmail[] // Add this line
 }
 
 // NextAuth required models

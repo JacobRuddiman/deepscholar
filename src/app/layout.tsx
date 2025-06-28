@@ -7,6 +7,7 @@ import ClientSessionProvider from "./auth/SessionProvider";
 import ErrorBoundary from "./components/error_boundary";
 import { TooltipProvider } from "./components/TooltipProvider";
 import MobileNavigation from "./components/MobileNavigation";
+import { AdminAlertContainer } from "./components/admin/AdminAlert";
 
 export const metadata: Metadata = {
   title: "Deep Scholar",
@@ -37,6 +38,7 @@ export default function RootLayout({
                 {/* Content with appropriate padding for mobile/desktop */}
                 <main className="relative z-10 pt-16 md:pt-18 pb-20 md:pb-0">
                   {children}
+                  <AdminAlertContainer />
                 </main>
               </ErrorBoundary>
             </TooltipProvider>

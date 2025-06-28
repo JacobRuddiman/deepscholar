@@ -1,17 +1,23 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, Users, User, X, Mail, Eye, Image as ImageIcon, 
-  GripVertical, Minimize2, Maximize2, Edit2, Search
+  GripVertical, Minimize2, Maximize2, Edit2, Search,
+  Calendar, Clock, ChevronDown, ChevronUp, UserPlus,
+  CheckSquare, Square, Filter, UserCheck
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { showAdminAlert, createLog, AdminAlertContainer } from '@/app/components/admin/AdminAlert';
 
 type User = {
   id: string;
   name: string | null;
   email: string | null;
+  emailNotifications: boolean;
+  briefInterestUpdates: boolean;
+  promotionalNotifications: boolean;
 };
 
 type EmailImage = {
@@ -25,6 +31,7 @@ type EmailTag = {
   id: string;
   value: string;
   type: 'user' | 'email';
+  userData?: User;
 };
 
 export default function EmailBuilderPage() {
@@ -44,6 +51,11 @@ export default function EmailBuilderPage() {
   const [images, setImages] = useState<EmailImage[]>([]);
   const [showImagePanel, setShowImagePanel] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showAllTags, setShowAllTags] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
+  const [scheduledFor, setScheduledFor] = useState('');
+  const [showScheduler, setShowScheduler] = useState(false);
   
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,13 +65,19 @@ export default function EmailBuilderPage() {
   // Load users and footer on mount
   useEffect(() => {
     const loadData = async () => {
+      const logs = [];
       try {
+        logs.push(createLog('Starting data load...'));
+        
         // Load users
         const usersResponse = await fetch('/api/admin/users');
         if (usersResponse.ok) {
           const data = await usersResponse.json() as { users: User[] };
           setUsers(data.users ?? []);
           setFilteredUsers(data.users ?? []);
+          logs.push(createLog('Users loaded successfully', { count: data.users?.length ?? 0 }));
+        } else {
+          logs.push(createLog('Failed to load users', { status: usersResponse.status }));
         }
 
         // Load active footer
@@ -67,8 +85,10 @@ export default function EmailBuilderPage() {
         if (footerResponse.ok) {
           const footerData = await footerResponse.json();
           setFooter(footerData.content || getDefaultFooter());
+          logs.push(createLog('Footer loaded successfully'));
         } else {
           setFooter(getDefaultFooter());
+          logs.push(createLog('Using default footer'));
         }
 
         // Load images
@@ -76,10 +96,13 @@ export default function EmailBuilderPage() {
         if (imagesResponse.ok) {
           const imagesData = await imagesResponse.json();
           setImages(imagesData.images || []);
+          logs.push(createLog('Images loaded successfully', { count: imagesData.images?.length ?? 0 }));
         }
       } catch (error) {
         console.error('Failed to load data:', error);
         setFooter(getDefaultFooter());
+        logs.push(createLog('Error loading data', { error: error instanceof Error ? error.message : 'Unknown error' }));
+        showAdminAlert('error', 'Data Load Error', 'Failed to load some data', logs);
       }
     };
     void loadData();
@@ -104,7 +127,8 @@ Unsubscribe: https://deepscholar.com/unsubscribe
           addTag({
             id: user.id,
             value: user.email || user.name || email,
-            type: 'user'
+            type: 'user',
+            userData: user
           });
         } else {
           addTag({
@@ -117,17 +141,23 @@ Unsubscribe: https://deepscholar.com/unsubscribe
     }
   }, [searchParams, users]);
 
-  const addTag = (tag: EmailTag) => {
+  const addTag = useCallback((tag: EmailTag) => {
+    console.log('[DEBUG] Adding tag:', tag);
     setEmailTags(prev => {
       // Don't add duplicates
-      if (prev.some(t => t.value === tag.value)) return prev;
+      if (prev.some(t => t.value === tag.value)) {
+        console.log('[DEBUG] Tag already exists:', tag.value);
+        return prev;
+      }
+      console.log('[DEBUG] Tag added successfully:', tag.value);
       return [...prev, tag];
     });
-  };
+  }, []);
 
-  const removeTag = (id: string) => {
+  const removeTag = useCallback((id: string) => {
+    console.log('[DEBUG] Removing tag with id:', id);
     setEmailTags(prev => prev.filter(tag => tag.id !== id));
-  };
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -171,12 +201,14 @@ Unsubscribe: https://deepscholar.com/unsubscribe
     }
   };
 
-  const handleUserSelect = (user: User) => {
+  const handleUserSelect = useCallback((user: User) => {
+    console.log('[DEBUG] Selecting user:', user);
     if (user.email) {
       addTag({
         id: user.id,
         value: user.email,
-        type: 'user'
+        type: 'user',
+        userData: user
       });
       setInputValue('');
       setShowUserSelector(false);
@@ -186,10 +218,115 @@ Unsubscribe: https://deepscholar.com/unsubscribe
         emailInputRef.current.focus();
       }
     }
-  };
+  }, [addTag]);
+
+  const handleBulkSelect = useCallback((notificationType: 'all' | 'emailNotifications' | 'briefInterestUpdates' | 'promotionalNotifications') => {
+    const logs = [];
+    logs.push(createLog(`Bulk selecting users with: ${notificationType}`));
+    
+    let usersToAdd: User[] = [];
+    
+    switch (notificationType) {
+      case 'all':
+        usersToAdd = users.filter(u => u.email && u.emailNotifications);
+        logs.push(createLog('Filtering all users with email notifications enabled', { totalUsers: users.length }));
+        break;
+      case 'emailNotifications':
+        usersToAdd = users.filter(u => u.email && u.emailNotifications);
+        logs.push(createLog('Filtering users with email notifications', { totalUsers: users.length }));
+        break;
+      case 'briefInterestUpdates':
+        usersToAdd = users.filter(u => u.email && u.emailNotifications && u.briefInterestUpdates);
+        logs.push(createLog('Filtering users with brief interest updates', { totalUsers: users.length }));
+        break;
+      case 'promotionalNotifications':
+        usersToAdd = users.filter(u => u.email && u.emailNotifications && u.promotionalNotifications);
+        logs.push(createLog('Filtering users with promotional notifications', { totalUsers: users.length }));
+        break;
+    }
+
+    logs.push(createLog(`Found ${usersToAdd.length} users matching criteria`));
+
+    // Add users that aren't already in the tags
+    const existingEmails = new Set(emailTags.map(t => t.value));
+    let addedCount = 0;
+    
+    usersToAdd.forEach(user => {
+      if (user.email && !existingEmails.has(user.email)) {
+        addTag({
+          id: user.id,
+          value: user.email,
+          type: 'user',
+          userData: user
+        });
+        addedCount++;
+      }
+    });
+
+    logs.push(createLog(`Added ${addedCount} new recipients`, { 
+      skipped: usersToAdd.length - addedCount,
+      total: emailTags.length + addedCount 
+    }));
+
+    showAdminAlert(
+      'success', 
+      'Recipients Added', 
+      `Added ${addedCount} recipients (${notificationType})`,
+      logs
+    );
+  }, [users, emailTags, addTag]);
+
+  const handleBulkUnselect = useCallback((notificationType: 'all' | 'emailNotifications' | 'briefInterestUpdates' | 'promotionalNotifications') => {
+    const logs = [];
+    const previousCount = emailTags.length;
+    logs.push(createLog(`Bulk unselecting: ${notificationType}`, { previousCount }));
+
+    setEmailTags(prev => {
+      let filtered;
+      switch (notificationType) {
+        case 'all':
+          filtered = [];
+          break;
+        case 'emailNotifications':
+          filtered = prev.filter(tag => {
+            if (tag.type === 'email') return true;
+            return !tag.userData?.emailNotifications;
+          });
+          break;
+        case 'briefInterestUpdates':
+          filtered = prev.filter(tag => {
+            if (tag.type === 'email') return true;
+            return !tag.userData?.briefInterestUpdates;
+          });
+          break;
+        case 'promotionalNotifications':
+          filtered = prev.filter(tag => {
+            if (tag.type === 'email') return true;
+            return !tag.userData?.promotionalNotifications;
+          });
+          break;
+        default:
+          filtered = prev;
+      }
+      
+      const removedCount = prev.length - filtered.length;
+      logs.push(createLog(`Removed ${removedCount} recipients`, { remaining: filtered.length }));
+      
+      showAdminAlert(
+        'info',
+        'Recipients Removed',
+        `Removed ${removedCount} recipients`,
+        logs
+      );
+      
+      return filtered;
+    });
+  }, [emailTags.length]);
 
   const handleSaveFooter = async () => {
+    const logs = [];
     try {
+      logs.push(createLog('Saving footer...'));
       const response = await fetch('/api/admin/email-footer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -198,11 +335,16 @@ Unsubscribe: https://deepscholar.com/unsubscribe
       
       if (response.ok) {
         setIsEditingFooter(false);
-        alert('Footer saved successfully!');
+        logs.push(createLog('Footer saved successfully'));
+        showAdminAlert('success', 'Footer Saved', 'Email footer has been updated', logs);
+      } else {
+        logs.push(createLog('Failed to save footer', { status: response.status }));
+        showAdminAlert('error', 'Save Failed', 'Could not save footer', logs);
       }
     } catch (error) {
       console.error('Failed to save footer:', error);
-      alert('Failed to save footer');
+      logs.push(createLog('Error saving footer', { error: error instanceof Error ? error.message : 'Unknown' }));
+      showAdminAlert('error', 'Save Error', 'Failed to save footer', logs);
     }
   };
 
@@ -211,7 +353,9 @@ Unsubscribe: https://deepscholar.com/unsubscribe
     const formData = new FormData();
     formData.append('file', file);
     
+    const logs = [];
     try {
+      logs.push(createLog('Uploading image...', { fileName: file.name, size: file.size }));
       const response = await fetch('/api/admin/upload-image', {
         method: 'POST',
         body: formData,
@@ -220,10 +364,16 @@ Unsubscribe: https://deepscholar.com/unsubscribe
       if (response.ok) {
         const data = await response.json();
         setImages(prev => [...prev, { name: data.name, url: data.url }]);
+        logs.push(createLog('Image uploaded successfully', { url: data.url }));
+        showAdminAlert('success', 'Image Uploaded', `${file.name} uploaded successfully`, logs);
+      } else {
+        logs.push(createLog('Upload failed', { status: response.status }));
+        showAdminAlert('error', 'Upload Failed', 'Could not upload image', logs);
       }
     } catch (error) {
       console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
+      logs.push(createLog('Upload error', { error: error instanceof Error ? error.message : 'Unknown' }));
+      showAdminAlert('error', 'Upload Error', 'Failed to upload image', logs);
     } finally {
       setUploadingImage(false);
     }
@@ -244,22 +394,35 @@ Unsubscribe: https://deepscholar.com/unsubscribe
         textarea.selectionStart = textarea.selectionEnd = start + imageTag.length;
         textarea.focus();
       }, 0);
+
+      showAdminAlert('success', 'Image Inserted', 'Image added to email body', [
+        createLog('Image inserted at position', { position: start, url: imageUrl })
+      ]);
     }
   };
 
   const handleSendEmail = async () => {
+    const logs = [];
+    
     if (!header.trim() || !body.trim()) {
-      alert('Please fill in both header and body');
+      showAdminAlert('warning', 'Missing Content', 'Please fill in both subject and body', [
+        createLog('Validation failed', { hasHeader: !!header.trim(), hasBody: !!body.trim() })
+      ]);
       return;
     }
 
     const recipients = emailTags.map(tag => tag.type === 'user' ? tag.id : tag.value);
     if (recipients.length === 0) {
-      alert('Please select at least one recipient');
+      showAdminAlert('warning', 'No Recipients', 'Please select at least one recipient');
       return;
     }
 
     setIsLoading(true);
+    logs.push(createLog('Preparing to send email', { 
+      recipientCount: recipients.length,
+      scheduled: showScheduler && !!scheduledFor 
+    }));
+
     try {
       const response = await fetch('/api/admin/send-email', {
         method: 'POST',
@@ -269,22 +432,36 @@ Unsubscribe: https://deepscholar.com/unsubscribe
           body: body,
           footer: footer,
           recipients: recipients,
+          scheduledFor: showScheduler && scheduledFor ? scheduledFor : null
         }),
       });
 
       if (response.ok) {
-        alert('Email sent successfully!');
+        const data = await response.json();
+        logs.push(createLog('Email sent successfully', data));
+        
+        if (data.scheduled) {
+          showAdminAlert('success', 'Email Scheduled', `Email scheduled for ${new Date(scheduledFor).toLocaleString()}`, logs);
+        } else {
+          showAdminAlert('success', 'Email Sent', `Email sent to ${recipients.length} recipients`, logs);
+        }
+        
+        // Reset form
         setHeader('');
         setBody('');
         setEmailTags([]);
         setInputValue('');
+        setScheduledFor('');
+        setShowScheduler(false);
       } else {
         const error = await response.json();
-        alert(`Failed to send email: ${error.error}`);
+        logs.push(createLog('Send failed', error));
+        showAdminAlert('error', 'Send Failed', error.error || 'Failed to send email', logs);
       }
     } catch (error) {
-      alert('Failed to send email. Please try again.');
       console.error('Send email error:', error);
+      logs.push(createLog('Send error', { error: error instanceof Error ? error.message : 'Unknown' }));
+      showAdminAlert('error', 'Send Error', 'Failed to send email. Please try again.', logs);
     } finally {
       setIsLoading(false);
     }
@@ -294,6 +471,225 @@ Unsubscribe: https://deepscholar.com/unsubscribe
     if (emailTags.length === 0) return 'No recipients selected';
     if (emailTags.length === 1) return emailTags[0].value;
     return `${emailTags.length} recipients selected`;
+  };
+
+  const getVisibleTags = () => {
+    if (showAllTags || emailTags.length <= 6) {
+      return emailTags;
+    }
+    return emailTags.slice(0, 6);
+  };
+
+  const hiddenTagsCount = emailTags.length - 6;
+
+  // Memoize filtered users for modal to prevent re-renders
+  const filteredModalUsers = useMemo(() => {
+    if (!modalSearchTerm) return users;
+    const searchLower = modalSearchTerm.toLowerCase();
+    return users.filter(user => 
+      user.name?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower)
+    );
+  }, [users, modalSearchTerm]);
+
+  // Memoize selected emails set
+  const selectedEmails = useMemo(() => 
+    new Set(emailTags.map(t => t.value)), 
+    [emailTags]
+  );
+
+  const UserSelectionModal = () => {
+    // Handle user toggle without closing modal
+    const handleUserToggle = useCallback((user: User) => {
+      if (!user.email) return;
+      
+      const isSelected = selectedEmails.has(user.email);
+      console.log('[DEBUG] Toggling user:', user.email, 'Selected:', isSelected);
+      
+      if (isSelected) {
+        const tagToRemove = emailTags.find(t => t.value === user.email);
+        if (tagToRemove) {
+          removeTag(tagToRemove.id);
+        }
+      } else {
+        addTag({
+          id: user.id,
+          value: user.email,
+          type: 'user',
+          userData: user
+        });
+      }
+    }, [selectedEmails]);
+
+    // Handle select all in modal
+    const handleModalSelectAll = useCallback(() => {
+      const logs = [];
+      logs.push(createLog('Selecting all visible users in modal'));
+      
+      let addedCount = 0;
+      filteredModalUsers.forEach(user => {
+        if (user.email && !selectedEmails.has(user.email)) {
+          addTag({
+            id: user.id,
+            value: user.email,
+            type: 'user',
+            userData: user
+          });
+          addedCount++;
+        }
+      });
+      
+      logs.push(createLog(`Added ${addedCount} users`, { total: filteredModalUsers.length }));
+      showAdminAlert('success', 'Select All', `Added ${addedCount} recipients`, logs);
+    }, [filteredModalUsers, selectedEmails]);
+
+    return (
+      <AnimatePresence>
+        {showUserModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowUserModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden"
+            >
+              <div className="p-6 border-b">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold">Select Recipients</h2>
+                  <button
+                    onClick={() => setShowUserModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <input
+                        type="text"
+                        value={modalSearchTerm}
+                        onChange={(e) => setModalSearchTerm(e.target.value)}
+                        placeholder="Search users..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleModalSelectAll}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      Select All Visible
+                    </button>
+                    <button
+                      onClick={() => handleBulkUnselect('all')}
+                      className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-sm"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-3">
+                  <span className="text-sm text-gray-600">Quick filters:</span>
+                  <button
+                    onClick={() => handleBulkSelect('briefInterestUpdates')}
+                    className="px-3 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
+                  >
+                    + Brief Updates
+                  </button>
+                  <button
+                    onClick={() => handleBulkSelect('promotionalNotifications')}
+                    className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200"
+                  >
+                    + Promotional
+                  </button>
+                  <button
+                    onClick={() => handleBulkUnselect('briefInterestUpdates')}
+                    className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                  >
+                    - Brief Updates
+                  </button>
+                  <button
+                    onClick={() => handleBulkUnselect('promotionalNotifications')}
+                    className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                  >
+                    - Promotional
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(80vh - 200px)' }}>
+                <div className="space-y-2">
+                  {filteredModalUsers.map(user => {
+                    const isSelected = user.email && selectedEmails.has(user.email);
+                    
+                    return (
+                      <div
+                        key={user.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
+                          isSelected ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50'
+                        }`}
+                        onClick={() => handleUserToggle(user)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-5 h-5">
+                            {isSelected ? (
+                              <CheckSquare className="w-5 h-5 text-blue-600" />
+                            ) : (
+                              <Square className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium">{user.name || 'Anonymous'}</div>
+                            <div className="text-sm text-gray-600">{user.email || 'No email'}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          {user.emailNotifications && (
+                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
+                              Email On
+                            </span>
+                          )}
+                          {user.briefInterestUpdates && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                              Brief Updates
+                            </span>
+                          )}
+                          {user.promotionalNotifications && (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                              Promotional
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-6 border-t bg-gray-50">
+                <div className="text-sm text-gray-600">
+                  {emailTags.length} recipients selected • {filteredModalUsers.length} users shown
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
   };
 
   const PreviewPanel = () => (
@@ -317,6 +713,11 @@ Unsubscribe: https://deepscholar.com/unsubscribe
             <div className="text-sm text-gray-600 mb-2">
               <strong>Subject:</strong> {header || '[No Subject]'}
             </div>
+            {showScheduler && scheduledFor && (
+              <div className="text-sm text-gray-600 mb-2">
+                <strong>Scheduled for:</strong> {new Date(scheduledFor).toLocaleString()}
+              </div>
+            )}
           </div>
           <div className="whitespace-pre-wrap font-mono text-sm">
             {body || '[No content]'}
@@ -341,8 +742,6 @@ Unsubscribe: https://deepscholar.com/unsubscribe
       top: 'grid-rows-2',
       bottom: 'grid-rows-2'
     }[previewPosition || 'right'];
-
-    const isHorizontal = previewPosition === 'left' || previewPosition === 'right';
     
     return (
       <div className={`grid ${splitClass} gap-4`} style={{ height: 'calc(100vh - 150px)' }}>
@@ -383,19 +782,48 @@ Unsubscribe: https://deepscholar.com/unsubscribe
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Recipients
           </label>
+          
           <div className="email-input-container">
             <div 
-              className="border border-gray-300 rounded-lg px-2 py-1 flex flex-wrap items-center gap-1"
+              className="border border-gray-300 rounded-lg px-2 py-1 flex flex-wrap items-center gap-1 min-h-[42px] relative"
               onClick={() => emailInputRef.current?.focus()}
             >
-              {emailTags.map(tag => (
+              {getVisibleTags().map(tag => (
                 <div key={tag.id} className="email-tag">
                   <span>{tag.value}</span>
-                  <button onClick={() => removeTag(tag.id)}>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeTag(tag.id);
+                    }}
+                  >
                     <X size={12} />
                   </button>
                 </div>
               ))}
+              
+              {hiddenTagsCount > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAllTags(!showAllTags);
+                  }}
+                  className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200 flex items-center gap-1"
+                >
+                  {showAllTags ? (
+                    <>
+                      <ChevronUp className="w-3 h-3" />
+                      Show less
+                    </>
+                  ) : (
+                    <>
+                      +{hiddenTagsCount} more
+                      <ChevronDown className="w-3 h-3" />
+                    </>
+                  )}
+                </button>
+              )}
+              
               <input
                 ref={emailInputRef}
                 type="text"
@@ -405,27 +833,102 @@ Unsubscribe: https://deepscholar.com/unsubscribe
                 placeholder={emailTags.length ? "" : "Type email or search users..."}
                 className="flex-1 min-w-[100px] border-none focus:outline-none focus:ring-0 py-1 px-1"
               />
+              
+              {/* Manage Recipients Button inside input */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowUserModal(true);
+                }}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                <UserCheck className="w-4 h-4" />
+                Manage Recipients
+              </button>
             </div>
 
             {/* User suggestions dropdown */}
             {showUserSelector && filteredUsers.length > 0 && (
               <div className="email-suggestions">
-                {filteredUsers.map(user => (
+                {filteredUsers.slice(0, 5).map(user => (
                   <div
                     key={user.id}
                     className="email-suggestion-item"
                     onClick={() => handleUserSelect(user)}
                   >
                     <User size={16} className="mr-2 text-gray-500" />
-                    <div>
+                    <div className="flex-1">
                       <div className="text-sm font-medium">{user.name || 'Anonymous'}</div>
                       <div className="text-xs text-gray-500">{user.email || 'No email'}</div>
+                    </div>
+                    <div className="flex gap-1">
+                      {user.briefInterestUpdates && (
+                        <span className="px-1 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">B</span>
+                      )}
+                      {user.promotionalNotifications && (
+                        <span className="px-1 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">P</span>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Quick selection buttons */}
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => handleBulkSelect('all')}
+              className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
+            >
+              Select All Active
+            </button>
+            <button
+              onClick={() => handleBulkSelect('briefInterestUpdates')}
+              className="px-3 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
+            >
+              + Brief Interest
+            </button>
+            <button
+              onClick={() => handleBulkSelect('promotionalNotifications')}
+              className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200"
+            >
+              + Promotional
+            </button>
+            <button
+              onClick={() => handleBulkUnselect('all')}
+              className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+
+        {/* Schedule Email */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              type="checkbox"
+              id="schedule-email"
+              checked={showScheduler}
+              onChange={(e) => setShowScheduler(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="schedule-email" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Schedule Email
+            </label>
+          </div>
+          
+          {showScheduler && (
+            <input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(e) => setScheduledFor(e.target.value)}
+              min={new Date().toISOString().slice(0, 16)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          )}
         </div>
 
         {/* Body with Image Panel */}
@@ -557,8 +1060,17 @@ Unsubscribe: https://deepscholar.com/unsubscribe
             disabled={isLoading || !header.trim() || !body.trim() || emailTags.length === 0}
             className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <Mail className="w-4 h-4" />
-            <span>{isLoading ? 'Sending...' : 'Send Email'}</span>
+            {showScheduler && scheduledFor ? (
+              <>
+                <Calendar className="w-4 h-4" />
+                <span>{isLoading ? 'Scheduling...' : 'Schedule Email'}</span>
+              </>
+            ) : (
+              <>
+                <Mail className="w-4 h-4" />
+                <span>{isLoading ? 'Sending...' : 'Send Email'}</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -566,41 +1078,152 @@ Unsubscribe: https://deepscholar.com/unsubscribe
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Email Builder</h1>
+    <>
+      <AdminAlertContainer />
+      <div className="min-h-screen bg-gray-100 p-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900">Email Builder</h1>
+          </div>
+
+          {renderSplitScreen()}
+          
+          {/* Draggable Preview Button */}
+          <motion.button
+            drag
+            dragMomentum={false}
+            onDragEnd={(e, info) => {
+              const { x, y } = info.point;
+              const windowWidth = window.innerWidth;
+              const windowHeight = window.innerHeight;
+              
+              let position: DragPosition;
+              if (x < windowWidth * 0.25) position = 'left';
+              else if (x > windowWidth * 0.75) position = 'right';
+              else if (y < windowHeight * 0.25) position = 'top';
+              else position = 'bottom';
+              
+              setPreviewPosition(position);
+              setShowPreview(true);
+            }}
+            onClick={() => setShowPreview(!showPreview)}
+            whileDrag={{ scale: 1.1 }}
+            className="preview-button"
+          >
+            <GripVertical className="preview-button-icon" />
+            <Eye className="preview-button-icon" />
+            <span>{showPreview ? 'Hide Preview' : 'Show Preview'}</span>
+          </motion.button>
+          
+          {/* User Selection Modal */}
+          <UserSelectionModal />
         </div>
 
-        {renderSplitScreen()}
-        
-        {/* Draggable Preview Button */}
-        <motion.button
-          drag
-          dragMomentum={false}
-          onDragEnd={(e, info) => {
-            const { x, y } = info.point;
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-            
-            let position: DragPosition;
-            if (x < windowWidth * 0.25) position = 'left';
-            else if (x > windowWidth * 0.75) position = 'right';
-            else if (y < windowHeight * 0.25) position = 'top';
-            else position = 'bottom';
-            
-            setPreviewPosition(position);
-            setShowPreview(true);
-          }}
-          onClick={() => setShowPreview(!showPreview)}
-          whileDrag={{ scale: 1.1 }}
-          className="preview-button"
-        >
-          <GripVertical className="preview-button-icon" />
-          <Eye className="preview-button-icon" />
-          <span>{showPreview ? 'Hide Preview' : 'Show Preview'}</span>
-        </motion.button>
+        <style jsx>{`
+          .email-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background-color: #3b82f6;
+            color: white;
+            border-radius: 4px;
+            font-size: 14px;
+          }
+          
+          .email-tag button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+          }
+          
+          .email-tag button:hover {
+            opacity: 1;
+          }
+          
+          .email-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-top: 4px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+          }
+          
+          .email-suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background-color 0.2s;
+          }
+          
+          .email-suggestion-item:hover {
+            background-color: #f3f4f6;
+          }
+          
+          .email-input-container {
+            position: relative;
+          }
+          
+          .preview-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #3b82f6;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 50px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: move;
+            z-index: 40;
+            font-weight: 500;
+            transition: all 0.2s;
+          }
+          
+          .preview-button:hover {
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+          }
+          
+          .preview-button-icon {
+            width: 20px;
+            height: 20px;
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+          }
+        `}</style>
       </div>
-    </div>
+    </>
   );
 }
