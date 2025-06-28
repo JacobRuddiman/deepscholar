@@ -633,3 +633,187 @@ export async function getAdminModels({
     };
   }
 }
+
+import { RecommendationService } from '@/server/services/recommendations';
+
+// Get all user recommendations
+export async function getAdminRecommendations() {
+  try {
+    await getAdminUserId(); // Verify admin access
+
+    const recommendations = await db.userRecommendation.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true
+          }
+        }
+      },
+      orderBy: {
+        lastCalculated: 'desc'
+      }
+    });
+
+    return {
+      success: true,
+      data: recommendations
+    };
+  } catch (error) {
+    console.error('Error fetching recommendations:', error);
+    return {
+      success: false,
+      error: 'Failed to fetch recommendations'
+    };
+  }
+}
+
+const recommendationProgress = new Map<string, number>();
+
+export async function getRecommendationProgress(userIds: string[]) {
+  try {
+    const progress: Record<string, number> = {};
+    
+    for (const userId of userIds) {
+      progress[userId] = recommendationProgress.get(userId) || 0;
+    }
+    
+    return {
+      success: true,
+      data: progress
+    };
+  } catch (error) {
+    console.error('Error getting recommendation progress:', error);
+    return {
+      success: false,
+      error: 'Failed to get progress'
+    };
+  }
+}
+
+// Update the refreshUserRecommendations function to track progress
+export async function refreshUserRecommendations(userId?: string) {
+  try {
+    await getAdminUserId(); // Verify admin access
+
+    if (userId) {
+      // Set initial progress
+      recommendationProgress.set(userId, 0);
+      
+      // Simulate progress updates (replace with actual progress tracking)
+      const updateProgress = async () => {
+        // Step 1: Fetch user data (20%)
+        recommendationProgress.set(userId, 20);
+        
+        // Step 2: Calculate categories (40%)
+        await new Promise(resolve => setTimeout(resolve, 500));
+        recommendationProgress.set(userId, 40);
+        
+        // Step 3: Calculate title words (60%)
+        await new Promise(resolve => setTimeout(resolve, 500));
+        recommendationProgress.set(userId, 60);
+        
+        // Step 4: Calculate interactions (80%)
+        await new Promise(resolve => setTimeout(resolve, 500));
+        recommendationProgress.set(userId, 80);
+        
+        // Step 5: Save to database (100%)
+        const recommendation = await RecommendationService.calculateUserRecommendations(userId);
+        recommendationProgress.set(userId, 100);
+        
+        // Clean up after completion
+        setTimeout(() => {
+          recommendationProgress.delete(userId);
+        }, 1000);
+        
+        return recommendation;
+      };
+      
+      const recommendation = await updateProgress();
+      
+      return {
+        success: true,
+        data: recommendation
+      };
+    } else {
+      // Refresh all users with progress tracking
+      const users = await db.user.findMany({ select: { id: true } });
+      const total = users.length;
+      let completed = 0;
+      
+      const results = await Promise.allSettled(
+        users.map(async (user) => {
+          recommendationProgress.set(user.id, 0);
+          
+          try {
+            // Calculate with progress updates
+            const steps = 5;
+            for (let i = 1; i <= steps; i++) {
+              await new Promise(resolve => setTimeout(resolve, 200));
+              recommendationProgress.set(user.id, (i / steps) * 100);
+            }
+            
+            const result = await RecommendationService.calculateUserRecommendations(user.id);
+            completed++;
+            
+            // Clean up
+            setTimeout(() => {
+              recommendationProgress.delete(user.id);
+            }, 1000);
+            
+            return result;
+          } catch (error) {
+            recommendationProgress.delete(user.id);
+            throw error;
+          }
+        })
+      );
+      
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      
+      return {
+        success: true,
+        data: {
+          total,
+          successful,
+          failed
+        }
+      };
+    }
+  } catch (error) {
+    console.error('Error refreshing recommendations:', error);
+    return {
+      success: false,
+      error: 'Failed to refresh recommendations'
+    };
+  }
+}
+
+// Update user recommendation data
+export async function updateUserRecommendation(
+  recommendationId: string, 
+  updates: Partial<UserRecommendation>
+) {
+  try {
+    await getAdminUserId(); // Verify admin access
+    
+    const updated = await db.userRecommendation.update({
+      where: { id: recommendationId },
+      data: updates
+    });
+    
+    return {
+      success: true,
+      data: updated
+    };
+  } catch (error) {
+    console.error('Error updating recommendation:', error);
+    return {
+      success: false,
+      error: 'Failed to update recommendation'
+    };
+  }
+}

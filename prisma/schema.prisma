@@ -48,6 +48,54 @@ model ScheduledEmail {
   @@index([status])
 }
 
+// User Recommendation Data
+model UserRecommendation {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Category preferences
+  topCreatedCategories  Json     // Array of {category: string, count: number}
+  topInteractedCategories Json   // Array of {category: string, count: number}
+  topCombinedCategories Json    // Array of {category: string, count: number}
+  
+  // Title word analysis
+  topCreatedTitleWords  Json     // Array of {word: string, count: number}
+  topInteractedTitleWords Json   // Array of {word: string, count: number}
+  topCombinedTitleWords Json    // Array of {word: string, count: number}
+  
+  // Interaction counts
+  totalBriefsCreated    Int      @default(0)
+  totalReviews          Int      @default(0)
+  totalUpvotes          Int      @default(0)
+  totalSaves            Int      @default(0)
+  totalViews            Int      @default(0)
+  totalReviewsReceived  Int      @default(0)
+  totalUpvotesReceived  Int      @default(0)
+  
+  // Search patterns
+  searchKeywords        Json     // Array of {keyword: string, count: number}
+  lastSearchQueries     Json     // Array of recent search queries
+  
+  // User interaction patterns
+  topInteractedUsers    Json     // Array of {userId: string, name: string, interactionCount: number}
+  
+  // Citation patterns
+  topCitationDomains    Json     // Array of {domain: string, count: number}
+  
+  // Additional useful metrics
+  avgBriefReadTime      Float?   // Average time spent reading briefs in seconds
+  avgSessionDuration    Float?   // Average session duration in minutes
+  preferredTimeOfDay    String?  // Morning, Afternoon, Evening, Night
+  engagementScore       Float?   // Calculated engagement score 0-100
+  contentQualityScore   Float?   // Average quality of created content
+  
+  // Metadata
+  lastCalculated        DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
 // User model (extends NextAuth)
 model User {
   id                    String          @id @default(cuid())
@@ -79,6 +127,7 @@ model User {
   updatedAt             DateTime        @updatedAt
   sentEmails      EmailSend[]
   scheduledEmails ScheduledEmail[] // Add this line
+  recommendation UserRecommendation?
 }
 
 // NextAuth required models
