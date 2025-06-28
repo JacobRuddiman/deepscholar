@@ -15,7 +15,8 @@ import {
   BarChart3,
   TrendingUp,
   Sparkles,
-  Mail
+  Mail,
+  BookMarked
 } from 'lucide-react';
 
 const navigation = [
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Models', href: '/admin/models', icon: Database },
   { name: 'Data Synthesis', href: '/admin/seeding', icon: Sparkles },
   { name: 'Email Builder', href: '/admin/emailbuilder', icon: Mail },
+  { name: 'Recommendation System', href: '/admin/recommendations', icon: BookMarked},
 ];
 
 export default function Sidebar() {

@@ -46,7 +46,7 @@ function SearchContent() {
 
   // Real search function using database
   const performSearch = async () => {
-    console.log('SearchPage: performSearch called with params:', {
+    console.log('SearchPage: performSearch called with params:', { 
       query, categories, model, sort, date, time, rating
     });
     setIsLoading(true);

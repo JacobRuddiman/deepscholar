@@ -60,9 +60,9 @@ model UserRecommendation {
   topCombinedCategories Json    // Array of {category: string, count: number}
   
   // Title word analysis
-  topCreatedTitleWords  Json     // Array of {word: string, count: number}
+  topCreatedTitleWords  Json     // Arraay of {word: string, count: number}
   topInteractedTitleWords Json   // Array of {word: string, count: number}
-  topCombinedTitleWords Json    // Array of {word: string, count: number}
+  topCombinedTitleWords Json    // Arry of {word: string, count: number}
   
   // Interaction counts
   totalBriefsCreated    Int      @default(0)
