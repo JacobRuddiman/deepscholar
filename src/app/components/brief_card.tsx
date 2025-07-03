@@ -1,3 +1,4 @@
+//components/brief_card.tsx
 'use client';
 
 import React from 'react';

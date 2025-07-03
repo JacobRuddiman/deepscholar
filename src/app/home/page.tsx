@@ -2,20 +2,42 @@
 
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Clock, Filter, BookOpen, Users, Brain, ArrowRight, ChevronDown } from 'lucide-react';
+import Link from 'next/link';
 import PopularBriefs from '../components/popular_briefs';
 import TopBriefsByCategory from '../components/top_briefs_by_category';
 import SearchBar from '../components/SearchBar';
-import { getBriefStats, getRecentBriefs } from '@/server/actions/home';
+import { getBriefStats, getRecentBriefs, BriefWithRelations } from '@/server/actions/home';
 import BriefCard from '../components/brief_card';
 import type { BriefCardProps } from '../components/brief_card';
 import TooltipWrapper from '../components/TooltipWrapper';
 import { useDeviceDetection } from '../hooks/useDeviceDetection';
 
+
+// Define the database brief type based on your Prisma schema
+interface DatabaseBrief {
+  id: string;
+  title: string;
+  abstract: string | null;
+  createdAt: Date;
+  response: string;
+  slug: string | null;
+  viewCount: number | null;
+  model: {
+    name: string;
+  } | null;
+  categories: Array<{
+    name: string;
+  }>;
+  reviews: Array<{
+    rating: number;
+  }>;
+}
+
 // Transform database brief to BriefCardProps
-const transformBrief = (brief: any): BriefCardProps => {
+const transformBrief = (brief: BriefWithRelations): BriefCardProps => {
   const reviewCount = brief.reviews?.length ?? 0;
   const averageRating = reviewCount > 0 
-    ? brief.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviewCount 
+    ? brief.reviews.reduce((sum: number, review) => sum + review.rating, 0) / reviewCount 
     : undefined;
 
   return {
@@ -30,18 +52,17 @@ const transformBrief = (brief: any): BriefCardProps => {
     rating: averageRating,
     reviewCount: reviewCount,
     featured: (brief.viewCount ?? 0) > 100,
-    slug: brief.slug,
+    slug: brief.slug ?? undefined,
   };
 };
 
 export default function HomePage() {
-  const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ briefCount: 0, modelCount: 0, userCount: 0 });
   const [recentBriefs, setRecentBriefs] = useState<BriefCardProps[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingRecent, setLoadingRecent] = useState(true);
   const [showQuickActions, setShowQuickActions] = useState(false);
-  const { isMobile, isTablet } = useDeviceDetection();
+  const { isMobile } = useDeviceDetection();
 
   useEffect(() => {
     // Fetch statistics
@@ -72,16 +93,9 @@ export default function HomePage() {
       }
     };
 
-    fetchStats();
-    fetchRecent();
+    void fetchStats();
+    void fetchRecent();
   }, [isMobile]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      window.location.href = `/briefs?search=${encodeURIComponent(searchQuery)}`;
-    }
-  };
 
   const handleFilterClick = (type: 'trending' | 'recent') => {
     if (type === 'trending') {
@@ -124,12 +138,12 @@ export default function HomePage() {
                 >
                   Recent
                 </button>
-                <a 
+                <Link 
                   href="/briefs"
                   className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-medium"
                 >
                   Browse All
-                </a>
+                </Link>
               </div>
             ) : (
               <div className="flex justify-center mt-4 space-x-6">
@@ -163,13 +177,13 @@ export default function HomePage() {
                   content="Browse all research briefs with advanced filtering options"
                   position="bottom"
                 >
-                  <a 
+                  <Link 
                     href="/briefs" 
                     className="flex items-center text-blue-100 hover:text-white transition-colors"
                   >
                     <Filter className="h-4 w-4 mr-1" />
                     <span className="text-sm">Browse All</span>
-                  </a>
+                  </Link>
                 </TooltipWrapper>
               </div>
             )}
@@ -240,7 +254,7 @@ export default function HomePage() {
             
             {showQuickActions && (
               <div className="px-4 pb-4 space-y-3">
-                <a 
+                <Link 
                   href="/brief_upload" 
                   className="flex items-center p-3 bg-blue-50 rounded-lg"
                 >
@@ -249,8 +263,8 @@ export default function HomePage() {
                     <p className="text-xs text-blue-700">Share your AI insights</p>
                   </div>
                   <ArrowRight className="h-4 w-4 text-blue-600" />
-                </a>
-                <a 
+                </Link>
+                <Link 
                   href="/briefs" 
                   className="flex items-center p-3 bg-green-50 rounded-lg"
                 >
@@ -259,8 +273,8 @@ export default function HomePage() {
                     <p className="text-xs text-green-700">Explore all insights</p>
                   </div>
                   <ArrowRight className="h-4 w-4 text-green-600" />
-                </a>
-                <a 
+                </Link>
+                <Link 
                   href="/my-briefs" 
                   className="flex items-center p-3 bg-purple-50 rounded-lg"
                 >
@@ -269,7 +283,7 @@ export default function HomePage() {
                     <p className="text-xs text-purple-700">View your briefs</p>
                   </div>
                   <ArrowRight className="h-4 w-4 text-purple-600" />
-                </a>
+                </Link>
               </div>
             )}
           </div>
@@ -282,7 +296,7 @@ export default function HomePage() {
                 content="Upload and share your AI-generated research insights with the community"
                 position="top"
               >
-                <a 
+                <Link 
                   href="/brief_upload" 
                   className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group"
                 >
@@ -291,13 +305,13 @@ export default function HomePage() {
                     <p className="text-sm text-blue-700">Share your AI-generated insights</p>
                   </div>
                   <ArrowRight className="h-5 w-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
-                </a>
+                </Link>
               </TooltipWrapper>
               <TooltipWrapper 
                 content="Explore the complete library of research briefs with search and filtering"
                 position="top"
               >
-                <a 
+                <Link 
                   href="/briefs" 
                   className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors group"
                 >
@@ -306,13 +320,13 @@ export default function HomePage() {
                     <p className="text-sm text-green-700">Explore all available insights</p>
                   </div>
                   <ArrowRight className="h-5 w-5 text-green-600 group-hover:translate-x-1 transition-transform" />
-                </a>
+                </Link>
               </TooltipWrapper>
               <TooltipWrapper 
                 content="View and manage all the research briefs you've contributed to the platform"
                 position="top"
               >
-                <a 
+                <Link 
                   href="/my-briefs" 
                   className="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group"
                 >
@@ -321,7 +335,7 @@ export default function HomePage() {
                     <p className="text-sm text-purple-700">View your research briefs</p>
                   </div>
                   <ArrowRight className="h-5 w-5 text-purple-600 group-hover:translate-x-1 transition-transform" />
-                </a>
+                </Link>
               </TooltipWrapper>
             </div>
           </div>
@@ -340,11 +354,10 @@ export default function HomePage() {
                 <TooltipWrapper 
                   content="View all recent research briefs with sorting and filtering options"
                   position="left"
-                  disabled={isMobile}
                 >
-                  <a href="/briefs?sort=recent" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                  <Link href="/briefs?sort=recent" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
                     View all
-                  </a>
+                  </Link>
                 </TooltipWrapper>
               </div>
               

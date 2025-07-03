@@ -36,7 +36,7 @@ export default function RootLayout({
             <TooltipProvider>
               <ErrorBoundary>
                 {/* Content with appropriate padding for mobile/desktop */}
-                <main className="relative z-10 pt-16 md:pt-18 pb-20 md:pb-0">
+                <main className="relative z-10 md:pt-18 pb-20 md:pb-0">
                   {children}
                   <AdminAlertContainer />
                 </main>

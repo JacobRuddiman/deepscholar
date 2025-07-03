@@ -1,9 +1,25 @@
 'use server';
 
 import { db } from "@/server/db";
+import type { Brief, Category, Source, BriefUpvote, Review, ResearchAIModel, User } from "@prisma/client";
+
+// Define the Brief type with all relations
+type BriefWithRelations = Brief & {
+  categories: Category[];
+  sources: Source[];
+  upvotes: BriefUpvote[];
+  reviews: Review[];
+  model: ResearchAIModel;
+  author: Pick<User, 'id' | 'name' | 'image'>;
+};
+
+// Define return types
+type ActionResult<T> = 
+  | { success: true; data: T }
+  | { success: false; error: string };
 
 // Get popular briefs for home page
-export async function getPopularBriefs(limit = 8) {
+export async function getPopularBriefs(limit = 8): Promise<ActionResult<BriefWithRelations[]>> {
   try {
     console.log('Fetching popular briefs with limit:', limit);
     
@@ -38,7 +54,7 @@ export async function getPopularBriefs(limit = 8) {
 
     return {
       success: true,
-      data: briefs,
+      data: briefs as BriefWithRelations[],
     };
   } catch (error) {
     console.error('Error fetching popular briefs:', error);
@@ -50,7 +66,7 @@ export async function getPopularBriefs(limit = 8) {
 }
 
 // Get recent briefs for home page
-export async function getRecentBriefs(limit = 8) {
+export async function getRecentBriefs(limit = 8): Promise<ActionResult<BriefWithRelations[]>> {
   try {
     console.log('Fetching recent briefs with limit:', limit);
     
@@ -84,7 +100,7 @@ export async function getRecentBriefs(limit = 8) {
 
     return {
       success: true,
-      data: briefs,
+      data: briefs as BriefWithRelations[],
     };
   } catch (error) {
     console.error('Error fetching recent briefs:', error);
@@ -96,26 +112,27 @@ export async function getRecentBriefs(limit = 8) {
 }
 
 // Get briefs by category for home page
-export async function getBriefsByCategory(categoryName?: string, limit = 4) {
+export async function getBriefsByCategory(
+  categoryName?: string, 
+  limit = 4
+): Promise<ActionResult<BriefWithRelations[]>> {
   try {
     console.log('Fetching briefs by category:', categoryName, 'with limit:', limit);
     
-    const whereClause: any = {
+    const whereClause = {
       published: true,
       isActive: true,
       isDraft: false,
-    };
-    
-    if (categoryName) {
-      whereClause.categories = {
-        some: {
-          name: {
-            contains: categoryName,
-
+      ...(categoryName && {
+        categories: {
+          some: {
+            name: {
+              contains: categoryName,
+            },
           },
         },
-      };
-    }
+      }),
+    };
     
     const briefs = await db.brief.findMany({
       where: whereClause,
@@ -144,7 +161,7 @@ export async function getBriefsByCategory(categoryName?: string, limit = 4) {
 
     return {
       success: true,
-      data: briefs,
+      data: briefs as BriefWithRelations[],
     };
   } catch (error) {
     console.error('Error fetching briefs by category:', error);
@@ -155,8 +172,15 @@ export async function getBriefsByCategory(categoryName?: string, limit = 4) {
   }
 }
 
+// Define stats type
+type BriefStats = {
+  briefCount: number;
+  modelCount: number;
+  userCount: number;
+};
+
 // Get brief statistics for home page
-export async function getBriefStats() {
+export async function getBriefStats(): Promise<ActionResult<BriefStats>> {
   try {
     console.log('Fetching brief statistics');
     
@@ -191,8 +215,15 @@ export async function getBriefStats() {
   }
 }
 
+// Define category with count type
+type CategoryWithCount = Category & {
+  _count: {
+    briefs: number;
+  };
+};
+
 // Get featured categories with brief counts
-export async function getFeaturedCategories() {
+export async function getFeaturedCategories(): Promise<ActionResult<CategoryWithCount[]>> {
   try {
     console.log('Fetching featured categories');
     
@@ -222,7 +253,7 @@ export async function getFeaturedCategories() {
 
     return {
       success: true,
-      data: categories,
+      data: categories as CategoryWithCount[],
     };
   } catch (error) {
     console.error('Error fetching featured categories:', error);
@@ -232,3 +263,6 @@ export async function getFeaturedCategories() {
     };
   }
 }
+
+// Export types for use in components
+export type { BriefWithRelations, BriefStats, CategoryWithCount, ActionResult };
