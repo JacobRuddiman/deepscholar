@@ -250,7 +250,7 @@ function SearchBar({
                 }
               }}
               placeholder={placeholder}
-              className="flex-1 px-3 py-2 bg-transparent border-none outline-none"
+              className="flex-1 px-3 py-2 bg-transparent border-none outline-none text-gray-900 placeholder-gray-500"
             />
             
             {filters.query && (

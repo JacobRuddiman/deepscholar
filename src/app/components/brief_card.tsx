@@ -3,7 +3,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Clock, BookOpen, ExternalLink, Award, Star } from 'lucide-react';
+import { Clock, BookOpen, ExternalLink, Award, Star, Target } from 'lucide-react';
 
 export type BriefCardProps = {
   id: string;
@@ -19,6 +19,9 @@ export type BriefCardProps = {
   featured?: boolean;
   compact?: boolean;
   slug?: string;
+  recommendationScore?: number;
+  recommendationReasons?: string[];
+  showRecommendationScore?: boolean;
 };
 
 const BriefCard: React.FC<BriefCardProps> = ({
@@ -35,6 +38,9 @@ const BriefCard: React.FC<BriefCardProps> = ({
   featured = false,
   compact = false,
   slug,
+  recommendationScore,
+  recommendationReasons,
+  showRecommendationScore = false,
 }) => {
   const formattedDate = new Date(date).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -57,6 +63,15 @@ const BriefCard: React.FC<BriefCardProps> = ({
             <div className="flex items-center mb-2">
               <Award className="h-4 w-4 text-blue-500 mr-1" />
               <span className="text-xs font-medium text-blue-500">Featured Research</span>
+            </div>
+          )}
+          
+          {showRecommendationScore && recommendationScore !== undefined && (
+            <div className="flex items-center mb-2">
+              <Target className="h-4 w-4 text-pink-500 mr-1" />
+              <span className="text-xs font-medium text-pink-600">
+                {recommendationScore}% match
+              </span>
             </div>
           )}
           

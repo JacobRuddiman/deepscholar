@@ -5,6 +5,7 @@ import { TrendingUp, Clock, Filter, BookOpen, Users, Brain, ArrowRight, ChevronD
 import Link from 'next/link';
 import PopularBriefs from '../components/popular_briefs';
 import TopBriefsByCategory from '../components/top_briefs_by_category';
+import ForYouSection from '../components/for_you_section';
 import SearchBar from '../components/SearchBar';
 import { getBriefStats, getRecentBriefs, BriefWithRelations } from '@/server/actions/home';
 import BriefCard from '../components/brief_card';
@@ -340,6 +341,12 @@ export default function HomePage() {
             </div>
           </div>
         )}
+        
+        {/* For You Section - Personalized Recommendations */}
+        <ForYouSection />
+        
+        {/* Divider */}
+        <div className="border-t border-gray-200 my-6 md:my-8"></div>
         
         {/* Popular Briefs Section */}
         <PopularBriefs />

@@ -7,130 +7,108 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Email Footer model
 model EmailFooter {
   id        String   @id @default(cuid())
-  content   String   // The footer content
-  isActive  Boolean  @default(true) // Whether this footer is currently active
+  content   String
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-// Email Send History
 model EmailSend {
   id         String   @id @default(cuid())
   subject    String
   body       String
   footer     String
-  recipients String   // JSON array of recipient emails or "all"
-  sentBy     String   // User ID who sent the email
-  sentByUser User     @relation(fields: [sentBy], references: [id])
+  recipients String
+  sentBy     String
   sentAt     DateTime @default(now())
+  sentByUser User     @relation(fields: [sentBy], references: [id])
 }
 
-// Scheduled Email model
 model ScheduledEmail {
-  id            String   @id @default(cuid())
-  subject       String
-  body          String
-  footer        String
-  recipients    String   // JSON array of recipient emails or user IDs
-  scheduledFor  DateTime // When to send the email
-  status        String   @default("pending") // "pending", "sent", "failed", "cancelled"
-  sentBy        String   // User ID who scheduled the email
-  sentByUser    User     @relation(fields: [sentBy], references: [id])
-  sentAt        DateTime? // Actual send time
-  errorMessage  String?   // Error message if failed
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String    @id @default(cuid())
+  subject      String
+  body         String
+  footer       String
+  recipients   String
+  scheduledFor DateTime
+  status       String    @default("pending")
+  sentBy       String
+  sentAt       DateTime?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sentByUser   User      @relation(fields: [sentBy], references: [id])
 
   @@index([scheduledFor])
   @@index([status])
 }
 
-// User Recommendation Data
 model UserRecommendation {
-  id                    String   @id @default(cuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Category preferences
-  topCreatedCategories  Json     // Array of {category: string, count: number}
-  topInteractedCategories Json   // Array of {category: string, count: number}
-  topCombinedCategories Json    // Array of {category: string, count: number}
-  
-  // Title word analysis
-  topCreatedTitleWords  Json     // Arraay of {word: string, count: number}
-  topInteractedTitleWords Json   // Array of {word: string, count: number}
-  topCombinedTitleWords Json    // Arry of {word: string, count: number}
-  
-  // Interaction counts
-  totalBriefsCreated    Int      @default(0)
-  totalReviews          Int      @default(0)
-  totalUpvotes          Int      @default(0)
-  totalSaves            Int      @default(0)
-  totalViews            Int      @default(0)
-  totalReviewsReceived  Int      @default(0)
-  totalUpvotesReceived  Int      @default(0)
-  
-  // Search patterns
-  searchKeywords        Json     // Array of {keyword: string, count: number}
-  lastSearchQueries     Json     // Array of recent search queries
-  
-  // User interaction patterns
-  topInteractedUsers    Json     // Array of {userId: string, name: string, interactionCount: number}
-  
-  // Citation patterns
-  topCitationDomains    Json     // Array of {domain: string, count: number}
-  
-  // Additional useful metrics
-  avgBriefReadTime      Float?   // Average time spent reading briefs in seconds
-  avgSessionDuration    Float?   // Average session duration in minutes
-  preferredTimeOfDay    String?  // Morning, Afternoon, Evening, Night
-  engagementScore       Float?   // Calculated engagement score 0-100
-  contentQualityScore   Float?   // Average quality of created content
-  
-  // Metadata
-  lastCalculated        DateTime @default(now())
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  topCreatedCategories    Json
+  topInteractedCategories Json
+  topCombinedCategories   Json
+  topCreatedTitleWords    Json
+  topInteractedTitleWords Json
+  topCombinedTitleWords   Json
+  totalBriefsCreated      Int      @default(0)
+  totalReviews            Int      @default(0)
+  totalUpvotes            Int      @default(0)
+  totalSaves              Int      @default(0)
+  totalViews              Int      @default(0)
+  totalReviewsReceived    Int      @default(0)
+  totalUpvotesReceived    Int      @default(0)
+  searchKeywords          Json
+  lastSearchQueries       Json
+  topInteractedUsers      Json
+  topCitationDomains      Json
+  avgBriefReadTime        Float?
+  avgSessionDuration      Float?
+  preferredTimeOfDay      String?
+  engagementScore         Float?
+  contentQualityScore     Float?
+  lastCalculated          DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// User model (extends NextAuth)
 model User {
-  id                    String          @id @default(cuid())
-  name                  String?
-  email                 String?         @unique
-  emailVerified         DateTime?
-  image                 String?
-  isAdmin               Boolean         @default(false)
-  lastInteractionDate   DateTime?       // Last time user interacted with the site
-  lastPromotionEmailDate DateTime?      // Last time promotion email was sent
-  emailNotifications    Boolean         @default(true)   // Master email notifications toggle
-  briefInterestUpdates  Boolean         @default(true)   // Brief interaction notifications
-  promotionalNotifications Boolean      @default(true)   // Promotional/re-engagement notifications
-  accounts              Account[]
-  sessions              Session[]
-  briefs                Brief[]         // Research briefs created by the user
-  reviews               Review[]        // Reviews created by the user
-  briefUpvotes          BriefUpvote[]   // Upvotes given by the user to briefs
-  reviewUpvotes         ReviewUpvote[]  // Upvotes given by the user to reviews
-  savedBriefs           SavedBrief[]    // Briefs saved by the user
-  briefViews            BriefView[]     // Briefs viewed by the user
-  tokenBalance          UserToken?      // User's token balance
-  tokenTransactions     TokenTransaction[]
-  tokenPurchases        TokenPurchase[] // Token purchases made by the user
-  reviewHelpful         ReviewHelpful[] // Reviews marked as helpful by the user
-  exportHistory         ExportHistory[] // Export history for this user
-  exportUsage           ExportUsage[]   // Export usage tracking for rate limiting
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  sentEmails      EmailSend[]
-  scheduledEmails ScheduledEmail[] // Add this line
-  recommendation UserRecommendation?
+  id                       String              @id @default(cuid())
+  name                     String?
+  email                    String?             @unique
+  emailVerified            DateTime?
+  image                    String?
+  isAdmin                  Boolean             @default(false)
+  lastInteractionDate      DateTime?
+  lastPromotionEmailDate   DateTime?
+  emailNotifications       Boolean             @default(true)
+  briefInterestUpdates     Boolean             @default(true)
+  promotionalNotifications Boolean             @default(true)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  accounts                 Account[]
+  briefs                   Brief[]
+  briefUpvotes             BriefUpvote[]
+  briefViews               BriefView[]
+  sentEmails               EmailSend[]
+  exportHistory            ExportHistory[]
+  exportUsage              ExportUsage[]
+  reviews                  Review[]
+  reviewHelpful            ReviewHelpful[]
+  reviewUpvotes            ReviewUpvote[]
+  savedBriefs              SavedBrief[]
+  scheduledEmails          ScheduledEmail[]
+  sessions                 Session[]
+  tokenPurchases           TokenPurchase[]
+  tokenTransactions        TokenTransaction[]
+  recommendation           UserRecommendation?
+  tokenBalance             UserToken?
 }
 
-// NextAuth required models
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -165,263 +143,245 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// Research AI Model information
 model ResearchAIModel {
-  id          String     @id @default(cuid())
-  name        String     // e.g., "GPT-4", "Claude 3", etc.
-  provider    String     // e.g., "OpenAI", "Anthropic", etc.
-  version     String     // Version identifier
-  briefs      Brief[]    // Briefs generated by this model
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  provider  String
+  version   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  briefs    Brief[]
 
   @@unique([name, version, provider])
 }
 
-// Review AI Model information
 model ReviewAIModel {
-  id          String      @id @default(cuid())
-  name        String      // e.g., "GPT-4", "Claude 3", etc.
-  provider    String      // e.g., "OpenAI", "Anthropic", etc.
-  version     String      // Version identifier
-  aiReviews   AIReview[]  // AI Reviews generated by this model
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id        String     @id @default(cuid())
+  name      String
+  provider  String
+  version   String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  aiReviews AIReview[]
 
   @@unique([name, version, provider])
 }
 
-// Sources for research briefs
 model Source {
-  id         String          @id @default(cuid())
+  id         String           @id @default(cuid())
   title      String
   url        String
-  briefs     Brief[]         // Many-to-many relation with briefs
-  references BriefReference[] // References that cite this source
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  references BriefReference[]
+  briefs     Brief[]          @relation("BriefToSource")
 }
 
-// References linking specific text in briefs to sources
 model BriefReference {
   id              String   @id @default(cuid())
   briefId         String
-  brief           Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
   sourceId        String
-  source          Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  highlightedText String   // The specific text from the brief that references the source
-  context         String?  // Optional additional context around the highlighted text
+  highlightedText String
+  context         String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  source          Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  brief           Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
 
   @@index([briefId])
   @@index([sourceId])
 }
 
-// Research Brief (the core content type, renamed from Insight)
 model Brief {
-  id               String            @id @default(cuid())
-  title            String
-  prompt           String
-  response         String
-  abstract         String?           // Optional summary/abstract with markdown-formatted links
-  thinking         String?           // Optional AI's thinking process
-  modelId          String
-  model            ResearchAIModel   @relation(fields: [modelId], references: [id])
-  userId           String
-  author           User              @relation(fields: [userId], references: [id])
-  categories       Category[]        // Many-to-many relation with categories
-  sources          Source[]          // Many-to-many relation with sources
-  references       BriefReference[]  // References linking text to sources
-  reviews          Review[]          // User reviews
-  aiReviews        AIReview[]        // AI-generated reviews
-  upvotes          BriefUpvote[]     // User upvotes
-  savedBy          SavedBrief[]      // Users who saved this brief
-  viewedBy         BriefView[]       // Users who have viewed this brief
-  tokenTransactions TokenTransaction[] // Token transactions related to this brief
-  viewCount        Int               @default(0)
-  readTime         Int?              // Optional estimated read time in minutes
-  accuracy         Float?            // 1-5 rating based on reviews and AI reviews
-  slug             String?           @unique   // Optional URL-friendly identifier
-  published        Boolean           @default(true)
-  isDraft          Boolean           @default(false) // Whether this is a draft
-  isActive         Boolean           @default(true) // Whether this version is the active/public one
-  parentBriefId    String?           // Reference to original brief for versions
-  parentBrief      Brief?            @relation("BriefVersions", fields: [parentBriefId], references: [id])
-  versions         Brief[]           @relation("BriefVersions") // All versions of this brief
-  versionNumber    Int               @default(1) // Version number (1 for original)
-  changeLog        String?           // Description of changes in this version
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                String             @id @default(cuid())
+  title             String
+  prompt            String
+  response          String
+  abstract          String?
+  thinking          String?
+  modelId           String
+  userId            String
+  viewCount         Int                @default(0)
+  readTime          Int?
+  accuracy          Float?
+  slug              String?            @unique
+  published         Boolean            @default(true)
+  isDraft           Boolean            @default(false)
+  isActive          Boolean            @default(true)
+  parentBriefId     String?
+  versionNumber     Int                @default(1)
+  changeLog         String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  aiReviews         AIReview[]
+  parentBrief       Brief?             @relation("BriefVersions", fields: [parentBriefId], references: [id])
+  versions          Brief[]            @relation("BriefVersions")
+  author            User               @relation(fields: [userId], references: [id])
+  model             ResearchAIModel    @relation(fields: [modelId], references: [id])
+  references        BriefReference[]
+  upvotes           BriefUpvote[]
+  viewedBy          BriefView[]
+  reviews           Review[]
+  savedBy           SavedBrief[]
+  tokenTransactions TokenTransaction[]
+  categories        Category[]         @relation("BriefToCategory")
+  sources           Source[]           @relation("BriefToSource")
 }
 
-// Categories for organizing briefs
 model Category {
-  id           String    @id @default(cuid())
-  name         String    @unique
-  description  String?
-  briefs       Brief[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  briefs      Brief[]  @relation("BriefToCategory")
 }
 
-// User-generated reviews
 model Review {
-  id           String         @id @default(cuid())
+  id           String          @id @default(cuid())
   content      String
-  rating       Int            // 1-5 star rating
+  rating       Int
   briefId      String
-  brief        Brief          @relation(fields: [briefId], references: [id])
   userId       String
-  author       User           @relation(fields: [userId], references: [id])
-  upvotes      ReviewUpvote[] // Upvotes for this review
-  helpfulMarks ReviewHelpful[] // Users who marked this review as helpful
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  author       User            @relation(fields: [userId], references: [id])
+  brief        Brief           @relation(fields: [briefId], references: [id])
+  helpfulMarks ReviewHelpful[]
+  upvotes      ReviewUpvote[]
 }
 
-// AI-generated reviews
 model AIReview {
-  id           String         @id @default(cuid())
+  id           String        @id @default(cuid())
   content      String
-  rating       Int            // 1-5 star rating
+  rating       Int
   briefId      String
-  brief        Brief          @relation(fields: [briefId], references: [id])
   modelId      String
-  model        ReviewAIModel  @relation(fields: [modelId], references: [id])
-  requesterId  String?        // Optional reference to user who requested the review
-  helpfulCount Int            @default(0)
-  createdAt    DateTime       @default(now())
+  requesterId  String?
+  helpfulCount Int           @default(0)
+  createdAt    DateTime      @default(now())
+  model        ReviewAIModel @relation(fields: [modelId], references: [id])
+  brief        Brief         @relation(fields: [briefId], references: [id])
 }
 
-// Upvotes for briefs
 model BriefUpvote {
-  id         String   @id @default(cuid())
-  briefId    String
-  brief      Brief    @relation(fields: [briefId], references: [id])
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  briefId   String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  brief     Brief    @relation(fields: [briefId], references: [id])
 
-  @@unique([briefId, userId]) // Prevent duplicate upvotes
+  @@unique([briefId, userId])
 }
 
-// Upvotes for reviews
 model ReviewUpvote {
-  id         String   @id @default(cuid())
-  reviewId   String
-  review     Review   @relation(fields: [reviewId], references: [id])
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  reviewId  String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  review    Review   @relation(fields: [reviewId], references: [id])
 
-  @@unique([reviewId, userId]) // Prevent duplicate upvotes
+  @@unique([reviewId, userId])
 }
 
-// Saved/Bookmarked Briefs
 model SavedBrief {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  briefId    String
-  brief      Brief    @relation(fields: [briefId], references: [id])
-  createdAt  DateTime @default(now())
-  
+  id        String   @id @default(cuid())
+  userId    String
+  briefId   String
+  createdAt DateTime @default(now())
+  brief     Brief    @relation(fields: [briefId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
   @@unique([userId, briefId])
 }
 
-// Brief Views - Track which briefs a user has viewed
 model BriefView {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  briefId    String
-  brief      Brief    @relation(fields: [briefId], references: [id])
-  createdAt  DateTime @default(now())
-  
-  @@unique([userId, briefId]) // Ensure one view record per user per brief
+  id        String   @id @default(cuid())
+  userId    String
+  briefId   String
+  createdAt DateTime @default(now())
+  brief     Brief    @relation(fields: [briefId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, briefId])
 }
 
-// User Token Balance
 model UserToken {
-  id         String    @id @default(cuid())
-  userId     String    @unique
-  user       User      @relation(fields: [userId], references: [id])
-  balance    Int       @default(0)
-  updatedAt  DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
 }
 
-// Token Transactions
 model TokenTransaction {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id])
-  amount     Int       // Positive for additions, negative for usage
-  reason     String    // e.g., "Brief creation", "Review reward", "Upvote reward", "Purchase"
-  briefId    String?   // Optional link to a brief if relevant
-  brief      Brief?    @relation(fields: [briefId], references: [id])
-  reviewId   String?   // Optional link to a review if relevant
-  purchaseId String?   // Optional link to a purchase if relevant
-  createdAt  DateTime  @default(now())
-}
-
-// Token Purchases
-model TokenPurchase {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
-  packageName   String    // e.g., "Starter Pack", "Pro Pack"
-  tokensAmount  Int       // Number of tokens purchased
-  priceUSD      Float     // Price in USD
-  paymentMethod String?   // e.g., "stripe", "paypal"
-  paymentId     String?   // External payment reference
-  status        String    @default("pending") // "pending", "completed", "failed"
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-// Review Helpful Marks
-model ReviewHelpful {
   id         String   @id @default(cuid())
-  reviewId   String
-  review     Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   userId     String
-  user       User     @relation(fields: [userId], references: [id])
+  amount     Int
+  reason     String
+  briefId    String?
+  reviewId   String?
+  purchaseId String?
   createdAt  DateTime @default(now())
-
-  @@unique([reviewId, userId]) // Prevent duplicate helpful marks
+  brief      Brief?   @relation(fields: [briefId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
 }
 
-// Export tracking
+model TokenPurchase {
+  id            String   @id @default(cuid())
+  userId        String
+  packageName   String
+  tokensAmount  Int
+  priceUSD      Float
+  paymentMethod String?
+  paymentId     String?
+  status        String   @default("pending")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model ReviewHelpful {
+  id        String   @id @default(cuid())
+  reviewId  String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+}
+
 model ExportHistory {
   id            String   @id @default(cuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  exportType    String   // 'brief', 'user_profile', 'search_results'
-  exportFormat  String   // 'pdf', 'markdown', 'html', 'json', 'csv', 'docx', 'txt'
-  targetId      String   // ID of the exported item (briefId, userId, etc.)
+  exportType    String
+  exportFormat  String
+  targetId      String
   filename      String
-  fileSize      Int?     // File size in bytes
-  status        String   @default("completed") // 'pending', 'processing', 'completed', 'failed'
-  options       String?  // JSON string of export options
-  errorMessage  String?  // Error message if failed
-  downloadCount Int      @default(0) // How many times downloaded
+  fileSize      Int?
+  status        String   @default("completed")
+  options       String?
+  errorMessage  String?
+  downloadCount Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([createdAt])
 }
 
-// Export usage tracking for rate limiting
 model ExportUsage {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  date      DateTime @default(now()) // Date of export (for daily tracking)
-  count     Int      @default(1) // Number of exports on this date
+  date      DateTime @default(now())
+  count     Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, date])
   @@index([userId])

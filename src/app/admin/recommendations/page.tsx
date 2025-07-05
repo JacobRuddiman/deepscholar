@@ -18,7 +18,8 @@ import {
   X,
   Settings,
   Clock,
-  Activity
+  Activity,
+  Target
 } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/app/components/ui/table';
 import { Button } from '@/app/components/ui/button';
@@ -30,6 +31,7 @@ import {
   updateUserRecommendation,
   getRecommendationProgress 
 } from '@/server/actions/admin';
+import RecommendationScoreModal from '@/app/components/recommendation_score_modal';
 
 interface UserRecommendation {
   id: string;
@@ -446,6 +448,9 @@ export default function RecommendationsPage() {
     categories: 'combined',
     titleWords: 'combined'
   });
+  const [showScoreModal, setShowScoreModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [calculatingScores, setCalculatingScores] = useState<string | null>(null);
   const progressInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch recommendations
@@ -851,14 +856,29 @@ export default function RecommendationsPage() {
                       <span className="font-medium">{totalInteractions}</span>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRefreshUser(rec.userId)}
-                        disabled={isRecalculating}
-                      >
-                        <RefreshCw className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRefreshUser(rec.userId)}
+                          disabled={isRecalculating}
+                          title="Recalculate recommendations"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedUserId(rec.userId);
+                            setShowScoreModal(true);
+                          }}
+                          disabled={calculatingScores === rec.userId}
+                          title="View recommendation scores for all briefs"
+                        >
+                          <Target className={`w-4 h-4 ${calculatingScores === rec.userId ? 'animate-spin' : ''}`} />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                   {isExpanded && (
@@ -877,6 +897,16 @@ export default function RecommendationsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Recommendation Score Modal */}
+      <RecommendationScoreModal
+        isOpen={showScoreModal}
+        onClose={() => {
+          setShowScoreModal(false);
+          setSelectedUserId(null);
+        }}
+        userId={selectedUserId}
+      />
     </div>
   );
 }

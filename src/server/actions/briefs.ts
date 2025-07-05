@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { db } from "@/server/db";
+import { prisma } from '@/lib/prisma';
 import { revalidatePath } from "next/cache";
 import { validateInput, createBriefSchema, updateBriefSchema, createReviewSchema, sanitizeHtml, sanitizeText } from '@/lib/validation';
 
@@ -70,7 +70,7 @@ export async function createBrief(briefData: CreateBriefInput) {
     };
 
     // Create the brief
-    const brief = await db.brief.create({
+    const brief = await prisma.brief.create({
       data: {
         title: sanitizedData.title,
         abstract: sanitizedData.abstract,
@@ -134,7 +134,7 @@ export async function getUserBriefs() {
     console.log('Using userId:', userId);
 
     console.log('Querying database for briefs');
-    const briefs = await db.brief.findMany({
+    const briefs = await prisma.brief.findMany({
       where: {
         userId,
         isActive: true, // Only return active versions
@@ -186,7 +186,7 @@ export async function getSavedBriefs() {
     console.log('Using userId:', userId);
 
     console.log('Querying database for saved briefs');
-    const savedBriefs = await db.savedBrief.findMany({
+    const savedBriefs = await prisma.savedBrief.findMany({
       where: {
         userId,
       },
@@ -243,7 +243,7 @@ export async function getUserReviews() {
     console.log('Using userId:', userId);
 
     console.log('Querying database for user reviews');
-    const reviews = await db.review.findMany({
+    const reviews = await prisma.review.findMany({
       where: {
         userId,
       },
@@ -290,7 +290,7 @@ export async function getUserUpvotes() {
     console.log('Using userId:', userId);
 
     console.log('Querying database for user upvotes');
-    const upvotes = await db.briefUpvote.findMany({
+    const upvotes = await prisma.briefUpvote.findMany({
       where: {
         userId,
       },
@@ -333,7 +333,7 @@ export async function getBriefById(briefId: string) {
     const userId = await getUserId();
     console.log('Using userId:', userId);
 
-    const brief = await db.brief.findUnique({
+    const brief = await prisma.brief.findUnique({
       where: {
         id: briefId,
       },
@@ -385,7 +385,7 @@ export async function getBriefVersions(briefId: string) {
     const userId = await getUserId();
 
     // Get the root brief (original or any version to find the parent)
-    const brief = await db.brief.findUnique({
+    const brief = await prisma.brief.findUnique({
       where: { id: briefId },
       select: { 
         id: true, 
@@ -406,7 +406,7 @@ export async function getBriefVersions(briefId: string) {
     const rootBriefId = brief.parentBriefId ?? brief.id;
 
     // Get all versions (including the root brief)
-    const versions = await db.brief.findMany({
+    const versions = await prisma.brief.findMany({
       where: {
         OR: [
           { id: rootBriefId },
@@ -460,7 +460,7 @@ export async function createBriefVersion(
     const userId = await getUserId();
 
     // Verify ownership of the parent brief
-    const parentBrief = await db.brief.findUnique({
+    const parentBrief = await prisma.brief.findUnique({
       where: { id: parentBriefId },
       select: { 
         userId: true, 
@@ -477,7 +477,7 @@ export async function createBriefVersion(
     // Find the root brief ID and get the highest version number
     const rootBriefId = parentBrief.parentBriefId ?? parentBriefId;
     
-    const highestVersion = await db.brief.findFirst({
+    const highestVersion = await prisma.brief.findFirst({
       where: {
         OR: [
           { id: rootBriefId },
@@ -495,7 +495,7 @@ export async function createBriefVersion(
     const newVersionNumber = (highestVersion?.versionNumber ?? 0) + 1;
 
     // First, set all existing versions in this brief family to inactive
-    await db.brief.updateMany({
+    await prisma.brief.updateMany({
       where: {
         OR: [
           { id: rootBriefId },
@@ -509,7 +509,7 @@ export async function createBriefVersion(
     });
 
     // Create the new version
-    const newVersion = await db.brief.create({
+    const newVersion = await prisma.brief.create({
       data: {
         title: briefData.title,
         abstract: briefData.abstract,
@@ -583,7 +583,7 @@ export async function updateBriefVersion(
     const userId = await getUserId();
 
     // Verify ownership
-    const brief = await db.brief.findUnique({
+    const brief = await prisma.brief.findUnique({
       where: { id: briefId },
       select: { 
         userId: true, 
@@ -596,7 +596,7 @@ export async function updateBriefVersion(
     }
 
     // Update the brief
-    const updatedBrief = await db.brief.update({
+    const updatedBrief = await prisma.brief.update({
       where: { id: briefId },
       data: {
         title: briefData.title,
@@ -659,7 +659,7 @@ export async function pushDraftToVersion(
     const userId = await getUserId();
 
     // Get the draft
-    const draft = await db.brief.findUnique({
+    const draft = await prisma.brief.findUnique({
       where: { id: draftId },
       select: { 
         userId: true, 
@@ -674,7 +674,7 @@ export async function pushDraftToVersion(
     }
 
     // Find the published version for this version number
-    const publishedVersion = await db.brief.findFirst({
+    const publishedVersion = await prisma.brief.findFirst({
       where: {
         OR: [
           ...(draft.parentBriefId ? [{ id: draft.parentBriefId }] : []),
@@ -690,7 +690,7 @@ export async function pushDraftToVersion(
     }
 
     // Update the published version with draft content
-    const updatedVersion = await db.brief.update({
+    const updatedVersion = await prisma.brief.update({
       where: { id: publishedVersion.id },
       data: {
         title: briefData.title,
@@ -724,7 +724,7 @@ export async function pushDraftToVersion(
     });
 
     // Delete the draft
-    await db.brief.delete({
+    await prisma.brief.delete({
       where: { id: draftId },
     });
 
@@ -750,7 +750,7 @@ export async function renameBriefVersion(
     const userId = await getUserId();
 
     // Verify ownership
-    const brief = await db.brief.findUnique({
+    const brief = await prisma.brief.findUnique({
       where: { id: briefId },
       select: { userId: true },
     });
@@ -760,7 +760,7 @@ export async function renameBriefVersion(
     }
 
     // Update the change log
-    const updatedBrief = await db.brief.update({
+    const updatedBrief = await prisma.brief.update({
       where: { id: briefId },
       data: {
         changeLog: newChangeLog,
@@ -797,7 +797,7 @@ export async function saveBriefDraft(
     const userId = await getUserId();
 
     // Get the current brief to determine its version structure
-    const currentBrief = await db.brief.findUnique({
+    const currentBrief = await prisma.brief.findUnique({
       where: { id: briefId },
       select: { 
         userId: true, 
@@ -827,7 +827,7 @@ export async function saveBriefDraft(
     }
     
     // Get existing drafts for this specific version to determine draft number
-    const existingDrafts = await db.brief.findMany({
+    const existingDrafts = await prisma.brief.findMany({
       where: {
         parentBriefId: rootBriefId,
         versionNumber: targetVersionNumber,
@@ -847,7 +847,7 @@ export async function saveBriefDraft(
         throw new Error('Failed to find oldest draft');
       }
       
-      const updatedDraft = await db.brief.update({
+      const updatedDraft = await prisma.brief.update({
         where: { id: oldestDraft.id },
         data: {
           title: briefData.title,
@@ -887,7 +887,7 @@ export async function saveBriefDraft(
       };
     } else {
       // Create new draft with the correct version number
-      const draft = await db.brief.create({
+      const draft = await prisma.brief.create({
         data: {
           title: briefData.title,
           abstract: briefData.abstract,
@@ -943,7 +943,7 @@ export async function saveBriefDraft(
 // Get brief by slug (for public viewing)
 export async function getBriefBySlug(slug: string) {
   try {
-    const brief = await db.brief.findFirst({
+    const brief = await prisma.brief.findFirst({
       where: {
         OR: [
           { id: slug },
@@ -1014,7 +1014,7 @@ export async function toggleBriefUpvote(briefId: string) {
     const userId = await getUserId();
 
     // Check if user has already upvoted
-    const existingUpvote = await db.briefUpvote.findFirst({
+    const existingUpvote = await prisma.briefUpvote.findFirst({
       where: {
         briefId: briefId,
         userId: userId,
@@ -1023,7 +1023,7 @@ export async function toggleBriefUpvote(briefId: string) {
 
     if (existingUpvote) {
       // Remove upvote
-      await db.briefUpvote.delete({
+      await prisma.briefUpvote.delete({
         where: { id: existingUpvote.id },
       });
       return {
@@ -1032,7 +1032,7 @@ export async function toggleBriefUpvote(briefId: string) {
       };
     } else {
       // Add upvote
-      await db.briefUpvote.create({
+      await prisma.briefUpvote.create({
         data: {
           briefId: briefId,
           userId: userId,
@@ -1058,7 +1058,7 @@ export async function toggleBriefSave(briefId: string) {
     const userId = await getUserId();
 
     // Check if user has already saved
-    const existingSave = await db.savedBrief.findFirst({
+    const existingSave = await prisma.savedBrief.findFirst({
       where: {
         briefId: briefId,
         userId: userId,
@@ -1067,7 +1067,7 @@ export async function toggleBriefSave(briefId: string) {
 
     if (existingSave) {
       // Remove save
-      await db.savedBrief.delete({
+      await prisma.savedBrief.delete({
         where: { id: existingSave.id },
       });
       return {
@@ -1076,7 +1076,7 @@ export async function toggleBriefSave(briefId: string) {
       };
     } else {
       // Add save
-      await db.savedBrief.create({
+      await prisma.savedBrief.create({
         data: {
           briefId: briefId,
           userId: userId,
@@ -1110,7 +1110,7 @@ export async function addBriefReview(briefId: string, content: string, rating: n
     }
 
     // Check if user has already reviewed this brief
-    const existingReview = await db.review.findFirst({
+    const existingReview = await prisma.review.findFirst({
       where: {
         briefId: briefId,
         userId: userId,
@@ -1124,7 +1124,7 @@ export async function addBriefReview(briefId: string, content: string, rating: n
       };
     }
 
-    const review = await db.review.create({
+    const review = await prisma.review.create({
       data: {
         content: content,
         rating: rating,
@@ -1163,7 +1163,7 @@ export async function deleteBriefReview(reviewId: string) {
     const userId = await getUserId();
 
     // Verify ownership
-    const review = await db.review.findUnique({
+    const review = await prisma.review.findUnique({
       where: { id: reviewId },
       select: { userId: true },
     });
@@ -1176,16 +1176,16 @@ export async function deleteBriefReview(reviewId: string) {
     }
 
     // Delete related records first
-    await db.reviewHelpful.deleteMany({
+    await prisma.reviewHelpful.deleteMany({
       where: { reviewId: reviewId },
     });
 
-    await db.reviewUpvote.deleteMany({
+    await prisma.reviewUpvote.deleteMany({
       where: { reviewId: reviewId },
     });
 
     // Delete the review
-    await db.review.delete({
+    await prisma.review.delete({
       where: { id: reviewId },
     });
 
@@ -1207,7 +1207,7 @@ export async function setActiveVersion(briefId: string) {
     const userId = await getUserId();
 
     // Get the brief to check ownership and determine the root brief
-    const brief = await db.brief.findUnique({
+    const brief = await prisma.brief.findUnique({
       where: { id: briefId },
       select: { 
         userId: true, 
@@ -1230,7 +1230,7 @@ export async function setActiveVersion(briefId: string) {
     const rootBriefId = brief.parentBriefId ?? briefId;
 
     // First, set all versions in this brief family to inactive
-    await db.brief.updateMany({
+    await prisma.brief.updateMany({
       where: {
         OR: [
           { id: rootBriefId },
@@ -1244,7 +1244,7 @@ export async function setActiveVersion(briefId: string) {
     });
 
     // Then set the specified version as active
-    await db.brief.update({
+    await prisma.brief.update({
       where: { id: briefId },
       data: {
         isActive: true,
@@ -1295,24 +1295,27 @@ export async function searchBriefs({
       isDraft: false, // Exclude drafts
     };
 
-    // Text search in title, abstract, and content
+    // Text search in title, abstract, and content with normalization
     if (query && query.trim()) {
+      const normalizedQuery = query.trim();
+      console.log('Searching for normalized query:', normalizedQuery);
+      
       whereClause.OR = [
         {
           title: {
-            contains: query,
+            contains: normalizedQuery,
             mode: 'insensitive',
           },
         },
         {
           abstract: {
-            contains: query,
+            contains: normalizedQuery,
             mode: 'insensitive',
           },
         },
         {
           response: {
-            contains: query,
+            contains: normalizedQuery,
             mode: 'insensitive',
           },
         },
@@ -1392,7 +1395,7 @@ export async function searchBriefs({
 
     // Execute the search query
     const [briefs, totalCount] = await Promise.all([
-      db.brief.findMany({
+      prisma.brief.findMany({
         where: whereClause,
         include: {
           categories: {
@@ -1435,7 +1438,7 @@ export async function searchBriefs({
         skip,
         take: limit,
       }),
-      db.brief.count({
+      prisma.brief.count({
         where: whereClause,
       }),
     ]);
@@ -1510,7 +1513,7 @@ export async function deleteBrief(briefId: string) {
     const userId = await getUserId();
 
     // Get the brief to check ownership and determine if it's a version or root brief
-    const existingBrief = await db.brief.findUnique({
+    const existingBrief = await prisma.brief.findUnique({
       where: { id: briefId },
       select: { 
         userId: true, 
@@ -1530,7 +1533,7 @@ export async function deleteBrief(briefId: string) {
       const rootBriefId = existingBrief.parentBriefId ?? briefId;
       
       // Find other published versions in this family
-      const otherVersions = await db.brief.findMany({
+      const otherVersions = await prisma.brief.findMany({
         where: {
           OR: [
             { id: rootBriefId },
@@ -1546,7 +1549,7 @@ export async function deleteBrief(briefId: string) {
 
       if (otherVersions.length > 0) {
         // Set the latest other version as active
-        await db.brief.update({
+        await prisma.brief.update({
           where: { id: otherVersions[0]!.id },
           data: { isActive: true },
         });
@@ -1564,7 +1567,7 @@ export async function deleteBrief(briefId: string) {
       const rootBriefId = existingBrief.parentBriefId ?? briefId;
       
       // Find all drafts for this specific version
-      const relatedDrafts = await db.brief.findMany({
+      const relatedDrafts = await prisma.brief.findMany({
         where: {
           parentBriefId: rootBriefId,
           versionNumber: existingBrief.versionNumber,
@@ -1580,7 +1583,7 @@ export async function deleteBrief(briefId: string) {
     // Delete related records for all briefs to be deleted
     for (const briefToDeleteId of briefsToDelete) {
       // Delete review helpful marks first (they depend on reviews)
-      await db.reviewHelpful.deleteMany({
+      await prisma.reviewHelpful.deleteMany({
         where: {
           review: {
             briefId: briefToDeleteId,
@@ -1589,7 +1592,7 @@ export async function deleteBrief(briefId: string) {
       });
 
       // Delete review upvotes (they depend on reviews)
-      await db.reviewUpvote.deleteMany({
+      await prisma.reviewUpvote.deleteMany({
         where: {
           review: {
             briefId: briefToDeleteId,
@@ -1598,33 +1601,33 @@ export async function deleteBrief(briefId: string) {
       });
 
       // Delete reviews
-      await db.review.deleteMany({
+      await prisma.review.deleteMany({
         where: { briefId: briefToDeleteId },
       });
 
       // Delete AI reviews
-      await db.aIReview.deleteMany({
+      await prisma.aIReview.deleteMany({
         where: { briefId: briefToDeleteId },
       });
 
       // Delete brief upvotes
-      await db.briefUpvote.deleteMany({
+      await prisma.briefUpvote.deleteMany({
         where: { briefId: briefToDeleteId },
       });
 
       // Delete saved briefs
-      await db.savedBrief.deleteMany({
+      await prisma.savedBrief.deleteMany({
         where: { briefId: briefToDeleteId },
       });
 
       // Delete token transactions related to this brief
-      await db.tokenTransaction.deleteMany({
+      await prisma.tokenTransaction.deleteMany({
         where: { briefId: briefToDeleteId },
       });
     }
 
     // Finally, delete all the briefs
-    await db.brief.deleteMany({
+    await prisma.brief.deleteMany({
       where: {
         id: {
           in: briefsToDelete,
