@@ -34,6 +34,265 @@ type EmailTag = {
   userData?: User;
 };
 
+const UserSelectionModal = React.memo(({ 
+  showUserModal, 
+  setShowUserModal, 
+  users, 
+  modalSearchTerm, 
+  setModalSearchTerm,
+  emailTags,
+  addTag,
+  removeTag,
+  handleBulkSelect,
+  handleBulkUnselect,
+  showAdminAlert,
+  createLog
+}: {
+  showUserModal: boolean;
+  setShowUserModal: (show: boolean) => void;
+  users: User[];
+  modalSearchTerm: string;
+  setModalSearchTerm: (term: string) => void;
+  emailTags: EmailTag[];
+  addTag: (tag: EmailTag) => void;
+  removeTag: (id: string) => void;
+  handleBulkSelect: (type: 'all' | 'emailNotifications' | 'briefInterestUpdates' | 'promotionalNotifications') => void;
+  handleBulkUnselect: (type: 'all' | 'emailNotifications' | 'briefInterestUpdates' | 'promotionalNotifications') => void;
+  showAdminAlert: typeof showAdminAlert;
+  createLog: typeof createLog;
+}) => {
+  console.log('[DEBUG] UserSelectionModal render - showUserModal:', showUserModal);
+  console.log('[DEBUG] UserSelectionModal render - users length:', users?.length);
+  console.log('[DEBUG] UserSelectionModal render - emailTags length:', emailTags?.length);
+
+  // Add defensive check for users
+  const safeUsers = users || [];
+  
+  // Memoize filtered users for modal to prevent re-renders
+  const filteredModalUsers = useMemo(() => {
+    if (!modalSearchTerm) return safeUsers;
+    const searchLower = modalSearchTerm.toLowerCase();
+    return safeUsers.filter(user => 
+      user.name?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower)
+    );
+  }, [safeUsers, modalSearchTerm]);
+
+  // Add defensive check for emailTags
+  const safeEmailTags = emailTags || [];
+  
+  // Memoize selected emails set with defensive check
+  const selectedEmails = useMemo(() => 
+    new Set(safeEmailTags.map(t => t.value)), 
+    [safeEmailTags]
+  );
+
+  // Handle user toggle without closing modal
+  const handleUserToggle = useCallback((user: User) => {
+    if (!user.email) return;
+    
+    const isSelected = selectedEmails.has(user.email);
+    console.log('[DEBUG] Toggling user:', user.email, 'Selected:', isSelected);
+    
+    if (isSelected) {
+      const tagToRemove = safeEmailTags.find(t => t.value === user.email);
+      if (tagToRemove) {
+        removeTag(tagToRemove.id);
+      }
+    } else {
+      addTag({
+        id: user.id,
+        value: user.email,
+        type: 'user',
+        userData: user
+      });
+    }
+  }, [selectedEmails, safeEmailTags, addTag, removeTag]);
+
+  // Handle select all in modal
+  const handleModalSelectAll = useCallback(() => {
+    const logs = [];
+    logs.push(createLog('Selecting all visible users in modal'));
+    
+    let addedCount = 0;
+    filteredModalUsers.forEach(user => {
+      if (user.email && !selectedEmails.has(user.email)) {
+        addTag({
+          id: user.id,
+          value: user.email,
+          type: 'user',
+          userData: user
+        });
+        addedCount++;
+      }
+    });
+    
+    logs.push(createLog(`Added ${addedCount} users`, { total: filteredModalUsers.length }));
+    showAdminAlert('success', 'Select All', `Added ${addedCount} recipients`, logs);
+  }, [filteredModalUsers, selectedEmails, addTag, createLog, showAdminAlert]);
+
+  if (!showUserModal) {
+    console.log('[DEBUG] UserSelectionModal not showing - showUserModal is false');
+    return null;
+  }
+
+  console.log('[DEBUG] UserSelectionModal rendering modal');
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        onClick={() => {
+          console.log('[DEBUG] Modal backdrop clicked - closing modal');
+          setShowUserModal(false);
+        }}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden"
+        >
+          <div className="p-6 border-b">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Select Recipients</h2>
+              <button
+                onClick={() => {
+                  console.log('[DEBUG] Modal close button clicked');
+                  setShowUserModal(false);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    value={modalSearchTerm}
+                    onChange={(e) => setModalSearchTerm(e.target.value)}
+                    placeholder="Search users..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={handleModalSelectAll}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Select All Visible
+                </button>
+                <button
+                  onClick={() => handleBulkUnselect('all')}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-sm"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-3">
+              <span className="text-sm text-gray-600">Quick filters:</span>
+              <button
+                onClick={() => handleBulkSelect('briefInterestUpdates')}
+                className="px-3 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
+              >
+                + Brief Updates
+              </button>
+              <button
+                onClick={() => handleBulkSelect('promotionalNotifications')}
+                className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200"
+              >
+                + Promotional
+              </button>
+              <button
+                onClick={() => handleBulkUnselect('briefInterestUpdates')}
+                className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+              >
+                - Brief Updates
+              </button>
+              <button
+                onClick={() => handleBulkUnselect('promotionalNotifications')}
+                className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+              >
+                - Promotional
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(80vh - 200px)' }}>
+            <div className="space-y-2">
+              {filteredModalUsers.map(user => {
+                const isSelected = user.email && selectedEmails.has(user.email);
+                
+                return (
+                  <div
+                    key={user.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
+                      isSelected ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => handleUserToggle(user)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-5 h-5">
+                        {isSelected ? (
+                          <CheckSquare className="w-5 h-5 text-blue-600" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-medium">{user.name || 'Anonymous'}</div>
+                        <div className="text-sm text-gray-600">{user.email || 'No email'}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      {user.emailNotifications && (
+                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
+                          Email On
+                        </span>
+                      )}
+                      {user.briefInterestUpdates && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                          Brief Updates
+                        </span>
+                      )}
+                      {user.promotionalNotifications && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                          Promotional
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="p-6 border-t bg-gray-50">
+            <div className="text-sm text-gray-600">
+              {safeEmailTags.length} recipients selected • {filteredModalUsers.length} users shown
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+});
+
+UserSelectionModal.displayName = 'UserSelectionModal';
+
 export default function EmailBuilderPage() {
   const searchParams = useSearchParams();
   const [header, setHeader] = useState('');
@@ -498,199 +757,7 @@ Unsubscribe: https://deepscholar.com/unsubscribe
     [emailTags]
   );
 
-  const UserSelectionModal = () => {
-    // Handle user toggle without closing modal
-    const handleUserToggle = useCallback((user: User) => {
-      if (!user.email) return;
-      
-      const isSelected = selectedEmails.has(user.email);
-      console.log('[DEBUG] Toggling user:', user.email, 'Selected:', isSelected);
-      
-      if (isSelected) {
-        const tagToRemove = emailTags.find(t => t.value === user.email);
-        if (tagToRemove) {
-          removeTag(tagToRemove.id);
-        }
-      } else {
-        addTag({
-          id: user.id,
-          value: user.email,
-          type: 'user',
-          userData: user
-        });
-      }
-    }, [selectedEmails]);
-
-    // Handle select all in modal
-    const handleModalSelectAll = useCallback(() => {
-      const logs = [];
-      logs.push(createLog('Selecting all visible users in modal'));
-      
-      let addedCount = 0;
-      filteredModalUsers.forEach(user => {
-        if (user.email && !selectedEmails.has(user.email)) {
-          addTag({
-            id: user.id,
-            value: user.email,
-            type: 'user',
-            userData: user
-          });
-          addedCount++;
-        }
-      });
-      
-      logs.push(createLog(`Added ${addedCount} users`, { total: filteredModalUsers.length }));
-      showAdminAlert('success', 'Select All', `Added ${addedCount} recipients`, logs);
-    }, [filteredModalUsers, selectedEmails]);
-
-    return (
-      <AnimatePresence>
-        {showUserModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            onClick={() => setShowUserModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden"
-            >
-              <div className="p-6 border-b">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold">Select Recipients</h2>
-                  <button
-                    onClick={() => setShowUserModal(false)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-                
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="text"
-                        value={modalSearchTerm}
-                        onChange={(e) => setModalSearchTerm(e.target.value)}
-                        placeholder="Search users..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleModalSelectAll}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      Select All Visible
-                    </button>
-                    <button
-                      onClick={() => handleBulkUnselect('all')}
-                      className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-sm"
-                    >
-                      Clear All
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 mt-3">
-                  <span className="text-sm text-gray-600">Quick filters:</span>
-                  <button
-                    onClick={() => handleBulkSelect('briefInterestUpdates')}
-                    className="px-3 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
-                  >
-                    + Brief Updates
-                  </button>
-                  <button
-                    onClick={() => handleBulkSelect('promotionalNotifications')}
-                    className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200"
-                  >
-                    + Promotional
-                  </button>
-                  <button
-                    onClick={() => handleBulkUnselect('briefInterestUpdates')}
-                    className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
-                  >
-                    - Brief Updates
-                  </button>
-                  <button
-                    onClick={() => handleBulkUnselect('promotionalNotifications')}
-                    className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
-                  >
-                    - Promotional
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(80vh - 200px)' }}>
-                <div className="space-y-2">
-                  {filteredModalUsers.map(user => {
-                    const isSelected = user.email && selectedEmails.has(user.email);
-                    
-                    return (
-                      <div
-                        key={user.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
-                          isSelected ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50'
-                        }`}
-                        onClick={() => handleUserToggle(user)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-5 h-5">
-                            {isSelected ? (
-                              <CheckSquare className="w-5 h-5 text-blue-600" />
-                            ) : (
-                              <Square className="w-5 h-5 text-gray-400" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium">{user.name || 'Anonymous'}</div>
-                            <div className="text-sm text-gray-600">{user.email || 'No email'}</div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          {user.emailNotifications && (
-                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
-                              Email On
-                            </span>
-                          )}
-                          {user.briefInterestUpdates && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                              Brief Updates
-                            </span>
-                          )}
-                          {user.promotionalNotifications && (
-                            <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
-                              Promotional
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="p-6 border-t bg-gray-50">
-                <div className="text-sm text-gray-600">
-                  {emailTags.length} recipients selected • {filteredModalUsers.length} users shown
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    );
-  };
+  
 
   const PreviewPanel = () => (
     <div className="bg-white rounded-lg shadow-lg p-6 overflow-auto custom-scrollbar" style={{ height: '100%' }}>
@@ -836,15 +903,18 @@ Unsubscribe: https://deepscholar.com/unsubscribe
               
               {/* Manage Recipients Button inside input */}
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowUserModal(true);
-                }}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                <UserCheck className="w-4 h-4" />
-                Manage Recipients
-              </button>
+  onClick={(e) => {
+    e.stopPropagation();
+    console.log('[DEBUG] Manage Recipients button clicked');
+    console.log('[DEBUG] Current showUserModal state:', showUserModal);
+    setShowUserModal(true);
+    console.log('[DEBUG] setShowUserModal(true) called');
+  }}
+  className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm font-medium"
+>
+  <UserCheck className="w-4 h-4" />
+  Manage Recipients
+</button>
             </div>
 
             {/* User suggestions dropdown */}
@@ -1116,7 +1186,20 @@ Unsubscribe: https://deepscholar.com/unsubscribe
           </motion.button>
           
           {/* User Selection Modal */}
-          <UserSelectionModal />
+          <UserSelectionModal 
+  showUserModal={showUserModal}
+  setShowUserModal={setShowUserModal}
+  users={users}
+  modalSearchTerm={modalSearchTerm}
+  setModalSearchTerm={setModalSearchTerm}
+  emailTags={emailTags}
+  addTag={addTag}
+  removeTag={removeTag}
+  handleBulkSelect={handleBulkSelect}
+  handleBulkUnselect={handleBulkUnselect}
+  showAdminAlert={showAdminAlert}
+  createLog={createLog}
+/>
         </div>
 
         <style jsx>{`

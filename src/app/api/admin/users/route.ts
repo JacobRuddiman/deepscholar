@@ -1,16 +1,18 @@
+//admin/api/users/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/server/db';
 
 export async function GET(request: NextRequest) {
   try {
-    // In a real app, you'd check if the user is an admin here
-    // For now, we'll just return all users
-    
     const users = await db.user.findMany({
       select: {
         id: true,
         name: true,
         email: true,
+        emailNotifications: true,
+        briefInterestUpdates: true,
+        promotionalNotifications: true,
       },
       orderBy: {
         name: 'asc',

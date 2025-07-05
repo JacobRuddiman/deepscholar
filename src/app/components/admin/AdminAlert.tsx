@@ -182,7 +182,10 @@ export function AdminAlertContainer() {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-3">
+    <div 
+      className="fixed right-4 z-[9999] space-y-3"
+      style={{ top: '33vh' }} // Position 1/3 down the page
+    >
       <AnimatePresence>
         {alerts.map(alert => (
           <AdminAlert
