@@ -76,7 +76,7 @@ function SearchContent() {
       if (searchResult.success && searchResult.data) {
         setResults(searchResult.data.results);
         setTotalResults(searchResult.data.totalCount);
-        setCorrectionInfo(searchResult.data.correctionInfo || null);
+        setCorrectionInfo(searchResult.data.correctionInfo ?? null);
       } else {
         console.error('Search failed:', searchResult.error);
         setResults([]);
@@ -118,7 +118,7 @@ function SearchContent() {
                 <span className="px-2 py-1 bg-blue-100 text-blue-900 rounded text-xs font-mono">
                   &ldquo;{query}&rdquo;
                 </span>
-                {correctionInfo && correctionInfo.corrections.map((correction, index) => (
+                {correctionInfo?.corrections.map((correction, index) => (
                   <span key={index} className="px-2 py-1 bg-green-100 text-green-900 rounded text-xs font-mono">
                     &ldquo;{correction.corrected}&rdquo; <span className="text-green-600">(corrected from &ldquo;{correction.original}&rdquo;)</span>
                   </span>

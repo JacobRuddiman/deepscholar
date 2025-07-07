@@ -44,7 +44,7 @@ const transformRecommendation = (rec: RecommendationScore): BriefCardProps => {
     title: rec.brief.title,
     abstract: rec.brief.abstract ?? '',
     model: rec.brief.model?.name ?? 'Unknown',
-    date: new Date(rec.brief.createdAt).toISOString().split('T')[0] as string,
+    date: new Date(rec.brief.createdAt).toISOString().split('T')[0]!,
     readTime: `${Math.max(1, Math.ceil((rec.brief.response?.length ?? 0) / 1000))} min`,
     category: rec.brief.categories?.[0]?.name ?? 'General',
     views: rec.brief.viewCount ?? 0,
@@ -53,7 +53,7 @@ const transformRecommendation = (rec: RecommendationScore): BriefCardProps => {
     featured: rec.score > 70, // High recommendation score = featured
     ...(rec.brief.slug && { slug: rec.brief.slug }),
     recommendationScore: Math.round(rec.score),
-    recommendationReasons: rec.reasons,
+    _recommendationReasons: rec.reasons,
   };
 };
 

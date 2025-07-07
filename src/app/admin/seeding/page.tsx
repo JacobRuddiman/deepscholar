@@ -833,7 +833,7 @@ export default function DataSynthPage() {
                             checked={config.briefs.versionsEnabled}
                             onChange={(e) => setConfig({
                               ...config,
-                              briefs: { ...config.briefs!, versionsEnabled: e.target.checke  }
+                              briefs: { ...config.briefs!, versionsEnabled: e.target.checked }
                             })}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
@@ -943,7 +943,7 @@ export default function DataSynthPage() {
                           </span>
                           <input
                             type="range"
-                            value={(config.reviews.ratingDistribution?.[rating] || 0) * 100}
+                            value={(config.reviews?.ratingDistribution?.[rating] ?? 0) * 100}
                             onChange={(e) => setConfig({
                               ...config,
                               reviews: {
@@ -959,7 +959,7 @@ export default function DataSynthPage() {
                             className="flex-1"
                           />
                           <span className="text-sm text-gray-600 w-12">
-                            {Math.round((config.reviews.ratingDistribution?.[rating] || 0) * 100)}%
+                            {Math.round((config.reviews?.ratingDistribution?.[rating] ?? 0) * 100)}%
                           </span>
                         </div>
                       ))}

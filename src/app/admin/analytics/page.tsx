@@ -1,7 +1,7 @@
 // File: app/admin/analytics/page.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1063,7 +1063,7 @@ function TokenEconomicsChart({
         dataKey="value"
         label={({ name, percent }) => {
           // Only show label if percent is at least 5%
-          return percent >= 0.05 ? `${name}: ${(percent * 100).toFixed(0)}%` : '';
+          return percent && percent >= 0.05 ? `${name}: ${(percent * 100).toFixed(0)}%` : '';
         }}
       >
         {Object.keys(data.tokenBalanceDistribution || {}).map((entry, index) => (
@@ -1594,8 +1594,8 @@ function CategoryTrendsChart({
             aspectRatio={4 / 3}
             stroke="#fff"
             fill={COLORS.primary[0]}
-            content={({ x, y, width, height, name, size, views }: any) => {
-              if (width < 50 || height < 30) return null;
+            content={({ x, y, width, height, name, size }: any) => {
+              if (width < 50 || height < 30) return <g></g>;
               
               return (
                 <g>

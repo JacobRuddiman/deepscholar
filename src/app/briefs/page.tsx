@@ -11,14 +11,14 @@ type Brief = {
   title: string;
   abstract: string | null;
   response: string;
-  slug: string;
+  slug: string | null;
   viewCount: number;
   createdAt: Date;
   categories: { name: string }[];
   model: { name: string };
   author: { name: string | null; image: string | null };
-  upvotes: any[];
-  reviews: any[];
+  upvotes: unknown[];
+  reviews: { rating: number }[];
 };
 
 type Category = {
@@ -116,7 +116,7 @@ const ExploreBriefsPage = () => {
     const params = new URLSearchParams();
     if (searchQuery) params.set('search', searchQuery);
     if (sortBy !== 'popular') params.set('sort', sortBy);
-    if (selectedCategories.length === 1) params.set('category', selectedCategories[0]);
+    if (selectedCategories.length === 1) params.set('category', selectedCategories[0]!);
     if (selectedModel) params.set('model', selectedModel);
     
     const newURL = `/briefs${params.toString() ? `?${params.toString()}` : ''}`;
@@ -379,7 +379,7 @@ const ExploreBriefsPage = () => {
                   views={brief.viewCount}
                   rating={averageRating}
                   reviewCount={reviewCount}
-                  slug={brief.slug}
+                  _slug={brief.slug ?? undefined}
                   compact={viewMode === 'list'}
                 />
               );

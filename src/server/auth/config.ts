@@ -38,8 +38,8 @@ export const authConfig = {
     : [
         DiscordProvider,
         GoogleProvider({
-          clientId: process.env.GOOGLE_CLIENT_ID || "",
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+          clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
         }),
         /**
          * ...add more providers here.
@@ -61,7 +61,7 @@ export const authConfig = {
           ...session,
           user: {
             ...localSession?.user,
-            id: localSession?.user.id || 'local-user-1',
+            id: localSession?.user.id ?? 'local-user-1',
           },
         };
       }

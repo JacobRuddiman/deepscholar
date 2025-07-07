@@ -12,8 +12,8 @@ export async function GET(request: Request) {
     const result = await RecommendationService.calculateAllUserRecommendations();
     
     return NextResponse.json({
-      success: true,
-      ...result
+      ...result,
+      success: true
     });
   } catch (error) {
     console.error('Cron job error:', error);

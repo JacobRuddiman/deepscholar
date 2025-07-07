@@ -336,7 +336,7 @@ const UsersPage = () => {
         {/* Results */}
         {loading ? (
           <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-6' : 'space-y-4'}>
-            {[...Array(6)].map((_, i) => (
+            {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="bg-white rounded-lg shadow-sm p-6 animate-pulse">
                 <div className="flex items-start gap-4">
                   <div className="w-8 h-8 bg-gray-200 rounded"></div>
@@ -401,7 +401,7 @@ const UsersPage = () => {
               </button>
               
               <div className="flex items-center gap-1">
-                {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
                   const pageNum = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
                   return (
                     <button

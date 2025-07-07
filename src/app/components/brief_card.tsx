@@ -3,7 +3,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Clock, BookOpen, ExternalLink, Award, Star, Target } from 'lucide-react';
+import { Clock, BookOpen, Award, Star, Target } from 'lucide-react';
 
 export type BriefCardProps = {
   id: string;
@@ -18,9 +18,9 @@ export type BriefCardProps = {
   reviewCount?: number;
   featured?: boolean;
   compact?: boolean;
-  slug?: string;
+  _slug?: string;
   recommendationScore?: number;
-  recommendationReasons?: string[];
+  _recommendationReasons?: string[];
   showRecommendationScore?: boolean;
 };
 
@@ -37,9 +37,9 @@ const BriefCard: React.FC<BriefCardProps> = ({
   reviewCount,
   featured = false,
   compact = false,
-  slug,
+  _slug,
   recommendationScore,
-  recommendationReasons,
+  _recommendationReasons,
   showRecommendationScore = false,
 }) => {
   const formattedDate = new Date(date).toLocaleDateString('en-US', {

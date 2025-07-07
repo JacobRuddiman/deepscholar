@@ -33,7 +33,7 @@ const transformBrief = (brief: any): BriefCardProps => {
     rating: averageRating,
     reviewCount: reviewCount,
     featured: (brief.viewCount ?? 0) > 100,
-    slug: brief.slug,
+    _slug: brief.slug ?? undefined,
   };
 };
 

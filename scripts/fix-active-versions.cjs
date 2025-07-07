@@ -40,7 +40,7 @@ async function fixActiveVersions() {
     // Process each brief family
     for (const [rootId, briefs] of briefFamilies) {
       // Filter out drafts - only published versions can be active
-      const publishedVersions = briefs.filter(b => !b.isDraft);
+      const publishedVersions = briefs.filter((b) => !b.isDraft);
       
       if (publishedVersions.length === 0) {
         console.log(`⚠️  Brief family ${rootId} has no published versions, skipping`);
@@ -48,7 +48,7 @@ async function fixActiveVersions() {
       }
 
       // Check if any published version is active
-      const activeVersions = publishedVersions.filter(b => b.isActive);
+      const activeVersions = publishedVersions.filter((b) => b.isActive);
       
       if (activeVersions.length === 0) {
         // No active version - set the first published version as active

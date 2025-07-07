@@ -11,7 +11,7 @@ import { getBriefStats, getRecentBriefs, BriefWithRelations } from '@/server/act
 import BriefCard from '../components/brief_card';
 import type { BriefCardProps } from '../components/brief_card';
 import TooltipWrapper from '../components/TooltipWrapper';
-import { useDeviceDetection } from '../hooks/useDeviceDetection';
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
 
 
 // Define the database brief type based on your Prisma schema
@@ -25,7 +25,7 @@ interface DatabaseBrief {
   viewCount: number | null;
   model: {
     name: string;
-  } | null;
+  };
   categories: Array<{
     name: string;
   }>;
@@ -45,15 +45,15 @@ const transformBrief = (brief: BriefWithRelations): BriefCardProps => {
     id: brief.id,
     title: brief.title,
     abstract: brief.abstract ?? '',
-    model: brief.model?.name ?? 'Unknown',
-    date: brief.createdAt.toISOString().split('T')[0],
-    readTime: `${Math.max(1, Math.ceil((brief.response?.length ?? 0) / 1000))} min`,
-    category: brief.categories?.[0]?.name ?? 'General',
+    model: brief.model.name,
+    date: brief.createdAt.toISOString().split('T')[0]!,
+    readTime: `${Math.max(1, Math.ceil(brief.response.length / 1000))} min`,
+    category: brief.categories.length > 0 ? brief.categories[0]!.name : 'General',
     views: brief.viewCount ?? 0,
     rating: averageRating,
     reviewCount: reviewCount,
     featured: (brief.viewCount ?? 0) > 100,
-    slug: brief.slug ?? undefined,
+    _slug: brief.slug ?? undefined,
   };
 };
 
@@ -370,7 +370,7 @@ export default function HomePage() {
               
               {loadingRecent ? (
                 <div className={`grid grid-cols-1 ${isMobile ? 'gap-3' : 'md:grid-cols-3 gap-4'}`}>
-                  {[...Array(isMobile ? 2 : 3)].map((_, i) => (
+                  {Array.from({ length: isMobile ? 2 : 3 }).map((_, i) => (
                     <div key={i} className="bg-white rounded-lg shadow-sm p-4 animate-pulse">
                       <div className="h-4 bg-gray-200 rounded mb-2"></div>
                       <div className="h-3 bg-gray-200 rounded mb-2"></div>

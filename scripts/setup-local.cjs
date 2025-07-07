@@ -52,7 +52,7 @@ try {
   console.log('  npm run restore:production');
 
 } catch (error) {
-  console.error('❌ Setup failed:', error.message);
+  console.error('❌ Setup failed:', error instanceof Error ? error.message : String(error));
   
   // Try to restore backup if setup failed
   const schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma');

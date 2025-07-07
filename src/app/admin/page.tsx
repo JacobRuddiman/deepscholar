@@ -44,7 +44,7 @@ export default async function AdminDashboard() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalUsers.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.totalUsers.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -56,7 +56,7 @@ export default async function AdminDashboard() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Briefs</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalBriefs.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.totalBriefs.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -68,7 +68,7 @@ export default async function AdminDashboard() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">User Reviews</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalReviews.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.totalReviews.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -80,7 +80,7 @@ export default async function AdminDashboard() {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">AI Reviews</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalAIReviews.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.totalAIReviews.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -96,7 +96,7 @@ export default async function AdminDashboard() {
         </div>
         <div className="p-6">
           <div className="space-y-4">
-            {stats.recentActivity.map((activity, index) => (
+            {stats?.recentActivity.map((activity, index) => (
               <div key={index} className="flex items-center space-x-3">
                 <div className={`p-2 rounded-full ${
                   activity.type === 'user' ? 'bg-blue-100' :
@@ -107,7 +107,7 @@ export default async function AdminDashboard() {
                   {activity.type === 'user' && <Users className="h-4 w-4 text-blue-600" />}
                   {activity.type === 'brief' && <FileText className="h-4 w-4 text-green-600" />}
                   {activity.type === 'review' && <MessageSquare className="h-4 w-4 text-purple-600" />}
-                  {activity.type === 'ai-review' && <Bot className="h-4 w-4 text-orange-600" />}
+                  {(activity.type as string) === 'ai-review' && <Bot className="h-4 w-4 text-orange-600" />}
                 </div>
                 <div className="flex-1">
                   <p className="text-sm text-gray-900">{activity.action}</p>

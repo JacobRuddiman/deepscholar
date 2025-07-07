@@ -2,14 +2,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Eye, Edit, Trash2, X, Save, MessageSquare, Star, TrendingUp, Bot, Zap } from 'lucide-react';
+import { Eye, Edit, Trash2, X, Save, Star, TrendingUp, Bot, Zap } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/app/components/ui/table';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Select } from '@/app/components/ui/select';
 import { getAdminAIReviews } from '@/server/actions/admin';
 import { useRouter } from 'next/navigation';
-import { Badge } from 'lucide-react';
 
 interface AIReview {
   id: string;
@@ -65,9 +64,9 @@ export default function AIReviewsPage() {
           setAIReviews(result.data.aiReviews);
           setError(null);
         } else {
-          setError(result.error || 'Failed to fetch AI reviews');
+          setError(result.error ?? 'Failed to fetch AI reviews');
         }
-      } catch (err) {
+      } catch (_err) {
         setError('Failed to fetch AI reviews');
       } finally {
         setLoading(false);
@@ -298,9 +297,9 @@ export default function AIReviewsPage() {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Model Distribution</h3>
         <div className="flex flex-wrap gap-2">
           {Object.entries(modelCounts).map(([model, count]) => (
-            <Badge key={model} variant="outline" className="px-3 py-1 text-sm">
+            <span key={model} className="px-3 py-1 text-sm bg-gray-100 text-gray-800 rounded-full">
               {model}: {count} reviews
-            </Badge>
+            </span>
           ))}
         </div>
       </div>
@@ -392,7 +391,7 @@ export default function AIReviewsPage() {
           <TableBody>
             {paginatedReviews.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                <TableCell className="text-center py-8 text-gray-500">
                   No AI reviews found matching your criteria
                 </TableCell>
               </TableRow>

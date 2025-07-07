@@ -83,7 +83,7 @@ export default function TokensPage() {
       }
 
       // Set token packages (getTokenPackages returns the array directly)
-      setTokenPackages(packagesResult);
+      setTokenPackages(packagesResult as unknown as any[]);
     } catch (error) {
       setError('Failed to load token data. Please try again later.');
       console.error('Error loading token data:', error);
