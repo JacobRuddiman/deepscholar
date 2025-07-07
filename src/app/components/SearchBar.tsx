@@ -26,6 +26,7 @@ interface SearchFilters {
   dateRange: 'all' | 'today' | 'week' | 'month' | 'year';
   readingTime: 'all' | 'short' | 'medium' | 'long';
   rating: 'all' | '4+' | '3+' | '2+';
+  searchFullContent: boolean;
 }
 
 interface SearchSuggestion {
@@ -93,7 +94,8 @@ function SearchBar({
     sortBy: 'popular',
     dateRange: 'all',
     readingTime: 'all',
-    rating: 'all'
+    rating: 'all',
+    searchFullContent: false
   });
 
   // Load recent searches from localStorage
@@ -159,6 +161,9 @@ function SearchBar({
         if (filters.rating !== 'all') {
           searchParams.set('rating', filters.rating);
         }
+        if (filters.searchFullContent) {
+          searchParams.set('fullContent', 'true');
+        }
 
         router.push(`/search?${searchParams.toString()}`);
       }
@@ -187,17 +192,18 @@ function SearchBar({
     }));
   };
 
-  // Clear all filters
+  // Clear all filters (but keep the search query)
   const clearFilters = () => {
-    setFilters({
-      query: '',
+    setFilters(prev => ({
+      ...prev,
       categories: [],
       modelFilter: 'All Models',
       sortBy: 'popular',
       dateRange: 'all',
       readingTime: 'all',
-      rating: 'all'
-    });
+      rating: 'all',
+      searchFullContent: false
+    }));
   };
 
   // Size classes
@@ -354,6 +360,24 @@ function SearchBar({
             exit={{ opacity: 0, height: 0 }}
             className="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm"
           >
+            {/* Search Scope Toggle */}
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={filters.searchFullContent}
+                  onChange={(e) => setFilters(prev => ({ ...prev, searchFullContent: e.target.checked }))}
+                  className="mr-2 rounded"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Search full content (abstracts & responses)
+                </span>
+                <span className="ml-2 text-xs text-gray-500">
+                  {filters.searchFullContent ? 'Searching titles, abstracts, and full content' : 'Searching titles only'}
+                </span>
+              </label>
+            </div>
+
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {/* Categories */}
               <div>
@@ -473,7 +497,7 @@ function SearchBar({
                 Clear All Filters
               </button>
               
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-500">
                   {filters.categories.length > 0 && `${filters.categories.length} categories, `}
                   {filters.modelFilter !== 'All Models' && `${filters.modelFilter}, `}
@@ -482,6 +506,18 @@ function SearchBar({
                   {filters.readingTime !== 'all' && `${filters.readingTime}, `}
                   {filters.rating !== 'all' && `${filters.rating}`}
                 </span>
+                
+                <button
+                  onClick={handleSearch}
+                  disabled={!filters.query.trim() || isLoading}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+                >
+                  {isLoading ? (
+                    <Loader2 className="animate-spin" size={14} />
+                  ) : (
+                    'Update Results'
+                  )}
+                </button>
               </div>
             </div>
           </motion.div>

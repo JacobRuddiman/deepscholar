@@ -1271,6 +1271,8 @@ export async function searchBriefs({
   sortBy = 'popular',
   dateRange = 'all',
   rating = 'all',
+  readingTime = 'all',
+  searchFullContent = false,
   page = 1,
   limit = 20
 }: {
@@ -1280,6 +1282,8 @@ export async function searchBriefs({
   sortBy?: 'popular' | 'new' | 'controversial';
   dateRange?: 'all' | 'today' | 'week' | 'month' | 'year';
   rating?: 'all' | '4+' | '3+' | '2+';
+  readingTime?: 'all' | 'short' | 'medium' | 'long';
+  searchFullContent?: boolean;
   page?: number;
   limit?: number;
 }) {
@@ -1295,31 +1299,52 @@ export async function searchBriefs({
       isDraft: false, // Exclude drafts
     };
 
-    // Text search in title, abstract, and content with normalization
+    // Text search in title, abstract, and content with typo correction
+    let correctionInfo = null;
     if (query && query.trim()) {
-      const normalizedQuery = query.trim();
-      console.log('Searching for normalized query:', normalizedQuery);
+      const { getSearchVariations, correctSearchQuery } = await import('@/lib/spellcheck');
+      const searchVariations = getSearchVariations(query.trim());
+      const correction = correctSearchQuery(query.trim());
       
-      whereClause.OR = [
-        {
+      console.log('Search variations (including typo corrections):', searchVariations);
+      
+      // Store correction info for the response
+      if (correction.correctedQuery && correction.corrections.length > 0) {
+        correctionInfo = {
+          originalQuery: correction.originalQuery,
+          correctedQuery: correction.correctedQuery,
+          corrections: correction.corrections
+        };
+      }
+      
+      // Create OR conditions for each search variation based on search scope
+      const searchConditions = [];
+      for (const variation of searchVariations) {
+        // Always search titles
+        searchConditions.push({
           title: {
-            contains: normalizedQuery,
-            mode: 'insensitive',
+            contains: variation,
           },
-        },
-        {
-          abstract: {
-            contains: normalizedQuery,
-            mode: 'insensitive',
-          },
-        },
-        {
-          response: {
-            contains: normalizedQuery,
-            mode: 'insensitive',
-          },
-        },
-      ];
+        });
+        
+        // Only search abstracts and responses if searchFullContent is true
+        if (searchFullContent) {
+          searchConditions.push(
+            {
+              abstract: {
+                contains: variation,
+              },
+            },
+            {
+              response: {
+                contains: variation,
+              },
+            }
+          );
+        }
+      }
+      
+      whereClause.OR = searchConditions;
     }
 
     // Category filtering
@@ -1337,8 +1362,7 @@ export async function searchBriefs({
     if (model && model !== 'All Models') {
       whereClause.model = {
         name: {
-          contains: model,
-          mode: 'insensitive',
+          contains: model.toLowerCase(),
         },
       };
     }
@@ -1459,6 +1483,25 @@ export async function searchBriefs({
             return false;
           }
         }
+
+        // Apply reading time filter after fetching (since it requires calculation)
+        if (readingTime !== 'all') {
+          const wordCount = brief.response ? brief.response.split(' ').length : 0;
+          const readTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
+
+          switch (readingTime) {
+            case 'short':
+              if (readTimeMinutes >= 5) return false;
+              break;
+            case 'medium':
+              if (readTimeMinutes < 5 || readTimeMinutes > 15) return false;
+              break;
+            case 'long':
+              if (readTimeMinutes <= 15) return false;
+              break;
+          }
+        }
+
         return true;
       })
       .map(brief => {
@@ -1496,6 +1539,7 @@ export async function searchBriefs({
         page,
         limit,
         totalPages: Math.ceil(filteredTotalCount / limit),
+        correctionInfo, // Include correction info in the response
       },
     };
   } catch (error) {

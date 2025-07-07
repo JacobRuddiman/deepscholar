@@ -21,12 +21,19 @@ interface SearchResult {
   reviewCount?: number;
 }
 
+interface CorrectionInfo {
+  originalQuery: string;
+  correctedQuery: string;
+  corrections: Array<{ original: string; corrected: string }>;
+}
+
 function SearchContent() {
   const searchParams = useSearchParams();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [totalResults, setTotalResults] = useState(0);
+  const [correctionInfo, setCorrectionInfo] = useState<CorrectionInfo | null>(null);
 
   // Get search parameters and memoize them to prevent unnecessary re-renders
   const searchParamsObj = useMemo(() => {
@@ -38,11 +45,12 @@ function SearchContent() {
     const date = searchParams.get('date') ?? 'all';
     const time = searchParams.get('time') ?? 'all';
     const rating = searchParams.get('rating') ?? 'all';
+    const searchFullContent = searchParams.get('fullContent') === 'true';
     
-    return { query, categories, model, sort, date, time, rating };
+    return { query, categories, model, sort, date, time, rating, searchFullContent };
   }, [searchParams]);
 
-  const { query, categories, model, sort, date, time, rating } = searchParamsObj;
+  const { query, categories, model, sort, date, time, rating, searchFullContent } = searchParamsObj;
 
   // Real search function using database
   const performSearch = async () => {
@@ -59,6 +67,8 @@ function SearchContent() {
         sortBy: sort as 'popular' | 'new' | 'controversial',
         dateRange: date as 'all' | 'today' | 'week' | 'month' | 'year',
         rating: rating as 'all' | '4+' | '3+' | '2+',
+        readingTime: time as 'all' | 'short' | 'medium' | 'long',
+        searchFullContent,
         page: 1,
         limit: 20
       });
@@ -66,10 +76,12 @@ function SearchContent() {
       if (searchResult.success && searchResult.data) {
         setResults(searchResult.data.results);
         setTotalResults(searchResult.data.totalCount);
+        setCorrectionInfo(searchResult.data.correctionInfo || null);
       } else {
         console.error('Search failed:', searchResult.error);
         setResults([]);
         setTotalResults(0);
+        setCorrectionInfo(null);
       }
     } catch (error) {
       console.error('Search error:', error);
@@ -96,6 +108,30 @@ function SearchContent() {
             size="lg"
           />
         </div>
+
+        {/* Search Terms Display */}
+        {query && !isLoading && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="text-sm text-blue-800">
+              <span className="font-medium">Searching for:</span>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <span className="px-2 py-1 bg-blue-100 text-blue-900 rounded text-xs font-mono">
+                  &ldquo;{query}&rdquo;
+                </span>
+                {correctionInfo && correctionInfo.corrections.map((correction, index) => (
+                  <span key={index} className="px-2 py-1 bg-green-100 text-green-900 rounded text-xs font-mono">
+                    &ldquo;{correction.corrected}&rdquo; <span className="text-green-600">(corrected from &ldquo;{correction.original}&rdquo;)</span>
+                  </span>
+                ))}
+              </div>
+              {correctionInfo && (
+                <p className="text-xs text-blue-600 mt-2">
+                  ✨ We automatically corrected some spelling and included both original and corrected terms in your search.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Search Results Header */}
         {query && (
