@@ -40,6 +40,7 @@ async function fixActiveVersions() {
     // Process each brief family
     for (const [rootId, briefs] of briefFamilies) {
       // Filter out drafts - only published versions can be active
+      // @ts-ignore
       const publishedVersions = briefs.filter((b) => !b.isDraft);
       
       if (publishedVersions.length === 0) {
@@ -48,6 +49,7 @@ async function fixActiveVersions() {
       }
 
       // Check if any published version is active
+      // @ts-ignore
       const activeVersions = publishedVersions.filter((b) => b.isActive);
       
       if (activeVersions.length === 0) {

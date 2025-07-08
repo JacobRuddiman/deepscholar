@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateAllRecommendationScores } from '@/server/actions/recommendations';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/server/auth';
 import { prisma } from '@/lib/prisma';
 import { isLocalMode, getLocalUser } from '@/lib/localMode';
 

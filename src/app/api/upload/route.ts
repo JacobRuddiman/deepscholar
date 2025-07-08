@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/server/auth';
 import { fileUploadSchema, sanitizeText, validateRequestSize } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {

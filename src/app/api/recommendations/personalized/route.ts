@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPersonalizedRecommendations } from '@/server/actions/recommendations';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/server/auth';
 import { isLocalMode, getLocalUser } from '@/lib/localMode';
 
 export async function GET(request: NextRequest) {

@@ -2,12 +2,20 @@
 import { NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
-import {getLocalSession } from '@/lib/localMode';
+import { auth } from '@/server/auth';
 export async function POST(request: Request) {
   try {
-    
-    const session = getLocalSession();
-    const { subject, body, footer, recipients } = await request.json();
+    const session = await auth();
+    if (!session?.user || !(session.user as any).isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { subject, body, footer, recipients } = await request.json() as {
+      subject: string;
+      body: string;
+      footer?: string;
+      recipients: string[] | 'all';
+    };
 
     // Validate inputs
     if (!subject || !body) {
@@ -28,8 +36,8 @@ export async function POST(request: Request) {
       recipientEmails = users.map(u => u.email!).filter(Boolean);
     } else if (Array.isArray(recipients)) {
       // Handle both user IDs and email addresses
-      const userIds = recipients.filter(r => !r.includes('@'));
-      const directEmails = recipients.filter(r => r.includes('@'));
+      const userIds = recipients.filter((r: string) => !r.includes('@'));
+      const directEmails = recipients.filter((r: string) => r.includes('@'));
       
       if (userIds.length > 0) {
         const users = await prisma.user.findMany({

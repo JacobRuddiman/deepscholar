@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { redirect } from "next/navigation";
-import { auth } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/server/auth";
 
 const geistFont = Geist({ subsets: ["latin"] });
 
