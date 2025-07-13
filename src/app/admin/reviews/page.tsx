@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Eye, Edit, Trash2, MoreHorizontal, FileText, User, Calendar, Star, TrendingUp, X, Save, MessageSquare, ThumbsUp } from 'lucide-react';
+import { Search, Filter, Eye, Edit, Trash2, MoreHorizontal, MessageSquare, User, Calendar, Star, ThumbsUp, Flag, X, Save, TrendingUp } from 'lucide-react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/app/components/ui/table';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Select } from '@/app/components/ui/select';
 import { getAdminReviews } from '@/server/actions/admin';
 import { useRouter } from 'next/navigation';
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import MobileReviewsPage from '@/app/components/admin/MobileReviewsPage';
 
 interface Review {
   id: string;
@@ -37,6 +39,7 @@ interface Review {
 
 export default function ReviewsPage() {
   const router = useRouter();
+  const { isMobile } = useDeviceDetection();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [filteredReviews, setFilteredReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +75,7 @@ export default function ReviewsPage() {
           setReviews(result.data.reviews);
           setError(null);
         } else {
-          setError(result.error || 'Failed to fetch reviews');
+          setError(result.error ?? 'Failed to fetch reviews');
         }
       } catch (err) {
         setError('Failed to fetch reviews');
@@ -155,12 +158,29 @@ export default function ReviewsPage() {
   };
 
   // Action handlers
+  const handleViewReview = (reviewId: string) => {
+    const review = reviews.find(r => r.id === reviewId);
+    if (review) {
+      handleViewBrief(review.brief.id, review.brief.slug);
+    }
+  };
+
   const handleViewBrief = (briefId: string, briefSlug: string | null) => {
     if (briefSlug) {
       router.push(`/briefs/${briefSlug}`);
     } else {
       router.push(`/briefs/${briefId}`);
     }
+  };
+
+  const handleToggleHelpful = (reviewId: string) => {
+    // Mock implementation - in real app would call API
+    console.log('Toggle helpful for review:', reviewId);
+  };
+
+  const handleToggleFlag = (reviewId: string) => {
+    // Mock implementation - in real app would call API
+    console.log('Toggle flag for review:', reviewId);
   };
 
   const handleEditReview = (review: Review) => {
@@ -230,6 +250,30 @@ export default function ReviewsPage() {
   }
 
   const hasSelectedReviews = selectedReviews.size > 0;
+
+  // Transform reviews for mobile component
+  const mobileReviews = reviews.map(review => ({
+    ...review,
+    helpful: review.helpfulMarks.length > 0,
+    upvoteCount: review.upvotes.length,
+    flagged: false, // Add flagged logic if needed
+    createdAt: review.createdAt,
+    updatedAt: review.updatedAt
+  }));
+
+  // Use mobile version on mobile devices
+  if (isMobile) {
+    return (
+      <MobileReviewsPage
+        reviews={mobileReviews}
+        onViewReview={handleViewReview}
+        onEditReview={handleEditReview}
+        onDeleteReview={handleDeleteReview}
+        onToggleHelpful={handleToggleHelpful}
+        onToggleFlag={handleToggleFlag}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

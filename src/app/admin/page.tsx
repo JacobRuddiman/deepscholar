@@ -1,6 +1,26 @@
+//admin/page.tsx
+'use client';
+
 import React from 'react';
 import { Users, FileText, MessageSquare, Bot, TrendingUp, Activity } from 'lucide-react';
 import { getAdminStats } from '@/server/actions/admin';
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import MobileDashboard from '@/app/components/admin/MobileDashboard';
+import { useEffect, useState } from 'react';
+
+interface AdminStats {
+  totalUsers: number;
+  totalBriefs: number;
+  totalReviews: number;
+  totalAIReviews: number;
+  totalModels?: number;
+  recentActivity: Array<{
+    type: string;
+    action: string;
+    time: string;
+    id?: string;
+  }>;
+}
 
 function formatTimeAgo(dateString: string) {
   const date = new Date(dateString);
@@ -13,21 +33,61 @@ function formatTimeAgo(dateString: string) {
   return `${Math.floor(diffInSeconds / 86400)} days ago`;
 }
 
-export default async function AdminDashboard() {
-  const statsResult = await getAdminStats();
-  
-  if (!statsResult.success) {
+export default function AdminDashboard() {
+  const { isMobile } = useDeviceDetection();
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const statsResult = await getAdminStats();
+        if (statsResult.success && statsResult.data) {
+          setStats(statsResult.data);
+        } else {
+          setError(statsResult.error ?? 'Failed to load dashboard data');
+        }
+      } catch (err) {
+        setError('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchStats();
+  }, []);
+
+  if (loading) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-red-600 mt-2">Error loading dashboard data: {statsResult.error}</p>
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-2 text-gray-600">Loading...</span>
+          </div>
         </div>
       </div>
     );
   }
 
-  const stats = statsResult.data;
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-red-600 mt-2">Error loading dashboard data: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Use mobile dashboard on mobile devices
+  if (isMobile && stats) {
+    return <MobileDashboard stats={stats} />;
+  }
+  
   return (
     <div className="space-y-6">
       <div>
@@ -96,7 +156,7 @@ export default async function AdminDashboard() {
         </div>
         <div className="p-6">
           <div className="space-y-4">
-            {stats?.recentActivity.map((activity, index) => (
+            {stats?.recentActivity.map((activity: AdminStats['recentActivity'][0], index: number) => (
               <div key={index} className="flex items-center space-x-3">
                 <div className={`p-2 rounded-full ${
                   activity.type === 'user' ? 'bg-blue-100' :
@@ -107,7 +167,7 @@ export default async function AdminDashboard() {
                   {activity.type === 'user' && <Users className="h-4 w-4 text-blue-600" />}
                   {activity.type === 'brief' && <FileText className="h-4 w-4 text-green-600" />}
                   {activity.type === 'review' && <MessageSquare className="h-4 w-4 text-purple-600" />}
-                  {(activity.type as string) === 'ai-review' && <Bot className="h-4 w-4 text-orange-600" />}
+                  {activity.type === 'ai-review' && <Bot className="h-4 w-4 text-orange-600" />}
                 </div>
                 <div className="flex-1">
                   <p className="text-sm text-gray-900">{activity.action}</p>

@@ -1,9 +1,10 @@
+//admin/layout.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import Sidebar from '@/app/components/admin/Sidebar';
+import ResponsiveAdminLayout from '@/app/components/admin/ResponsiveAdminLayout';
 
 export default function AdminLayout({
   children,
@@ -39,14 +40,9 @@ export default function AdminLayout({
   // In local mode, always render
   if (isLocalMode) {
     return (
-      <div className="flex h-screen bg-gray-100">
-        <Sidebar />
-        <main className="flex-1 overflow-auto">
-          <div className="p-6">
-            {children}
-          </div>
-        </main>
-      </div>
+      <ResponsiveAdminLayout>
+        {children}
+      </ResponsiveAdminLayout>
     );
   }
 
@@ -67,13 +63,8 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">
-        <div className="p-6">
-          {children}
-        </div>
-      </main>
-    </div>
+    <ResponsiveAdminLayout>
+      {children}
+    </ResponsiveAdminLayout>
   );
 }

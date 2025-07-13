@@ -9,6 +9,8 @@ import { Input } from '@/app/components/ui/input';
 import { Select } from '@/app/components/ui/select';
 import { getAdminAIReviews } from '@/server/actions/admin';
 import { useRouter } from 'next/navigation';
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import MobileAIReviewsPage from '@/app/components/admin/MobileAIReviewsPage';
 
 interface AIReview {
   id: string;
@@ -46,6 +48,8 @@ export default function AIReviewsPage() {
   // Edit modal state
   const [editingReview, setEditingReview] = useState<AIReview | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const { isMobile } = useDeviceDetection();
 
   // Fetch AI reviews data
   useEffect(() => {
@@ -224,6 +228,36 @@ export default function AIReviewsPage() {
     acc[model] = aiReviews.filter(review => review.model.name === model).length;
     return acc;
   }, {} as Record<string, number>);
+
+  if (isMobile) {
+  return (
+    <MobileAIReviewsPage
+      aiReviews={aiReviews}
+      onEditReview={handleEditReview}
+      onDeleteReview={(reviewId) => {
+        setAIReviews(aiReviews.filter(review => review.id !== reviewId));
+      }}
+      onBulkDelete={() => {
+        setAIReviews(aiReviews.filter(review => !selectedReviews.has(review.id)));
+        setSelectedReviews(new Set());
+        setSelectAll(false);
+      }}
+      selectedReviews={selectedReviews}
+      onSelectReview={handleSelectReview}
+      onSelectAll={handleSelectAll}
+      selectAll={selectAll}
+      onSaveReview={(updatedReview) => {
+        if (editingReview) {
+          setAIReviews(aiReviews.map(review => 
+            review.id === editingReview.id 
+              ? { ...review, ...updatedReview }
+              : review
+          ));
+        }
+      }}
+    />
+  );
+}
 
   return (
     <div className="space-y-6">

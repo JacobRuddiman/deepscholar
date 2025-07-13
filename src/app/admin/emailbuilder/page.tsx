@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { showAdminAlert, createLog, AdminAlertContainer } from '@/app/components/admin/AdminAlert';
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import MobileEmailBuilderPage from '@/app/components/admin/MobileEmailBuilderPage';
 
 type User = {
   id: string;
@@ -295,6 +297,7 @@ UserSelectionModal.displayName = 'UserSelectionModal';
 
 export default function EmailBuilderPage() {
   const searchParams = useSearchParams();
+  const { isMobile } = useDeviceDetection();
   const [header, setHeader] = useState('');
   const [body, setBody] = useState('');
   const [footer, setFooter] = useState('');
@@ -757,7 +760,43 @@ Unsubscribe: https://deepscholar.com/unsubscribe
     [emailTags]
   );
 
-  
+  const handleMobileSendEmail = (data: {
+    subject: string;
+    body: string;
+    footer: string;
+    recipients: string[];
+    scheduledFor?: string;
+  }) => {
+    // Mock implementation - in real app would call API
+    console.log('Sending email:', data);
+    showAdminAlert('success', 'Email Sent', `Email sent to ${data.recipients.length} recipients`, [
+      createLog('Email sent successfully', data)
+    ]);
+  };
+
+  const handleMobileUploadImage = (file: File) => {
+    // Mock implementation - in real app would upload to server
+    console.log('Uploading image:', file.name);
+    showAdminAlert('success', 'Image Uploaded', `${file.name} uploaded successfully`, [
+      createLog('Image uploaded', { fileName: file.name, size: file.size })
+    ]);
+  };
+
+  // Use mobile version on mobile devices
+  if (isMobile) {
+    return (
+      <>
+        <AdminAlertContainer />
+        <MobileEmailBuilderPage
+          onSendEmail={handleMobileSendEmail}
+          users={users}
+          images={images}
+          onUploadImage={handleMobileUploadImage}
+          defaultFooter={getDefaultFooter()}
+        />
+      </>
+    );
+  }
 
   const PreviewPanel = () => (
     <div className="bg-white rounded-lg shadow-lg p-6 overflow-auto custom-scrollbar" style={{ height: '100%' }}>

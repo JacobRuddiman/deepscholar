@@ -1,3 +1,4 @@
+//admin/recommendations/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -32,6 +33,10 @@ import {
   getRecommendationProgress 
 } from '@/server/actions/admin';
 import RecommendationScoreModal from '@/app/components/recommendation_score_modal';
+
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import MobileRecommendationsPage from '@/app/components/admin/MobileRecommendationsPage';
+
 
 interface UserRecommendation {
   id: string;
@@ -175,261 +180,262 @@ function ExpandedRowContent({ recommendation, onUpdateField }: {
   onUpdateField: (field: string, value: any) => void;
 }) {
   return (
-    <div className="bg-gray-50 p-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-        
-        {/* Categories Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h4 className="font-semibold text-sm text-gray-900 flex items-center">
-              <Hash className="w-4 h-4 mr-2 text-gray-500" />
-              Category Preferences
-            </h4>
-          </div>
-          <div className="p-4">
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Top Combined</p>
-                <div className="space-y-1">
-                  {recommendation.topCombinedCategories.slice(0, 5).map((cat, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-1">
-                      <span className="text-sm text-gray-700">{cat.category}</span>
-                      <span className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                        {cat.count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+    <td colSpan={10} className="p-0">
+      <div className="bg-gray-50 p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 max-w-full">
+          
+          {/* Categories Section */}
+          <div className="bg-white rounded-lg border border-gray-200 min-w-0">
+            <div className="p-4 border-b border-gray-200">
+              <h4 className="font-semibold text-sm text-gray-900 flex items-center">
+                <Hash className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
+                Category Preferences
+              </h4>
             </div>
-          </div>
-        </div>
-
-        {/* Keywords Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h4 className="font-semibold text-sm text-gray-900 flex items-center">
-              <BookOpen className="w-4 h-4 mr-2 text-gray-500" />
-              Title Keywords
-            </h4>
-          </div>
-          <div className="p-4">
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Most Common Words</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {recommendation.topCombinedTitleWords.slice(0, 12).map((word, idx) => (
-                    <span 
-                      key={idx} 
-                      className="inline-flex items-center text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md"
-                    >
-                      {word.word}
-                      <span className="ml-1 text-gray-500">({word.count})</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Interaction Stats */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h4 className="font-semibold text-sm text-gray-900 flex items-center">
-              <BarChart3 className="w-4 h-4 mr-2 text-gray-500" />
-              Interaction Statistics
-            </h4>
-          </div>
-          <div className="p-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-xs text-gray-500">Briefs Created</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  <InlineEdit
-                    value={recommendation.totalBriefsCreated}
-                    type="number"
-                    onSave={(v) => onUpdateField('totalBriefsCreated', v)}
-                  />
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Reviews</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  <InlineEdit
-                    value={recommendation.totalReviews}
-                    type="number"
-                    onSave={(v) => onUpdateField('totalReviews', v)}
-                  />
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Upvotes Given</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  <InlineEdit
-                    value={recommendation.totalUpvotes}
-                    type="number"
-                    onSave={(v) => onUpdateField('totalUpvotes', v)}
-                  />
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Saves</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  <InlineEdit
-                    value={recommendation.totalSaves}
-                    type="number"
-                    onSave={(v) => onUpdateField('totalSaves', v)}
-                  />
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Views</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  <InlineEdit
-                    value={recommendation.totalViews}
-                    type="number"
-                    onSave={(v) => onUpdateField('totalViews', v)}
-                  />
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Reviews Received</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  <InlineEdit
-                    value={recommendation.totalReviewsReceived}
-                    type="number"
-                    onSave={(v) => onUpdateField('totalReviewsReceived', v)}
-                  />
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Top Users */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h4 className="font-semibold text-sm text-gray-900 flex items-center">
-              <Users className="w-4 h-4 mr-2 text-gray-500" />
-              Top Interacted Users
-            </h4>
-          </div>
-          <div className="p-4">
-            <div className="space-y-2">
-              {recommendation.topInteractedUsers.length > 0 ? (
-                recommendation.topInteractedUsers.slice(0, 5).map((user, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-1">
-                    <div className="flex items-center space-x-2 min-w-0">
-                      <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-medium text-gray-600">
-                          {user.name.charAt(0).toUpperCase()}
+            <div className="p-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Top Combined</p>
+                  <div className="space-y-1">
+                    {recommendation.topCombinedCategories.slice(0, 5).map((cat, idx) => (
+                      <div key={idx} className="flex items-center justify-between py-1 gap-2">
+                        <span className="text-sm text-gray-700 truncate flex-1">{cat.category}</span>
+                        <span className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded flex-shrink-0">
+                          {cat.count}
                         </span>
                       </div>
-                      <span className="text-sm text-gray-700 truncate">{user.name}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Keywords Section */}
+          <div className="bg-white rounded-lg border border-gray-200 min-w-0">
+            <div className="p-4 border-b border-gray-200">
+              <h4 className="font-semibold text-sm text-gray-900 flex items-center">
+                <BookOpen className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
+                Title Keywords
+              </h4>
+            </div>
+            <div className="p-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Most Common Words</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recommendation.topCombinedTitleWords.slice(0, 12).map((word, idx) => (
+                      <span 
+                        key={idx} 
+                        className="inline-flex items-center text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md"
+                      >
+                        {word.word}
+                        <span className="ml-1 text-gray-500">({word.count})</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 min-w-0">
+            <div className="p-4 border-b border-gray-200">
+              <h4 className="font-semibold text-sm text-gray-900 flex items-center">
+                <BarChart3 className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
+                Interaction Statistics
+              </h4>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500">Briefs Created</p>
+                  <div className="text-lg font-semibold text-gray-900">
+                    <InlineEdit
+                      value={recommendation.totalBriefsCreated}
+                      type="number"
+                      onSave={(v) => onUpdateField('totalBriefsCreated', v)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Reviews</p>
+                  <div className="text-lg font-semibold text-gray-900">
+                    <InlineEdit
+                      value={recommendation.totalReviews}
+                      type="number"
+                      onSave={(v) => onUpdateField('totalReviews', v)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Upvotes Given</p>
+                  <div className="text-lg font-semibold text-gray-900">
+                    <InlineEdit
+                      value={recommendation.totalUpvotes}
+                      type="number"
+                      onSave={(v) => onUpdateField('totalUpvotes', v)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Saves</p>
+                  <div className="text-lg font-semibold text-gray-900">
+                    <InlineEdit
+                      value={recommendation.totalSaves}
+                      type="number"
+                      onSave={(v) => onUpdateField('totalSaves', v)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Views</p>
+                  <div className="text-lg font-semibold text-gray-900">
+                    <InlineEdit
+                      value={recommendation.totalViews}
+                      type="number"
+                      onSave={(v) => onUpdateField('totalViews', v)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Reviews Received</p>
+                  <div className="text-lg font-semibold text-gray-900">
+                    <InlineEdit
+                      value={recommendation.totalReviewsReceived}
+                      type="number"
+                      onSave={(v) => onUpdateField('totalReviewsReceived', v)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Top Users */}
+          <div className="bg-white rounded-lg border border-gray-200 min-w-0">
+            <div className="p-4 border-b border-gray-200">
+              <h4 className="font-semibold text-sm text-gray-900 flex items-center">
+                <Users className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
+                Top Interacted Users
+              </h4>
+            </div>
+            <div className="p-4">
+              <div className="space-y-2">
+                {recommendation.topInteractedUsers.length > 0 ? (
+                  recommendation.topInteractedUsers.slice(0, 5).map((user, idx) => (
+                    <div key={idx} className="flex items-center justify-between py-1 gap-2">
+                      <div className="flex items-center space-x-2 min-w-0 flex-1">
+                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-medium text-gray-600">
+                            {user.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-700 truncate">{user.name}</span>
+                      </div>
+                      <span className="text-xs font-medium bg-green-50 text-green-700 px-2 py-0.5 rounded whitespace-nowrap">
+                        {user.interactionCount} interactions
+                      </span>
                     </div>
-                    <span className="text-xs font-medium bg-green-50 text-green-700 px-2 py-0.5 rounded">
-                      {user.interactionCount} interactions
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-400 text-center py-4">No interactions yet</p>
-              )}
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-4">No interactions yet</p>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Citation Sources */}
+          <div className="bg-white rounded-lg border border-gray-200 min-w-0">
+            <div className="p-4 border-b border-gray-200">
+              <h4 className="font-semibold text-sm text-gray-900 flex items-center">
+                <Link className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
+                Top Citation Sources
+              </h4>
+            </div>
+            <div className="p-4">
+              <div className="space-y-2">
+                {recommendation.topCitationDomains.length > 0 ? (
+                  recommendation.topCitationDomains.slice(0, 5).map((domain, idx) => (
+                    <div key={idx} className="flex items-center justify-between py-1 gap-2">
+                      <span className="text-sm text-gray-700 truncate flex-1">{domain.domain}</span>
+                      <span className="text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded whitespace-nowrap">
+                        {domain.count} citations
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-4">No citations yet</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Scores & Metrics */}
+          <div className="bg-white rounded-lg border border-gray-200 min-w-0">
+            <div className="p-4 border-b border-gray-200">
+              <h4 className="font-semibold text-sm text-gray-900 flex items-center">
+                <TrendingUp className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
+                Performance Metrics
+              </h4>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600">Engagement Score</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {recommendation.engagementScore?.toFixed(1) || '0.0'}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${recommendation.engagementScore || 0}%` }}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600">Content Quality</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {recommendation.contentQualityScore?.toFixed(1) || '0.0'}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div 
+                    className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${recommendation.contentQualityScore || 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 space-y-2 border-t border-gray-100">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">Avg Read Time</span>
+                  <span className="text-xs font-medium text-gray-700">
+                    {recommendation.avgBriefReadTime ? `${Math.round(recommendation.avgBriefReadTime)}s` : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">Avg Session</span>
+                  <span className="text-xs font-medium text-gray-700">
+                    {recommendation.avgSessionDuration ? `${Math.round(recommendation.avgSessionDuration)}m` : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">Active Time</span>
+                  <span className="text-xs font-medium text-gray-700">
+                    {recommendation.preferredTimeOfDay || 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
-
-        {/* Citation Sources */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h4 className="font-semibold text-sm text-gray-900 flex items-center">
-              <Link className="w-4 h-4 mr-2 text-gray-500" />
-              Top Citation Sources
-            </h4>
-          </div>
-          <div className="p-4">
-            <div className="space-y-2">
-              {recommendation.topCitationDomains.length > 0 ? (
-                recommendation.topCitationDomains.slice(0, 5).map((domain, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-1">
-                    <span className="text-sm text-gray-700 truncate">{domain.domain}</span>
-                    <span className="text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded">
-                      {domain.count} citations
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-400 text-center py-4">No citations yet</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Scores & Metrics */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h4 className="font-semibold text-sm text-gray-900 flex items-center">
-              <TrendingUp className="w-4 h-4 mr-2 text-gray-500" />
-              Performance Metrics
-            </h4>
-          </div>
-          <div className="p-4 space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm text-gray-600">Engagement Score</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {recommendation.engagementScore?.toFixed(1) || '0.0'}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div 
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${recommendation.engagementScore || 0}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm text-gray-600">Content Quality</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {recommendation.contentQualityScore?.toFixed(1) || '0.0'}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div 
-                  className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${recommendation.contentQualityScore || 0}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="pt-2 space-y-2 border-t border-gray-100">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Avg Read Time</span>
-                <span className="text-xs font-medium text-gray-700">
-                  {recommendation.avgBriefReadTime ? `${Math.round(recommendation.avgBriefReadTime)}s` : 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Avg Session</span>
-                <span className="text-xs font-medium text-gray-700">
-                  {recommendation.avgSessionDuration ? `${Math.round(recommendation.avgSessionDuration)}m` : 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Active Time</span>
-                <span className="text-xs font-medium text-gray-700">
-                  {recommendation.preferredTimeOfDay || 'N/A'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
-    </div>
+    </td>
   );
 }
 
@@ -452,6 +458,8 @@ export default function RecommendationsPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [calculatingScores, setCalculatingScores] = useState<string | null>(null);
   const progressInterval = useRef<NodeJS.Timeout | null>(null);
+
+  const { isMobile } = useDeviceDetection();
 
   // Fetch recommendations
   useEffect(() => {
@@ -635,6 +643,18 @@ export default function RecommendationsPage() {
       default: return rec.topCombinedTitleWords || [];
     }
   };
+
+   if (isMobile && !loading && !error) {
+    return (
+      <MobileRecommendationsPage
+        recommendations={recommendations}
+        onRefreshUser={handleRefreshUser}
+        onRefreshAll={handleRefreshAll}
+        refreshing={refreshing}
+        recalcProgress={recalcProgress}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -882,15 +902,13 @@ export default function RecommendationsPage() {
                     </TableCell>
                   </TableRow>
                   {isExpanded && (
-                    <TableRow>
-                        <TableCell colSpan={10} className="p-0">
-                        <ExpandedRowContent 
-                            recommendation={rec} 
-                            onUpdateField={(field, value) => handleUpdateField(rec.id, field, value)}
-                        />
-                        </TableCell>
-                    </TableRow>
-                  )}
+                  <TableRow>
+                    <ExpandedRowContent 
+                      recommendation={rec} 
+                      onUpdateField={(field, value) => handleUpdateField(rec.id, field, value)}
+                    />
+                  </TableRow>
+                )}
                 </React.Fragment>
               );
             })}

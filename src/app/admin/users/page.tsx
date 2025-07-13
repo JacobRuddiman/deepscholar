@@ -1,3 +1,4 @@
+//admin/users/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -8,6 +9,8 @@ import { Input } from '@/app/components/ui/input';
 import { Select } from '@/app/components/ui/select';
 import { getAdminUsers } from '@/server/actions/admin';
 import { useRouter } from 'next/navigation';
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import MobileUsersPage from '@/app/components/admin/MobileUsersPage';
 
 interface User {
   id: string;
@@ -31,16 +34,16 @@ interface EditUserModalProps {
 
 function EditUserModal({ user, isOpen, onClose, onSave }: EditUserModalProps) {
   const [formData, setFormData] = useState({
-    name: user.name || '',
-    email: user.email || '',
+    name: user.name ?? '',
+    email: user.email ?? '',
     isAdmin: user.isAdmin,
     tokenBalance: user.tokenBalance
   });
 
   useEffect(() => {
     setFormData({
-      name: user.name || '',
-      email: user.email || '',
+      name: user.name ?? '',
+      email: user.email ?? '',
       isAdmin: user.isAdmin,
       tokenBalance: user.tokenBalance
     });
@@ -117,6 +120,7 @@ function EditUserModal({ user, isOpen, onClose, onSave }: EditUserModalProps) {
 
 export default function UsersPage() {
   const router = useRouter();
+  const { isMobile } = useDeviceDetection();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,7 +156,7 @@ export default function UsersPage() {
           setUsers(result.data.users);
           setError(null);
         } else {
-          setError(result.error || 'Failed to fetch users');
+          setError(result.error ?? 'Failed to fetch users');
         }
       } catch (err) {
         setError('Failed to fetch users');
@@ -317,6 +321,17 @@ export default function UsersPage() {
   }
 
   const hasSelectedUsers = selectedUsers.size > 0;
+
+  // Use mobile version on mobile devices
+  if (isMobile) {
+    return (
+      <MobileUsersPage
+        users={users}
+        onEmailUser={handleEmailUser}
+        onEditUser={handleViewUser}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

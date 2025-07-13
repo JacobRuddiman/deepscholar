@@ -8,6 +8,8 @@ import { Input } from '@/app/components/ui/input';
 import { Select } from '@/app/components/ui/select';
 import { getAdminBriefs } from '@/server/actions/admin';
 import { useRouter } from 'next/navigation';
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import MobileBriefsPage from '@/app/components/admin/MobileBriefsPage';
 
 interface Brief {
   id: string;
@@ -36,6 +38,7 @@ interface Brief {
 
 export default function BriefsPage() {
   const router = useRouter();
+  const { isMobile } = useDeviceDetection();
   const [briefs, setBriefs] = useState<Brief[]>([]);
   const [filteredBriefs, setFilteredBriefs] = useState<Brief[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +74,7 @@ export default function BriefsPage() {
           setBriefs(result.data.briefs);
           setError(null);
         } else {
-          setError(result.error || 'Failed to fetch briefs');
+          setError(result.error ?? 'Failed to fetch briefs');
         }
       } catch (err) {
         setError('Failed to fetch briefs');
@@ -236,6 +239,19 @@ export default function BriefsPage() {
   }
 
   const hasSelectedBriefs = selectedBriefs.size > 0;
+
+  // Use mobile version on mobile devices
+  if (isMobile) {
+    return (
+      <MobileBriefsPage
+        briefs={briefs}
+        onViewBrief={handleViewBrief}
+        onEditBrief={handleEditBrief}
+        onDeleteBrief={handleDeleteBrief}
+        onTogglePublished={handleTogglePublished}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -567,14 +583,14 @@ interface EditBriefModalProps {
 function EditBriefModal({ brief, isOpen, onClose, onSave }: EditBriefModalProps) {
   const [formData, setFormData] = useState({
     title: brief.title,
-    abstract: brief.abstract || '',
+    abstract: brief.abstract ?? '',
     published: brief.published
   });
 
   useEffect(() => {
     setFormData({
       title: brief.title,
-      abstract: brief.abstract || '',
+      abstract: brief.abstract ?? '',
       published: brief.published
     });
   }, [brief]);

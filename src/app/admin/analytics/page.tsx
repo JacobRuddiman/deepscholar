@@ -2,6 +2,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import MobileAnalyticsPage from '@/app/components/admin/MobileAnalyticsPage';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -48,6 +50,8 @@ interface ChartFilter {
 }
 
 export default function AnalyticsPage() {
+  const { isMobile } = useDeviceDetection();
+  
   // State management
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -171,8 +175,19 @@ export default function AnalyticsPage() {
 
   // Loading state
   if (loading && !data) {
+  // Use mobile version on mobile devices
+  if (isMobile && data) {
     return (
-      <div className="space-y-6">
+      <MobileAnalyticsPage
+        data={data}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
           <p className="text-gray-600 mt-2">Comprehensive insights and data visualization</p>

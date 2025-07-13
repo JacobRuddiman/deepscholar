@@ -1,3 +1,4 @@
+//components/recommendation_score_modal.tsx
 import React, { useState, useEffect } from 'react';
 import { X, BarChart3, Info, Search, Filter, ArrowUpDown, Target, Clock, Star, Eye } from 'lucide-react';
 
@@ -141,24 +142,26 @@ export default function RecommendationScoreModal({
         onClick={onClose}
       />
       
-      {/* Modal */}
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden relative">
-        {/* Close Button */}
+      {/* Modal - Fixed positioning and overflow handling */}
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl relative z-10 flex flex-col" 
+           style={{ maxHeight: 'calc(100vh - 2rem)', height: '90vh' }}>
+        
+        {/* Close Button - Absolute positioned */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1 rounded-full bg-gray-100 hover:bg-gray-200 z-10"
+          className="absolute top-4 right-4 p-1 rounded-full bg-gray-100 hover:bg-gray-200 z-20"
         >
           <X className="w-5 h-5 text-gray-600" />
         </button>
 
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        {/* Header - Fixed at top */}
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900 flex items-center">
               <Target className="w-6 h-6 mr-2 text-pink-500" />
               Recommendation Scores for All Briefs
             </h2>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 pr-8">
               <BarChart3 className="w-5 h-5 text-blue-600" />
               <span className="text-lg font-semibold text-blue-600">
                 {averageScore.toFixed(1)}% avg
@@ -211,21 +214,19 @@ export default function RecommendationScoreModal({
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               <span className="ml-2 text-gray-600">Calculating scores...</span>
             </div>
           ) : error ? (
-            <div className="p-6">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-600">{error}</p>
-              </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-600">{error}</p>
             </div>
           ) : (
-            <div className="p-6">
+            <>
               <div className="mb-4 text-sm text-gray-600">
                 Showing {filteredScores.length} of {scores.length} briefs
               </div>
@@ -301,12 +302,12 @@ export default function RecommendationScoreModal({
                   );
                 })}
               </div>
-            </div>
+            </>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
+        {/* Footer - Fixed at bottom */}
+        <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
           <p className="text-sm text-gray-500 text-center">
             Scores are calculated based on user preferences, content quality, popularity, and recency.
           </p>

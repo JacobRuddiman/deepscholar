@@ -21,7 +21,7 @@ export interface SeedConfig {
       emailNotificationsRatio?: number;
       briefInterestUpdatesRatio?: number;
       promotionalNotificationsRatio?: number;
-    };
+    }; 
   };
 
   accounts?: {
