@@ -107,6 +107,7 @@ model User {
   tokenTransactions        TokenTransaction[]
   recommendation           UserRecommendation?
   tokenBalance             UserToken?
+  isSeedData Boolean @default(false)
 }
 
 model Account {
@@ -226,6 +227,7 @@ model Brief {
   tokenTransactions TokenTransaction[]
   categories        Category[]         @relation("BriefToCategory")
   sources           Source[]           @relation("BriefToSource")
+  isSeedData Boolean @default(false)
 }
 
 model Category {
@@ -386,4 +388,14 @@ model ExportUsage {
   @@unique([userId, date])
   @@index([userId])
   @@index([date])
+}
+
+model SeedingMetadata {
+  id              String   @id
+  lastSeedDate    DateTime
+  seedVersion     String
+  totalSeedRecords Int
+  config          String   // JSON string of seed config
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

@@ -1,4 +1,4 @@
-// app/actions/seed.ts
+// app/server/actions/seed.ts
 'use server';
 
 import { db } from "@/server/db";
@@ -139,6 +139,12 @@ export interface SeedConfig {
     };
   };
 
+  safetyCheck?: {
+    skipTokenValidation?: boolean;
+    strictMode?: boolean;
+    allowedDomains?: string[];
+  };
+
   // Progress callback
   onProgress?: (message: string, percentage?: number) => void;
 }
@@ -263,6 +269,141 @@ const DEFAULT_CONFIG: SeedConfig = {
     },
   },
 };
+
+export interface DatabaseSafetyCheck {
+  isSafe: boolean;
+  nonSeedData: {
+    type: string;
+    count: number;
+    examples: string[];
+  }[];
+  totalNonSeedRecords: number;
+  warnings: string[];
+}
+// Add seeding metadata tracking
+export async function trackSeedingMetadata(config: SeedConfig, summary: any) {
+  await db.seedingMetadata.upsert({
+    where: { id: 'current' },
+    update: {
+      lastSeedDate: new Date(),
+      seedVersion: '1.0',
+      totalSeedRecords: Object.values(summary).reduce((sum: number, val: any) => sum + (val as number), 0),
+      config: JSON.stringify(config),
+    },
+    create: {
+      id: 'current',
+      lastSeedDate: new Date(),
+      seedVersion: '1.0',
+      totalSeedRecords: Object.values(summary).reduce((sum: number, val: any) => sum + (val as number), 0),
+      config: JSON.stringify(config),
+    },
+  });
+}
+
+// Enhanced safety verification
+export async function verifyDatabaseSafety(): Promise<DatabaseSafetyCheck> {
+  const nonSeedData: { type: string; count: number; examples: string[]; confidence: 'high' | 'medium' | 'low' }[] = [];
+  const warnings: string[] = [];
+  let totalNonSeedRecords = 0;
+
+  try {
+    // Get seeding metadata if available
+    const seedingMetadata = await db.seedingMetadata.findUnique({
+      where: { id: 'current' }
+    }).catch(() => null);
+
+    // Check users - only look for records where isSeedData is false or null
+    const users = await db.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        isSeedData: true,
+      }
+    });
+
+    const nonSeedUsers = users.filter(user => {
+      // Allow demo user
+      if (user.email === 'demo@deepscholar.local') return false;
+      
+      // Only flag users where isSeedData is explicitly false or null/undefined
+      return user.isSeedData !== true;
+    });
+
+    if (nonSeedUsers.length > 0) {
+      nonSeedData.push({
+        type: 'Users',
+        count: nonSeedUsers.length,
+        examples: nonSeedUsers.slice(0, 3).map(u => u.name || u.email || 'Unknown'),
+        confidence: 'high'
+      });
+      totalNonSeedRecords += nonSeedUsers.length;
+    }
+
+    // Check briefs - only look for records where isSeedData is false or null
+    const briefs = await db.brief.findMany({
+      select: {
+        id: true,
+        title: true,
+        prompt: true,
+        createdAt: true,
+        isSeedData: true,
+        author: {
+          select: {
+            email: true,
+          }
+        }
+      }
+    });
+
+    const nonSeedBriefs = briefs.filter(brief => {
+      // Allow demo user briefs
+      if (brief.author.email === 'demo@deepscholar.local') return false;
+      
+      // Only flag briefs where isSeedData is explicitly false or null/undefined
+      return brief.isSeedData !== true;
+    });
+
+    if (nonSeedBriefs.length > 0) {
+      nonSeedData.push({
+        type: 'Briefs',
+        count: nonSeedBriefs.length,
+        examples: nonSeedBriefs.slice(0, 3).map(b => b.title || 'Untitled'),
+        confidence: 'high'
+      });
+      totalNonSeedRecords += nonSeedBriefs.length;
+    }
+
+    // Add environment-based warnings
+    if (process.env.NODE_ENV === 'production') {
+      warnings.push('Running in production environment - extra caution advised');
+    }
+
+    return {
+      isSafe: totalNonSeedRecords === 0,
+      nonSeedData,
+      totalNonSeedRecords,
+      warnings,
+      seedingMetadata: seedingMetadata ? {
+        lastSeedDate: seedingMetadata.lastSeedDate,
+        seedVersion: seedingMetadata.seedVersion,
+        totalSeedRecords: seedingMetadata.totalSeedRecords,
+      } : undefined,
+    };
+
+  } catch (error) {
+    console.error('Error checking database safety:', error);
+    return {
+      isSafe: false,
+      nonSeedData: [],
+      totalNonSeedRecords: 0,
+      warnings: ['Error occurred while checking database safety - proceed with caution'],
+    };
+  }
+}
+
+
 
 // Helper functions
 function getRandomElement<T>(array: T[]): T {
@@ -415,6 +556,19 @@ export async function seed(config: SeedConfig = DEFAULT_CONFIG) {
       success: false,
       error: `Configuration errors: ${validation.errors.join(', ')}`,
     };
+  }
+
+  if (config.deleteAll || config.deleteTables?.length) {
+    console.log('🔍 Performing database safety check...');
+    const safetyCheck = await verifyDatabaseSafety();
+    
+    if (!safetyCheck.isSafe) {
+      return {
+        success: false,
+        error: 'Database safety check failed - non-seed data detected',
+        safetyCheck,
+      };
+    }
   }
   
   // Normalize distributions
@@ -596,6 +750,18 @@ export async function seed(config: SeedConfig = DEFAULT_CONFIG) {
     const duration = ((endTime - startTime) / 1000).toFixed(2);
     
     progress.report(`✅ Seeding completed in ${duration}s`, 100);
+
+    await trackSeedingMetadata(config, {
+      users: createdData.users.length,
+      briefs: createdData.briefs.length,
+      reviews: createdData.reviews.length,
+      aiReviews: createdData.aiReviews.length,
+      categories: createdData.categories.length,
+      sources: createdData.sources.length,
+      researchAIModels: createdData.researchAIModels.length,
+      reviewAIModels: createdData.reviewAIModels.length,
+    });
+    
     
     return {
       success: true,
@@ -616,6 +782,7 @@ export async function seed(config: SeedConfig = DEFAULT_CONFIG) {
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
+  
 }
 
 // Delete functions
@@ -795,6 +962,7 @@ async function createUsers(config: SeedConfig, createdData: any) {
         briefInterestUpdates: Math.random() < (config.users?.notificationSettings?.briefInterestUpdatesRatio || 0.6),
         promotionalNotifications: Math.random() < (config.users?.notificationSettings?.promotionalNotificationsRatio || 0.5),
         createdAt,
+        isSeedData: true,
       },
     });
     
@@ -1059,6 +1227,7 @@ async function createBriefs(config: SeedConfig, createdData: any) {
         published: isPublished,
         isDraft,
         createdAt,
+        isSeedData: true,
       },
     });
     
@@ -1088,43 +1257,44 @@ async function createBriefs(config: SeedConfig, createdData: any) {
   }
   
   // Create versions for some briefs
-  if (config.briefs?.versionsEnabled && briefs.length > 0) {
-    const briefsWithVersions = getRandomElements(
-      briefs.filter(b => b.published && !b.isDraft),
-      Math.min(Math.floor(briefs.length * 0.1), 50) // Limit to prevent too many versions
-    );
+if (config.briefs?.versionsEnabled && briefs.length > 0) {
+  const briefsWithVersions = getRandomElements(
+    briefs.filter(b => b.published && !b.isDraft),
+    Math.min(Math.floor(briefs.length * 0.1), 50) // Limit to prevent too many versions
+  );
+  
+  for (const parentBrief of briefsWithVersions) {
+    const versionCount = getRandomInt(1, config.briefs?.maxVersionsPerBrief || 3);
     
-    for (const parentBrief of briefsWithVersions) {
-      const versionCount = getRandomInt(1, config.briefs?.maxVersionsPerBrief || 3);
-      
-      for (let v = 2; v <= versionCount + 1; v++) {
-        await db.brief.create({
-          data: {
-            title: `${parentBrief.title} (v${v})`,
-            prompt: parentBrief.prompt,
-            response: getRandomElement(sampleData.briefResponses),
-            abstract: parentBrief.abstract,
-            thinking: parentBrief.thinking,
-            modelId: getRandomElement(createdData.researchAIModels).id,
-            userId: parentBrief.userId,
-            viewCount: Math.floor(parentBrief.viewCount * Math.pow(0.7, v - 1)),
-            readTime: parentBrief.readTime,
-            accuracy: parentBrief.accuracy,
-            published: true,
-            isDraft: false,
-            isActive: false,
-            parentBriefId: parentBrief.id,
-            versionNumber: v,
-            changeLog: getRandomElement(sampleData.changeLogs),
-            createdAt: faker.date.between({ 
-              from: parentBrief.createdAt, 
-              to: new Date() 
-            }),
-          },
-        });
-      }
+    for (let v = 2; v <= versionCount + 1; v++) {
+      await db.brief.create({
+        data: {
+          title: `${parentBrief.title} (v${v})`,
+          prompt: parentBrief.prompt,
+          response: getRandomElement(sampleData.briefResponses),
+          abstract: parentBrief.abstract,
+          thinking: parentBrief.thinking,
+          modelId: getRandomElement(createdData.researchAIModels).id,
+          userId: parentBrief.userId,
+          viewCount: Math.floor(parentBrief.viewCount * Math.pow(0.7, v - 1)),
+          readTime: parentBrief.readTime,
+          accuracy: parentBrief.accuracy,
+          published: true,
+          isDraft: false,
+          isActive: false,
+          parentBriefId: parentBrief.id,
+          versionNumber: v,
+          changeLog: getRandomElement(sampleData.changeLogs),
+          createdAt: faker.date.between({ 
+            from: parentBrief.createdAt, 
+            to: new Date() 
+          }),
+          isSeedData: true, // Add this line
+        },
+      });
     }
   }
+}
   
   return briefs;
 }
