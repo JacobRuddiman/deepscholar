@@ -30,7 +30,8 @@ import { DataSkewingSection } from './sections/DataSkewingSection';
 import { generateConsoleCommand } from './utils/commandGenerator';
 
 import { DatabaseSafetyModal } from './components/DatabaseSafetyModal';
-import { verifyDatabaseSafety, type DatabaseSafetyCheck } from '@/server/actions/seed';
+import { verifyDatabaseSafety } from '@/server/actions/seed/safety';
+import { DatabaseSafetyCheck } from '@/server/actions/seed/index';
 
 
 export default function DataSynthPage() {
@@ -54,9 +55,9 @@ const [pendingSeed, setPendingSeed] = useState(false);
     }));
   };
 
-  const handleSeed = async () => {
+const handleSeed = async (forceOverride: boolean = false) => {
   // Check if we need to perform safety verification
-  if ((config.deleteAll || config.deleteTables?.length) && !pendingSeed) {
+  if ((config.deleteAll || config.deleteTables?.length) && !forceOverride) {
     setConsoleOutput(['Checking database safety...']);
     
     try {
@@ -82,14 +83,20 @@ const [pendingSeed, setPendingSeed] = useState(false);
   setIsSeeding(true);
   setError(null);
   setSeedResult(null);
-  // Don't reset pendingSeed here - move it to the finally block
+  setPendingSeed(false);
   
-  if (!consoleOutput.includes('Starting seed operation...')) {
+  if (forceOverride) {
+    setConsoleOutput(prev => [...prev, '⚠️ Proceeding with forced seeding (safety check bypassed)']);
+  }
+  
+  if (!consoleOutput.some(line => line.includes('Starting seed operation'))) {
     setConsoleOutput(prev => [...prev, 'Starting seed operation...']);
   }
 
   try {
-    const result = await seed(config);
+    // Add force flag to config when bypassing safety
+    const seedConfig = forceOverride ? { ...config, force: true } : config;
+    const result = await seed(seedConfig);
     
     if (result.success) {
       setSeedResult(result);
@@ -104,15 +111,14 @@ const [pendingSeed, setPendingSeed] = useState(false);
     setConsoleOutput(prev => [...prev, `❌ Error: ${errorMsg}`]);
   } finally {
     setIsSeeding(false);
-    setPendingSeed(false); // Reset pendingSeed only after operation completes
   }
 };
 
 const handleSafetyContinue = () => {
   setShowSafetyModal(false);
-  setPendingSeed(true);
-  // Automatically proceed with seeding
-  setTimeout(() => handleSeed(), 100);
+  setConsoleOutput(prev => [...prev, '⚠️ User chose to continue despite safety warnings']);
+  // Call handleSeed with force override
+  handleSeed(true);
 };
 
 const handleSafetyCancel = () => {
