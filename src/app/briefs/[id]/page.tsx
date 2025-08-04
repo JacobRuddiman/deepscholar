@@ -4,8 +4,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { getBriefBySlug, toggleBriefUpvote, toggleBriefSave, addBriefReview, deleteBriefReview, deleteBrief } from '@/server/actions/briefs';
+import { toggleBriefUpvote, toggleBriefSave, addBriefReview, deleteBriefReview } from '@/server/actions/briefs';
+import { deleteBrief } from '@/server/actions/briefs/core-operations';
 import ErrorPopup from '@/app/components/error_popup';
+import { getBriefBySlug } from '@/server/actions/briefs/core-operations';
 import HelpfulButton from '@/app/components/helpful_button';
 import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
 import { 

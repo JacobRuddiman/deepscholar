@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { getUserBriefs, deleteBrief } from '@/server/actions/briefs';
+import { getUserBriefs, deleteBrief } from '@/server/actions/briefs/core-operations';
+
 import { 
   ThumbsUp, 
   MessageSquare, 

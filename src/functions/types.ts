@@ -8,12 +8,13 @@ export type BriefSource = {
 };
 
 export type BriefData = {
-  title: string; // string type ensures title is always text
-  content: string; // string type ensures content is always text
-  abstract: string; // string type ensures abstract is always text
-  sources: BriefSource[]; // Array of BriefSource objects to store all sources
-  thinking: string; // string type ensures thinking notes are always text
-  model: "openai" | "perplexity" | "anthropic" | "other"; // Union type restricts model to only these specific string values (lowercase to match database)
-  rawHtml?: string; // optional string with ? modifier allows this field to be undefined
-  references?: string; // optional string with ? modifier allows this field to be undefined
+  title: string;
+  content: string;
+  abstract: string;
+  sources: BriefSource[];
+  thinking?: string; // Optional thinking
+  prompt?: string;   // Add this new field
+  model: "openai" | "perplexity" | "anthropic" | "other";
+  rawHtml?: string;
+  references?: string;
 };
