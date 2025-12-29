@@ -514,3 +514,107 @@ This will:
 - Enable comprehensive security monitoring and compliance
 
 See `SECURITY_AUDIT_GUIDE.md` for complete implementation details.
+
+## Content Scheduling
+
+Add the following to your `prisma/schema.prisma` file:
+
+### 1. Update Brief model
+
+```prisma
+model Brief {
+  // ... existing fields ...
+
+  // Add these fields:
+  scheduledFor DateTime?
+  publishedBy  String? // 'user' or 'scheduler'
+
+  // Add this relation:
+  scheduledPublication ScheduledPublication?
+
+  // ... rest of existing relations ...
+
+  @@index([scheduledFor])
+}
+```
+
+### 2. Add ScheduledPublication model
+
+```prisma
+model ScheduledPublication {
+  id             String    @id @default(cuid())
+  briefId        String    @unique
+  scheduledFor   DateTime
+  status         String    @default("pending") // 'pending', 'published', 'failed', 'cancelled'
+  attempts       Int       @default(0)
+  lastAttemptAt  DateTime?
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  brief Brief @relation(fields: [briefId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledFor])
+  @@index([status])
+  @@index([briefId])
+}
+```
+
+### 3. Run migration
+
+```bash
+npx prisma migrate dev --name add_content_scheduling
+npx prisma generate
+```
+
+## User Mentions
+
+Add the following to your `prisma/schema.prisma` file:
+
+### 1. Add Mention model
+
+```prisma
+model Mention {
+  id              String   @id @default(cuid())
+  mentionedUserId String
+  mentionerId     String
+  contentType     String // 'review', 'comment', 'brief'
+  contentId       String
+  content         String? // Snippet of text
+  createdAt       DateTime @default(now())
+
+  mentionedUser User @relation("UserMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  mentioner     User @relation("UserMentioning", fields: [mentionerId], references: [id], onDelete: Cascade)
+
+  @@index([mentionedUserId])
+  @@index([mentionerId])
+  @@index([contentType])
+  @@index([contentId])
+  @@index([createdAt(sort: Desc)])
+}
+```
+
+### 2. Update User model
+
+```prisma
+model User {
+  // ... existing fields ...
+
+  // Add these relations:
+  mentions    Mention[] @relation("UserMentions")
+  mentioning  Mention[] @relation("UserMentioning")
+
+  // ... rest of existing relations ...
+}
+```
+
+### 3. Run migration
+
+```bash
+npx prisma migrate dev --name add_user_mentions
+npx prisma generate
+```
+
+---
+
+All migrations are now complete! Run `npx prisma migrate dev` to apply all pending migrations.
