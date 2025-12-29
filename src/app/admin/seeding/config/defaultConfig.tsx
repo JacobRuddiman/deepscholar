@@ -3,15 +3,7 @@ import { SeedConfig } from '@/server/actions/seed';
 export function getDefaultConfig(): SeedConfig {
   return {
     deleteAll: true,
-    
-    demoUser: {
-      enabled: false,
-      email: 'demo@deepscholar.local',
-      name: 'Demo User',
-      activityMultiplier: 3.0,
-      adminPrivileges: true,
-    },
-    
+
     users: {
       enabled: true,
       count: 100,
@@ -126,90 +118,6 @@ export function getDefaultConfig(): SeedConfig {
       timeDistribution: 'uniform',
       startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
       endDate: new Date()
-    },
-    
-    userRecommendations: {
-      enabled: true,
-      recommendationRatio: 0.7,
-      keywordDiversity: 15,
-      categoryInteractions: 8,
-    },
-    
-    emailSystem: {
-      enabled: true,
-      footerCount: 3,
-      sentEmailsPerUser: [0, 5],
-      scheduledEmailRatio: 0.1,
-      emailDeliverySuccess: 0.95,
-    },
-    
-    accountProviders: {
-      enabled: true,
-      googleRatio: 0.6,
-      githubRatio: 0.3,
-      credentialsRatio: 0.1,
-      multipleAccountsRatio: 0.15,
-    },
-    
-    reviewHelpfulness: {
-      enabled: true,
-      helpfulMarkRatio: 0.4,
-      helpfulMarksPerUser: [0, 20],
-    },
-    
-    exportUsage: {
-      enabled: true,
-      dailyExportLimit: 10,
-      peakUsageDays: 30,
-      formatPopularity: {
-        pdf: 0.5,
-        markdown: 0.2,
-        html: 0.15,
-        json: 0.1,
-        csv: 0.05,
-      },
-    },
-    
-    sessions: {
-      enabled: true,
-      activeSessionRatio: 0.3,
-      sessionDuration: [1, 8],
-      multipleSessionsRatio: 0.2,
-    },
-    
-    briefSlugs: {
-      enabled: true,
-      slugPattern: 'mixed',
-      duplicateHandling: 'numbered',
-    },
-    
-    tokenTransactionTypes: {
-      enabled: true,
-      typeDistribution: {
-        'Brief creation': 0.3,
-        'Review reward': 0.2,
-        'Upvote reward': 0.15,
-        'Export usage': 0.1,
-        'Quality bonus': 0.1,
-        'Premium feature': 0.15,
-      },
-      bonusTransactionRatio: 0.2,
-      penaltyTransactionRatio: 0.05,
-    },
-    
-    aiModelVersions: {
-      enabled: true,
-      researchModelVersions: 3,
-      reviewModelVersions: 2,
-      modelUpdateFrequency: 'monthly',
-    },
-    
-    briefQualityTiers: {
-      enabled: true,
-      highQualityRatio: 0.2,
-      mediumQualityRatio: 0.6,
-      lowQualityRatio: 0.2,
-      qualityFactors: ['accuracy', 'citations', 'engagement'],
     },
   };
 }

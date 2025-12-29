@@ -1,20 +1,22 @@
 // components/brief/BriefEditor.tsx
 import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
-import { 
-  Loader2, 
-  CheckCircle, 
-  AlertCircle, 
-  ChevronDown, 
-  ChevronUp, 
-  Edit2, 
-  Link, 
+import {
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  Link,
   Code as CodeIcon,
-  Trash2 
+  Trash2,
+  Plus
 } from "lucide-react";
 
 import HtmlInspector from './html_inspector';
@@ -47,11 +49,31 @@ const customStyles = `
     0%, 100% { opacity: 0.7; }
     50% { opacity: 1; }
   }
-  
+
   .flash-gradient {
     animation: flashGradient 0.5s ease-in-out;
     animation-iteration-count: 6;
     animation-fill-mode: forwards;
+  }
+
+  .reference-highlight {
+    background-color: #fef3c7;
+    border-bottom: 2px solid #f59e0b;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-style: italic;
+    color: #92400e;
+  }
+
+  .reference-source {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 0.875em;
+    margin-left: 4px;
+  }
+
+  .reference-source:hover {
+    text-decoration: underline;
   }
 `;
 
@@ -83,6 +105,8 @@ interface BriefEditorProps {
 }
 
 export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = false, inputMode = 'url', onInputModeChange }: BriefEditorProps) {
+  const router = useRouter();
+
   // State variables
   const [url, setUrl] = useState("");
   const [isValidUrl, setIsValidUrl] = useState<boolean | null>(null);
@@ -121,6 +145,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
   
   // Refs
   const bottomControlsRef = useRef<HTMLDivElement>(null);
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Store original data for diff highlighting
   const [originalAbstract, setOriginalAbstract] = useState<string>("");
@@ -147,12 +172,12 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     if (!briefId) {
       // For new briefs, just store locally until saved
       const newReference = `[${highlightedText}](${url})`;
-      const currentReferences = Array.isArray(briefData?.references) 
-        ? briefData.references 
+      const currentReferences = Array.isArray(briefData?.references)
+        ? briefData.references
         : briefData?.references ? [briefData.references] : [];
-      
+
       const updatedReferences = [...currentReferences, newReference];
-      
+
       setBriefData(prev => prev ? {
         ...prev,
         references: updatedReferences.join('\n\n')
@@ -164,7 +189,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     try {
       const result = await createBriefReference(briefId, url, highlightedText);
       if (result.success && result.data) {
-        setBriefReferences(prev => [result.data!, ...prev]);
+        setBriefReferences(prev => [result.data as any, ...prev]);
         setSuccessMessage('Reference added successfully!');
         setTimeout(() => setSuccessMessage(null), 3000);
       } else {
@@ -176,6 +201,59 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     }
   };
 
+  // Handle inserting reference into content at cursor position
+  const handleInsertReference = (quote: string, sourceUrl: string, sourceTitle: string) => {
+    // First, ensure we're in edit mode
+    if (!isContentEditing) {
+      setIsContentEditing(true);
+      // Wait for the textarea to render before inserting
+      setTimeout(() => {
+        insertReferenceText(quote, sourceUrl, sourceTitle);
+      }, 100);
+    } else {
+      insertReferenceText(quote, sourceUrl, sourceTitle);
+    }
+  };
+
+  const insertReferenceText = (quote: string, sourceUrl: string, sourceTitle: string) => {
+    const textarea = contentTextareaRef.current;
+    if (!textarea || !briefData) return;
+
+    const cursorPosition = textarea.selectionStart || 0;
+    const currentContent = textarea.value; // Use textarea value directly
+
+    // Format the reference with special markdown syntax
+    const referenceText = `<span class="reference-highlight">"${quote}"</span> <a href="${sourceUrl}" class="reference-source" target="_blank" rel="noopener noreferrer">[${sourceTitle}]</a>`;
+
+    // Insert at cursor position
+    const newContent =
+      currentContent.slice(0, cursorPosition) +
+      referenceText +
+      currentContent.slice(cursorPosition);
+
+    // Update the textarea value directly
+    textarea.value = newContent;
+
+    // Update the brief data
+    setBriefData(prev => prev ? {
+      ...prev,
+      content: newContent
+    } : null);
+
+    // Show success message
+    setSuccessMessage('Reference inserted into summary!');
+    setTimeout(() => setSuccessMessage(null), 2000);
+
+    // Focus the textarea and set cursor after the inserted text
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        const newCursorPosition = cursorPosition + referenceText.length;
+        textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+      }
+    }, 10);
+  };
+
   // Load references for existing briefs
   useEffect(() => {
     if (briefId) {
@@ -183,7 +261,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         try {
           const result = await getBriefReferences(briefId);
           if (result.success && result.data) {
-            setBriefReferences(result.data);
+            setBriefReferences(result.data as any);
           }
         } catch (error) {
           console.error('Error loading references:', error);
@@ -209,9 +287,9 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         content: (initialData as any).response || initialData.content || '',
         abstract: initialData.abstract || '',
         thinking: initialData.thinking || '',
-        model: typeof (initialData as any).model === 'object' 
-          ? ((initialData as any).model?.name as "OpenAI" | "Perplexity" | "Anthropic" | "Other") || 'Other'
-          : (initialData.model as "OpenAI" | "Perplexity" | "Anthropic" | "Other") || 'Other',
+        model: (typeof (initialData as any).model === 'object'
+          ? ((initialData as any).model?.name || 'other')
+          : (initialData.model || 'other')).toLowerCase() as "openai" | "perplexity" | "anthropic" | "other",
         sources: (initialData as any).sources || [],
         references: (initialData as any).references || '',
         rawHtml: (initialData as any).rawHtml
@@ -227,7 +305,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
       setShowSourcesSection(true);
       setShowReferencesSection(true);
       setShowMetadataSection(true);
-      setTheme(determineTheme(transformedData.model));
+      setTheme(determineTheme(transformedData));
       
       // Set current version if we have briefId
       if (briefId) {
@@ -270,38 +348,60 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
 
   const handleVersionChange = async (versionId: string) => {
     try {
+      console.log('[BriefEditor] Switching to version:', versionId);
+
       // Load the specific version data
       const result = await getBriefById(versionId);
       if (result.success && result.data) {
         const versionData = result.data;
-        
+
+        console.log('[BriefEditor] Loaded version data:', {
+          title: versionData.title,
+          contentLength: versionData.response?.length,
+          abstractLength: versionData.abstract?.length
+        });
+
         // Convert to BriefData format
         const briefDataFromVersion: BriefData = {
           title: versionData.title,
           abstract: versionData.abstract || '',
           content: versionData.response,
           thinking: versionData.thinking || '',
-          model: (versionData.model?.name as "OpenAI" | "Perplexity" | "Anthropic" | "Other") || 'Other',
+          model: (versionData.model?.name || 'other').toLowerCase() as "openai" | "perplexity" | "anthropic" | "other",
           sources: versionData.sources || [],
           references: '',
         };
-        
+
+        // Exit all edit modes before switching versions
+        setIsTitleEditing(false);
+        setIsAbstractEditing(false);
+        setIsContentEditing(false);
+        setIsThinkingEditing(false);
+
+        // Reset diff states
+        setAbstractDiff("");
+        setContentDiff("");
+
+        // Update data
         setBriefData(briefDataFromVersion);
         setOriginalBriefData(briefDataFromVersion);
         setOriginalAbstract(briefDataFromVersion.abstract || "");
         setOriginalContent(briefDataFromVersion.content || "");
-        
+
         // Update current version
         const version = versions.find(v => v.id === versionId);
         if (version) {
+          console.log('[BriefEditor] Setting current version to:', version);
           setCurrentVersion(version);
         }
-        
+
         // Reset unsaved changes
         setHasUnsavedChanges(false);
+
+        console.log('[BriefEditor] Version switch complete');
       }
     } catch (error) {
-      console.error('Error loading version:', error);
+      console.error('[BriefEditor] Error loading version:', error);
     }
   };
 
@@ -309,6 +409,10 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     if (!briefData || !briefId) return;
 
     try {
+      // Extract category and source IDs from the brief data
+      const categoryIds = (briefData as any).categories?.map((c: any) => c.id).filter(Boolean) || [];
+      const sourceIds = briefData.sources?.map((s: any) => s.id).filter(Boolean) || [];
+
       const result = await createBriefVersion(
         briefId,
         {
@@ -317,8 +421,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           prompt: '',
           response: briefData.content || '',
           thinking: briefData.thinking,
-          categoryIds: [],
-          sourceIds: briefData.sources?.map((s: any) => s.id) || [],
+          categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
+          sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
         },
         changeLog
       );
@@ -335,9 +439,19 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         });
         setHasUnsavedChanges(false);
         setOriginalBriefData(briefData);
+
+        // Show success feedback
+        setError(null);
+        setSuccessMessage('New version saved successfully!');
+
+        // Clear success message after 8 seconds
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 8000);
       }
     } catch (error) {
       console.error('Error saving new version:', error);
+      setError('Failed to save new version. Please try again.');
     }
   };
 
@@ -345,6 +459,10 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     if (!briefData || !currentVersion) return;
 
     try {
+      // Extract category and source IDs from the brief data
+      const categoryIds = (briefData as any).categories?.map((c: any) => c.id).filter(Boolean) || [];
+      const sourceIds = briefData.sources?.map((s: any) => s.id).filter(Boolean) || [];
+
       const result = await saveBriefDraft(
         currentVersion.id, // Use the current version ID, not the original briefId
         {
@@ -353,27 +471,27 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           prompt: '',
           response: briefData.content || '',
           thinking: briefData.thinking,
-          categoryIds: [],
-          sourceIds: briefData.sources?.map((s: any) => s.id) || [],
+          categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
+          sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
         }
       );
 
       if (result.success && result.data) {
         // Refresh the versions list first to get updated data
         await loadVersions();
-        
+
         // Get the updated versions list to calculate draft number correctly
         const updatedVersionsResult = await getBriefVersions(briefId!);
         if (updatedVersionsResult.success && updatedVersionsResult.data) {
           const updatedVersions = updatedVersionsResult.data as any[];
-          
+
           // Calculate the correct draft number for this version
           const versionNumber = (result.data as any).versionNumber;
-          const draftsForThisVersion = updatedVersions.filter(v => 
+          const draftsForThisVersion = updatedVersions.filter(v =>
             v.versionNumber === versionNumber && v.isDraft
           );
           const draftNumber = draftsForThisVersion.length; // This will be the correct number since we just created it
-          
+
           // Update current version to the new draft
           setCurrentVersion({
             id: result.data.id,
@@ -384,18 +502,18 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
             draftNumber: draftNumber,
           });
         }
-        
+
         setHasUnsavedChanges(false);
         setOriginalBriefData(briefData);
-        
+
         // Show success feedback
         setError(null);
         setSuccessMessage('Draft saved successfully!');
-        
-        // Clear success message after 3 seconds
+
+        // Clear success message after 8 seconds (long-lasting feedback)
         setTimeout(() => {
           setSuccessMessage(null);
-        }, 3000);
+        }, 8000);
       }
     } catch (error) {
       console.error('Error saving draft:', error);
@@ -407,6 +525,10 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     if (!briefData || !currentVersion) return;
 
     try {
+      // Extract category and source IDs from the brief data
+      const categoryIds = (briefData as any).categories?.map((c: any) => c.id).filter(Boolean) || [];
+      const sourceIds = briefData.sources?.map((s: any) => s.id).filter(Boolean) || [];
+
       const result = await updateBriefVersion(
         currentVersion.id,
         {
@@ -415,8 +537,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           prompt: '',
           response: briefData.content || '',
           thinking: briefData.thinking,
-          categoryIds: [],
-          sourceIds: briefData.sources?.map((s: any) => s.id) || [],
+          categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
+          sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
         }
       );
 
@@ -424,9 +546,24 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         setHasUnsavedChanges(false);
         setOriginalBriefData(briefData);
         await loadVersions();
+
+        // Show success feedback
+        setError(null);
+        setSuccessMessage('Brief updated successfully! Your changes have been saved.');
+
+        // Clear success message after 8 seconds (long-lasting feedback)
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 8000);
+      } else {
+        // Show error feedback
+        setError(result.error || 'Failed to update brief. Please try again.');
+        setSuccessMessage(null);
       }
     } catch (error) {
       console.error('Error updating current version:', error);
+      setError('Failed to update brief. Please try again.');
+      setSuccessMessage(null);
     }
   };
 
@@ -434,6 +571,10 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     if (!briefData || !currentVersion?.isDraft) return;
 
     try {
+      // Extract category and source IDs from the brief data
+      const categoryIds = (briefData as any).categories?.map((c: any) => c.id).filter(Boolean) || [];
+      const sourceIds = briefData.sources?.map((s: any) => s.id).filter(Boolean) || [];
+
       const result = await pushDraftToVersion(
         currentVersion.id,
         {
@@ -442,8 +583,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           prompt: '',
           response: briefData.content || '',
           thinking: briefData.thinking,
-          categoryIds: [],
-          sourceIds: briefData.sources?.map((s: any) => s.id) || [],
+          categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
+          sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
         }
       );
 
@@ -451,9 +592,19 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         // Switch to the updated published version
         await handleVersionChange(result.data.id);
         await loadVersions();
+
+        // Show success feedback
+        setError(null);
+        setSuccessMessage('Draft pushed to version successfully!');
+
+        // Clear success message after 8 seconds
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 8000);
       }
     } catch (error) {
       console.error('Error pushing draft to version:', error);
+      setError('Failed to push draft to version. Please try again.');
     }
   };
 
@@ -490,7 +641,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
             }
           } else {
             // No versions left, navigate away (this should only happen if deleting the last version)
-            window.location.href = '/my-briefs';
+            router.push('/my-briefs');
             return;
           }
         }
@@ -683,13 +834,13 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         {/* Success Notification */}
         {successMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            className="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 border-2 border-green-400 min-w-[300px]"
           >
-            <CheckCircle size={18} />
-            <span>{successMessage}</span>
+            <CheckCircle size={24} className="flex-shrink-0" />
+            <span className="text-base font-medium">{successMessage}</span>
           </motion.div>
         )}
         
@@ -956,6 +1107,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
             <div className={`${showTitleSection ? 'col-span-9' : 'col-span-0'}`}>
               {/* Brief Title Section */}
               <motion.div
+                key={`title-${currentVersion?.id || 'new'}`}
                 initial="hidden"
                 animate={showTitleSection ? "visible" : "hidden"}
                 variants={sectionVariants}
@@ -1012,6 +1164,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
               
               {/* Abstract Section */}
               <motion.div
+                key={`abstract-${currentVersion?.id || 'new'}`}
                 initial="hidden"
                 animate={showAbstractSection ? "visible" : "hidden"}
                 variants={sectionVariants}
@@ -1072,6 +1225,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
               
               {/* Brief Content Section */}
               <motion.div
+                key={`content-${currentVersion?.id || 'new'}`}
                 initial="hidden"
                 animate={showContentSection ? "visible" : "hidden"}
                 variants={sectionVariants}
@@ -1116,6 +1270,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
                     {isContentEditing ? (
                       <div>
                         <textarea
+                          ref={contentTextareaRef}
                           defaultValue={briefData?.content ?? ""}
                           className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[300px]"
                           onBlur={(e) => handleContentEdit(e.target.value)}
@@ -1180,36 +1335,59 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
                                   <p className="font-medium text-gray-800 mb-1">
                                     "{reference.highlightedText}"
                                   </p>
-                                  <a 
-                                    href={reference.source.url} 
-                                    target="_blank" 
+                                  <a
+                                    href={reference.source.url}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-blue-600 hover:underline text-xs"
                                   >
                                     {reference.source.title}
                                   </a>
                                 </div>
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const result = await deleteBriefReference(reference.id);
-                                      if (result.success) {
-                                        setBriefReferences(prev => prev.filter(r => r.id !== reference.id));
-                                        setSuccessMessage('Reference deleted successfully!');
-                                        setTimeout(() => setSuccessMessage(null), 3000);
-                                      } else {
-                                        setError(result.error || 'Failed to delete reference');
+                                <div className="flex items-center gap-1">
+                                  {isContentEditing && (
+                                    <TooltipWrapper
+                                      content="Insert reference into summary"
+                                      position="left"
+                                    >
+                                      <button
+                                        onMouseDown={(e) => {
+                                          e.preventDefault(); // Prevent textarea from losing focus
+                                        }}
+                                        onClick={() => handleInsertReference(
+                                          reference.highlightedText,
+                                          reference.source.url,
+                                          reference.source.title
+                                        )}
+                                        className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1 rounded"
+                                        title="Insert into summary"
+                                      >
+                                        <Plus size={16} />
+                                      </button>
+                                    </TooltipWrapper>
+                                  )}
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const result = await deleteBriefReference(reference.id);
+                                        if (result.success) {
+                                          setBriefReferences(prev => prev.filter(r => r.id !== reference.id));
+                                          setSuccessMessage('Reference deleted successfully!');
+                                          setTimeout(() => setSuccessMessage(null), 3000);
+                                        } else {
+                                          setError(result.error || 'Failed to delete reference');
+                                        }
+                                      } catch (error) {
+                                        console.error('Error deleting reference:', error);
+                                        setError('Failed to delete reference');
                                       }
-                                    } catch (error) {
-                                      console.error('Error deleting reference:', error);
-                                      setError('Failed to delete reference');
-                                    }
-                                  }}
-                                  className="text-red-500 hover:text-red-700 p-1"
-                                  title="Delete reference"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                    }}
+                                    className="text-red-500 hover:text-red-700 p-1"
+                                    title="Delete reference"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -1259,6 +1437,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
 
               {/* Metadata Section */}
               <motion.div
+                key={`metadata-${currentVersion?.id || 'new'}`}
                 initial="hidden"
                 animate={showMetadataSection ? "visible" : "hidden"}
                 variants={sectionVariants}
@@ -1297,14 +1476,22 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
                   // Edit mode - show save buttons
                   <>
                     {hasUnsavedChanges && (
-                      <button
-                        onClick={handleSaveDraft}
-                        className={`px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors ${
-                          highlightSave ? 'flash-gradient' : ''
-                        }`}
-                      >
-                        Save Draft
-                      </button>
+                      <>
+                        <button
+                          onClick={handleSaveDraft}
+                          className={`px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors ${
+                            highlightSave ? 'flash-gradient' : ''
+                          }`}
+                        >
+                          Save Draft
+                        </button>
+                        <button
+                          onClick={handleUpdateCurrent}
+                          className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors shadow-lg"
+                        >
+                          Update Brief
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => {

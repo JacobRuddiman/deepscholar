@@ -4,7 +4,7 @@
 import React from 'react';
 import { AlertTriangle, X, Database, Users, FileText, MessageSquare, CreditCard, Tag, Link, Mail } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
-import { DatabaseSafetyCheck } from '@/server/actions/seed';
+import { DatabaseSafetyCheck as ImportedDatabaseSafetyCheck } from '@/server/actions/seed';
 
 interface DatabaseSafetyModalProps {
   isOpen: boolean;
@@ -13,21 +13,13 @@ interface DatabaseSafetyModalProps {
   safetyCheck: DatabaseSafetyCheck;
 }
 
-export interface DatabaseSafetyCheck {
-  isSafe: boolean;
+export interface DatabaseSafetyCheck extends Omit<ImportedDatabaseSafetyCheck, 'nonSeedData'> {
   nonSeedData: {
     type: string;
     count: number;
     examples: string[];
     confidence: 'high' | 'medium' | 'low'; // Confidence level
   }[];
-  totalNonSeedRecords: number;
-  warnings: string[];
-  seedingMetadata?: {
-    lastSeedDate?: Date;
-    seedVersion?: string;
-    totalSeedRecords?: number;
-  };
 }
 
 const getIconForDataType = (type: string) => {

@@ -279,6 +279,11 @@ export interface DatabaseSafetyCheck {
   }[];
   totalNonSeedRecords: number;
   warnings: string[];
+  seedingMetadata?: {
+    lastSeedDate?: Date;
+    seedVersion?: string;
+    totalSeedRecords?: number;
+  };
 }
 // Add seeding metadata tracking
 export async function trackSeedingMetadata(config: SeedConfig, summary: any) {
@@ -410,7 +415,7 @@ function getRandomElement<T>(array: T[]): T {
   if (array.length === 0) {
     throw new Error('Cannot get random element from empty array');
   }
-  return array[Math.floor(Math.random() * array.length)];
+  return array[Math.floor(Math.random() * array.length)]!;
 }
 
 function getRandomElements<T>(array: T[], count: number): T[] {
@@ -427,12 +432,12 @@ function getRandomFloat(min: number, max: number, decimals: number = 2): number 
   return parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
 }
 
-function getWeightedRandom<T>(weights: Record<T, number>): T {
+function getWeightedRandom<T extends PropertyKey>(weights: Record<T, number>): T {
   const entries = Object.entries(weights) as [T, number][];
   const totalWeight = entries.reduce((sum, [_, weight]) => sum + weight, 0);
   
   if (totalWeight === 0) {
-    return entries[0][0];
+    return entries[0]![0];
   }
   
   let random = Math.random() * totalWeight;
@@ -441,8 +446,8 @@ function getWeightedRandom<T>(weights: Record<T, number>): T {
     random -= weight;
     if (random <= 0) return value;
   }
-  
-  return entries[0][0];
+
+  return entries[0]![0];
 }
 
 function getSkewedDate(config: SeedConfig): Date {
@@ -942,7 +947,7 @@ async function createUsers(config: SeedConfig, createdData: any) {
     let createdAt: Date;
     if (config.relationalPatterns?.temporalClustering !== 'none' && cohortDates.length > 0) {
       const cohortIndex = Math.floor(i / cohortSize);
-      const cohortDate = cohortDates[Math.min(cohortIndex, cohortDates.length - 1)];
+      const cohortDate = cohortDates[Math.min(cohortIndex, cohortDates.length - 1)]!;
       const variance = 7 * 24 * 60 * 60 * 1000; // 7 days variance
       createdAt = new Date(cohortDate.getTime() +  (Math.random() - 0.5) * variance);
     } else {
@@ -954,7 +959,7 @@ async function createUsers(config: SeedConfig, createdData: any) {
         name: faker.person.fullName(),
         email: faker.internet.email().toLowerCase(),
         emailVerified: isEmailVerified ? faker.date.between({ from: createdAt, to: new Date() }) : null,
-        image: faker.image.avatar(),
+        image: null, // Use app's default avatar system to avoid CDN timeouts
         isAdmin,
         lastInteractionDate: isPowerUser ? faker.date.recent() : faker.date.between({ from: createdAt, to: new Date() }),
         lastPromotionEmailDate: faker.date.between({ from: createdAt, to: new Date() }),
@@ -1043,12 +1048,12 @@ async function createCategories(config: SeedConfig) {
   const distribution = config.relationalPatterns?.categoryDistribution || 'balanced';
   
   for (let i = 0; i < customCategories.length; i++) {
-    const categoryName = customCategories[i];
-    
+    const categoryName = customCategories[i]!;
+
     // Adjust description based on distribution
     let description = getRandomElement(sampleData.categoryDescriptions);
     if (distribution === 'hierarchical' && i > 5) {
-      description = `Subcategory of ${customCategories[i % 5]}. ${description}`;
+      description = `Subcategory of ${customCategories[i % 5]!}. ${description}`;
     }
     
     const category = await db.category.create({
@@ -1084,7 +1089,7 @@ async function createSources(config: SeedConfig) {
 }
 
 async function createBriefs(config: SeedConfig, createdData: any) {
-  const briefs = [];
+  const briefs: any[] = [];
   const briefCount = config.briefs?.count || 500;
   
   // Check prerequisites
@@ -1212,13 +1217,13 @@ async function createBriefs(config: SeedConfig, createdData: any) {
         thinking: Math.random() < (config.briefs?.withThinkingRatio || 0.3)
           ? getRandomElement(sampleData.briefThinking)
           : null,
-        modelId: getRandomElement(createdData.researchAIModels).id,
+        modelId: (getRandomElement(createdData.researchAIModels) as any).id,
         userId: author.id,
         categories: selectedCategories.length > 0 ? {
-          connect: selectedCategories.map(c => ({ id: c.id })),
+          connect: selectedCategories.map((c: any) => ({ id: c.id })),
         } : undefined,
         sources: selectedSources.length > 0 ? {
-          connect: selectedSources.map(s => ({ id: s.id })),
+          connect: selectedSources.map((s: any) => ({ id: s.id })),
         } : undefined,
         viewCount,
         readTime: getRandomInt(...(config.briefs?.readTimeRange || [3, 30])),
@@ -1246,7 +1251,7 @@ async function createBriefs(config: SeedConfig, createdData: any) {
       await db.briefReference.create({
         data: {
           briefId: brief.id,
-          sourceId: selectedSources[j].id,
+          sourceId: (selectedSources[j] as any).id,
           highlightedText: getRandomElement(sampleData.highlightedTexts),
           context: Math.random() > 0.5 ? getRandomElement(sampleData.referenceContexts) : null,
         },
@@ -1274,7 +1279,7 @@ if (config.briefs?.versionsEnabled && briefs.length > 0) {
           response: getRandomElement(sampleData.briefResponses),
           abstract: parentBrief.abstract,
           thinking: parentBrief.thinking,
-          modelId: getRandomElement(createdData.researchAIModels).id,
+          modelId: (getRandomElement(createdData.researchAIModels) as any).id,
           userId: parentBrief.userId,
           viewCount: Math.floor(parentBrief.viewCount * Math.pow(0.7, v - 1)),
           readTime: parentBrief.readTime,
@@ -1367,7 +1372,7 @@ async function createReviews(config: SeedConfig, createdData: any) {
       
       const review = await db.review.create({
         data: {
-          content: getRandomElement(sampleData.reviewContents[rating] || sampleData.reviewContents[3]),
+          content: getRandomElement(sampleData.reviewContents[rating] || sampleData.reviewContents[3]!),
           rating,
           briefId: brief.id,
           userId: author.id,
@@ -1405,11 +1410,11 @@ async function createAIReviews(config: SeedConfig, createdData: any) {
       
       const aiReview = await db.aIReview.create({
         data: {
-          content: getRandomElement(sampleData.aiReviewContents[rating] || sampleData.aiReviewContents[4]),
+          content: getRandomElement(sampleData.aiReviewContents[rating] || sampleData.aiReviewContents[4]!),
           rating,
           briefId: brief.id,
-          modelId: getRandomElement(createdData.reviewAIModels).id,
-          requesterId: Math.random() > 0.5 ? getRandomElement(createdData.users).id : null,
+          modelId: (getRandomElement(createdData.reviewAIModels) as any).id,
+          requesterId: Math.random() > 0.5 ? (getRandomElement(createdData.users) as any).id : null,
           helpfulCount: getRandomInt(0, 50),
           createdAt: faker.date.between({ 
             from: brief.createdAt, 
@@ -1479,12 +1484,13 @@ async function createUpvotes(config: SeedConfig, createdData: any) {
     const selectedReviews = getRandomElements(createdData.reviews, actualUpvoteCount);
     
     for (const review of selectedReviews) {
+      const typedReview = review as any;
       await db.reviewUpvote.create({
         data: {
-          reviewId: review.id,
+          reviewId: typedReview.id,
           userId: user.id,
-          createdAt: faker.date.between({ 
-            from: review.createdAt, 
+          createdAt: faker.date.between({
+            from: typedReview.createdAt, 
             to: new Date() 
           }),
         },
@@ -1508,15 +1514,16 @@ async function createSavedBriefs(config: SeedConfig, createdData: any) {
       const selectedBriefs = getRandomElements(createdData.briefs, actualSaveCount);
       
       for (const brief of selectedBriefs) {
+        const typedBrief = brief as any;
         // Quality bias - better briefs more likely to be saved
-        if (brief.accuracy < 3.5 && Math.random() > 0.3) continue;
-        
+        if (typedBrief.accuracy < 3.5 && Math.random() > 0.3) continue;
+
         await db.savedBrief.create({
           data: {
             userId: user.id,
-            briefId: brief.id,
-            createdAt: faker.date.between({ 
-              from: brief.createdAt, 
+            briefId: typedBrief.id,
+            createdAt: faker.date.between({
+              from: typedBrief.createdAt, 
               to: new Date() 
             }),
           },
@@ -1541,12 +1548,13 @@ async function createBriefViews(config: SeedConfig, createdData: any) {
       const selectedBriefs = getRandomElements(createdData.briefs, actualViewCount);
       
       for (const brief of selectedBriefs) {
+        const typedBrief = brief as any;
         await db.briefView.create({
           data: {
             userId: user.id,
-            briefId: brief.id,
-            createdAt: faker.date.between({ 
-              from: brief.createdAt, 
+            briefId: typedBrief.id,
+            createdAt: faker.date.between({
+              from: typedBrief.createdAt, 
               to: new Date() 
             }),
           },
@@ -1559,9 +1567,9 @@ async function createBriefViews(config: SeedConfig, createdData: any) {
             await db.briefView.create({
               data: {
                 userId: user.id,
-                briefId: brief.id,
-                createdAt: faker.date.between({ 
-                  from: brief.createdAt, 
+                briefId: typedBrief.id,
+                createdAt: faker.date.between({
+                  from: typedBrief.createdAt, 
                   to: new Date() 
                 }),
               },
@@ -1622,8 +1630,8 @@ async function createTokenData(config: SeedConfig, createdData: any) {
       const purchaseCount = isWhale ? getRandomInt(3, 10) : getRandomInt(1, 3);
       
       for (let i = 0; i < purchaseCount; i++) {
-        const tokenPackage = isWhale 
-          ? tokenPackages[tokenPackages.length - 1] // Whales buy big packages
+        const tokenPackage = isWhale
+          ? tokenPackages[tokenPackages.length - 1]! // Whales buy big packages
           : getRandomElement(tokenPackages);
         
         const purchaseDate = faker.date.between({ 
@@ -1686,7 +1694,7 @@ async function createTokenData(config: SeedConfig, createdData: any) {
           amount: adjustedAmount,
           reason: transaction.reason,
           briefId: transaction.reason === 'Brief creation' && userBriefs.length > 0
-            ? getRandomElement(userBriefs)?.id 
+            ? (getRandomElement(userBriefs) as any)?.id
             : null,
           createdAt: faker.date.between({ 
             from: user.createdAt, 
@@ -1721,7 +1729,7 @@ async function createExportHistory(config: SeedConfig, createdData: any) {
       
       let targetId: string;
       if (exportType === 'brief' && createdData.briefs.length > 0) {
-        targetId = getRandomElement(createdData.briefs).id;
+        targetId = (getRandomElement(createdData.briefs) as any).id;
       } else {
         targetId = user.id;
       }
@@ -1878,13 +1886,13 @@ export async function seedFromConsole(args: string[]) {
         config.deleteAll = false;
         break;
       case '--users':
-        config.users!.count = parseInt(args[++i]);
+        config.users!.count = parseInt(args[++i]!);
         break;
       case '--briefs':
-        config.briefs!.count = parseInt(args[++i]);
+        config.briefs!.count = parseInt(args[++i]!);
         break;
       case '--sources':
-        config.sources!.count = parseInt(args[++i]);
+        config.sources!.count = parseInt(args[++i]!);
         break;
       case '--power-users':
         config.dataSkew!.powerUsers = true;
@@ -1916,11 +1924,11 @@ Examples:
 }
 
 // Export configuration validation
-export async function validateSeedConfig(config: any): { valid: boolean; errors: string[] } {
+export async function validateSeedConfig(config: any): Promise<{ valid: boolean; errors: string[] }> {
   return validateConfig(config as SeedConfig);
 }
 
 // Export configuration template
-export async function getConfigTemplate(): SeedConfig {
+export async function getConfigTemplate(): Promise<SeedConfig> {
   return { ...DEFAULT_CONFIG };
 }

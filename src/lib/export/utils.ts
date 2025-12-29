@@ -1,10 +1,15 @@
 /**
  * Export Utilities
- * 
+ *
  * Common utility functions for export operations
  */
 
 import { ExportFormat, ExportType, ExportMetadata } from './types';
+import { logger } from '@/lib/logger';
+import { gzip } from 'zlib';
+import { promisify } from 'util';
+
+const gzipAsync = promisify(gzip);
 
 export class ExportUtils {
   /**
@@ -101,15 +106,39 @@ export class ExportUtils {
   }
 
   /**
-   * Compress data if needed
+   * Compress data using gzip compression
+   * Only compress if the data is larger than 1KB to avoid overhead
    */
   static async compressData(data: string | Buffer): Promise<Buffer> {
-    // TODO: Implement compression using zlib or similar
-    // For now, just return the data as buffer
-    if (typeof data === 'string') {
-      return Buffer.from(data, 'utf-8');
+    try {
+      const buffer = typeof data === 'string' ? Buffer.from(data, 'utf-8') : data;
+
+      // Only compress if data is larger than 1KB (1024 bytes)
+      // Smaller files don't benefit from compression and may actually get larger
+      if (buffer.length < 1024) {
+        return buffer;
+      }
+
+      const compressed = await gzipAsync(buffer);
+
+      // Only return compressed version if it's actually smaller
+      if (compressed.length < buffer.length) {
+        logger.debug('Data compressed', {
+          originalSize: buffer.length,
+          compressedSize: compressed.length,
+          ratio: ((1 - compressed.length / buffer.length) * 100).toFixed(2) + '%',
+        });
+        return compressed;
+      }
+
+      // If compression didn't help, return original
+      return buffer;
+    } catch (error) {
+      logger.error('Failed to compress data', error);
+      // If compression fails, return the data as-is
+      const buffer = typeof data === 'string' ? Buffer.from(data, 'utf-8') : data;
+      return buffer;
     }
-    return data;
   }
 
   /**
@@ -261,18 +290,15 @@ export class ExportUtils {
     fileSize?: number,
     processingTime?: number
   ): void {
-    const logEntry = {
-      timestamp: new Date().toISOString(),
+    logger.export('Export activity logged', {
       userId,
       type,
       format,
       success,
       fileSize,
-      processingTime
-    };
-    
-    // TODO: Implement actual logging (database, file, or external service)
-    console.log('Export Activity:', logEntry);
+      processingTime,
+      timestamp: new Date().toISOString(),
+    });
   }
 }
 

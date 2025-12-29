@@ -4,19 +4,15 @@ import { prisma } from '@/lib/prisma';
 import { createReviewSchema, validateInput } from '@/lib/validation';
 import { getUserId } from './utils';
 
-// Get all briefs saved by the current user
+/**
+ * Get all briefs saved by the current user
+ */
 export async function getSavedBriefs() {
   try {
-    console.log('Starting getSavedBriefs');
-    
     const userId = await getUserId();
-    console.log('Using userId:', userId);
 
-    console.log('Querying database for saved briefs');
     const savedBriefs = await prisma.savedBrief.findMany({
-      where: {
-        userId,
-      },
+      where: { userId },
       include: {
         brief: {
           include: {
@@ -35,11 +31,8 @@ export async function getSavedBriefs() {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
-    console.log(`Found ${savedBriefs.length} saved briefs`);
 
     // Extract the brief data from the savedBrief relationship
     const briefs = savedBriefs.map(savedBrief => savedBrief.brief);
@@ -49,11 +42,7 @@ export async function getSavedBriefs() {
       data: briefs,
     };
   } catch (error) {
-    console.error('Error fetching saved briefs:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
+    console.error('[Briefs] Failed to fetch saved briefs:', error);
     return {
       success: false,
       error: 'Failed to fetch saved briefs',
@@ -61,19 +50,15 @@ export async function getSavedBriefs() {
   }
 }
 
-// Get all reviews written by the current user
+/**
+ * Get all reviews written by the current user
+ */
 export async function getUserReviews() {
   try {
-    console.log('Starting getUserReviews');
-    
     const userId = await getUserId();
-    console.log('Using userId:', userId);
 
-    console.log('Querying database for user reviews');
     const reviews = await prisma.review.findMany({
-      where: {
-        userId,
-      },
+      where: { userId },
       include: {
         brief: {
           select: {
@@ -85,22 +70,15 @@ export async function getUserReviews() {
         upvotes: true,
         helpfulMarks: true,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
-    console.log(`Found ${reviews.length} user reviews`);
 
     return {
       success: true,
       data: reviews,
     };
   } catch (error) {
-    console.error('Error fetching user reviews:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
+    console.error('[Briefs] Failed to fetch user reviews:', error);
     return {
       success: false,
       error: 'Failed to fetch user reviews',
@@ -108,19 +86,15 @@ export async function getUserReviews() {
   }
 }
 
-// Get all upvotes given by the current user
+/**
+ * Get all upvotes given by the current user
+ */
 export async function getUserUpvotes() {
   try {
-    console.log('Starting getUserUpvotes');
-    
     const userId = await getUserId();
-    console.log('Using userId:', userId);
 
-    console.log('Querying database for user upvotes');
     const upvotes = await prisma.briefUpvote.findMany({
-      where: {
-        userId,
-      },
+      where: { userId },
       include: {
         brief: {
           select: {
@@ -130,22 +104,15 @@ export async function getUserUpvotes() {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
-    console.log(`Found ${upvotes.length} user upvotes`);
 
     return {
       success: true,
       data: upvotes,
     };
   } catch (error) {
-    console.error('Error fetching user upvotes:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
+    console.error('[Briefs] Failed to fetch user upvotes:', error);
     return {
       success: false,
       error: 'Failed to fetch user upvotes',
@@ -153,17 +120,17 @@ export async function getUserUpvotes() {
   }
 }
 
-// Toggle brief upvote
+/**
+ * Toggle upvote status for a brief
+ * @param briefId - The ID of the brief to upvote/unupvote
+ */
 export async function toggleBriefUpvote(briefId: string) {
   try {
     const userId = await getUserId();
 
     // Check if user has already upvoted
     const existingUpvote = await prisma.briefUpvote.findFirst({
-      where: {
-        briefId: briefId,
-        userId: userId,
-      },
+      where: { briefId, userId },
     });
 
     if (existingUpvote) {
@@ -171,25 +138,16 @@ export async function toggleBriefUpvote(briefId: string) {
       await prisma.briefUpvote.delete({
         where: { id: existingUpvote.id },
       });
-      return {
-        success: true,
-        upvoted: false,
-      };
-    } else {
-      // Add upvote
-      await prisma.briefUpvote.create({
-        data: {
-          briefId: briefId,
-          userId: userId,
-        },
-      });
-      return {
-        success: true,
-        upvoted: true,
-      };
+      return { success: true, upvoted: false };
     }
+
+    // Add upvote
+    await prisma.briefUpvote.create({
+      data: { briefId, userId },
+    });
+    return { success: true, upvoted: true };
   } catch (error) {
-    console.error('Error toggling brief upvote:', error);
+    console.error('[Briefs] Failed to toggle upvote:', error);
     return {
       success: false,
       error: 'Failed to toggle upvote',
@@ -197,17 +155,17 @@ export async function toggleBriefUpvote(briefId: string) {
   }
 }
 
-// Toggle brief save
+/**
+ * Toggle saved status for a brief
+ * @param briefId - The ID of the brief to save/unsave
+ */
 export async function toggleBriefSave(briefId: string) {
   try {
     const userId = await getUserId();
 
     // Check if user has already saved
     const existingSave = await prisma.savedBrief.findFirst({
-      where: {
-        briefId: briefId,
-        userId: userId,
-      },
+      where: { briefId, userId },
     });
 
     if (existingSave) {
@@ -215,25 +173,16 @@ export async function toggleBriefSave(briefId: string) {
       await prisma.savedBrief.delete({
         where: { id: existingSave.id },
       });
-      return {
-        success: true,
-        saved: false,
-      };
-    } else {
-      // Add save
-      await prisma.savedBrief.create({
-        data: {
-          briefId: briefId,
-          userId: userId,
-        },
-      });
-      return {
-        success: true,
-        saved: true,
-      };
+      return { success: true, saved: false };
     }
+
+    // Add save
+    await prisma.savedBrief.create({
+      data: { briefId, userId },
+    });
+    return { success: true, saved: true };
   } catch (error) {
-    console.error('Error toggling brief save:', error);
+    console.error('[Briefs] Failed to toggle save:', error);
     return {
       success: false,
       error: 'Failed to toggle save',
@@ -241,7 +190,12 @@ export async function toggleBriefSave(briefId: string) {
   }
 }
 
-// Add brief review
+/**
+ * Add a review to a brief
+ * @param briefId - The ID of the brief to review
+ * @param content - The review content
+ * @param rating - The rating (1-5)
+ */
 export async function addBriefReview(briefId: string, content: string, rating: number) {
   try {
     const userId = await getUserId();
@@ -257,10 +211,7 @@ export async function addBriefReview(briefId: string, content: string, rating: n
 
     // Check if user has already reviewed this brief
     const existingReview = await prisma.review.findFirst({
-      where: {
-        briefId: briefId,
-        userId: userId,
-      },
+      where: { briefId, userId },
     });
 
     if (existingReview) {
@@ -271,12 +222,7 @@ export async function addBriefReview(briefId: string, content: string, rating: n
     }
 
     const review = await prisma.review.create({
-      data: {
-        content: content,
-        rating: rating,
-        briefId: briefId,
-        userId: userId,
-      },
+      data: { content, rating, briefId, userId },
       include: {
         author: {
           select: {
@@ -295,7 +241,7 @@ export async function addBriefReview(briefId: string, content: string, rating: n
       data: review,
     };
   } catch (error) {
-    console.error('Error adding brief review:', error);
+    console.error('[Briefs] Failed to add review:', error);
     return {
       success: false,
       error: 'Failed to add review',
@@ -303,7 +249,10 @@ export async function addBriefReview(briefId: string, content: string, rating: n
   }
 }
 
-// Delete brief review
+/**
+ * Delete a review
+ * @param reviewId - The ID of the review to delete
+ */
 export async function deleteBriefReview(reviewId: string) {
   try {
     const userId = await getUserId();
@@ -321,25 +270,16 @@ export async function deleteBriefReview(reviewId: string) {
       };
     }
 
-    // Delete related records first
-    await prisma.reviewHelpful.deleteMany({
-      where: { reviewId: reviewId },
-    });
+    // Delete related records first (Prisma cascade might handle this, but being explicit)
+    await prisma.$transaction([
+      prisma.reviewHelpful.deleteMany({ where: { reviewId } }),
+      prisma.reviewUpvote.deleteMany({ where: { reviewId } }),
+      prisma.review.delete({ where: { id: reviewId } }),
+    ]);
 
-    await prisma.reviewUpvote.deleteMany({
-      where: { reviewId: reviewId },
-    });
-
-    // Delete the review
-    await prisma.review.delete({
-      where: { id: reviewId },
-    });
-
-    return {
-      success: true,
-    };
+    return { success: true };
   } catch (error) {
-    console.error('Error deleting brief review:', error);
+    console.error('[Briefs] Failed to delete review:', error);
     return {
       success: false,
       error: 'Failed to delete review',

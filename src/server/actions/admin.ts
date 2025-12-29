@@ -1,6 +1,8 @@
 'use server';
 
 import { db } from "@/server/db";
+import { auth } from '@/server/auth';
+import { LOCAL_USER } from '@/lib/localMode';
 
 // Get dashboard statistics
 export async function getAdminStats() {
@@ -392,12 +394,12 @@ export async function getAdminAIReviews(params: {
 }
 
 
-// Helper function to get admin user ID with LOCAL mode support
+// Helper function to get admin user ID with LOCAL_AUTH mode support
 async function getAdminUserId() {
-  const isLocalMode = process.env.NEXT_PUBLIC_LOCAL_MODE === 'true';
-  
-  if (isLocalMode) {
-    return 'local-user-1'; // Assume local user is admin
+  const { isLocalAuth } = await import('@/lib/localMode');
+
+  if (isLocalAuth()) {
+    return LOCAL_USER.id; // Assume local user is admin
   } else {
     const session = await auth();
     if (!session?.user?.id) {
@@ -604,8 +606,6 @@ export async function getAdminModels({
             id: true,
             title: true,
             viewCount: true,
-            upvoteCount: true,
-            averageRating: true,
           },
         },
       },
@@ -794,8 +794,8 @@ export async function refreshUserRecommendations(userId?: string) {
 
 // Update user recommendation data
 export async function updateUserRecommendation(
-  recommendationId: string, 
-  updates: Partial<UserRecommendation>
+  recommendationId: string,
+  updates: Partial<any>
 ) {
   try {
     await getAdminUserId(); // Verify admin access

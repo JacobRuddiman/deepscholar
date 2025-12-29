@@ -31,7 +31,8 @@ import { generateConsoleCommand } from './utils/commandGenerator';
 
 import { DatabaseSafetyModal } from './components/DatabaseSafetyModal';
 import { verifyDatabaseSafety } from '@/server/actions/seed/safety';
-import { DatabaseSafetyCheck } from '@/server/actions/seed/index';
+import { DatabaseSafetyCheck as SeedDatabaseSafetyCheck } from '@/server/actions/seed/index';
+import { DatabaseSafetyCheck } from './components/DatabaseSafetyModal';
 
 
 export default function DataSynthPage() {
@@ -62,7 +63,15 @@ const handleSeed = async (forceOverride: boolean = false) => {
     
     try {
       const safety = await verifyDatabaseSafety();
-      setSafetyCheck(safety);
+      // Transform to add confidence field
+      const transformedSafety: DatabaseSafetyCheck = {
+        ...safety,
+        nonSeedData: safety.nonSeedData.map(item => ({
+          ...item,
+          confidence: 'medium' as const
+        }))
+      };
+      setSafetyCheck(transformedSafety);
       
       if (!safety.isSafe) {
         setShowSafetyModal(true);
@@ -270,7 +279,7 @@ const handleSafetyCancel = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Button
-                onClick={handleSeed}
+                onClick={() => handleSeed()}
                 disabled={isSeeding}
                 className="bg-blue-600 hover:bg-blue-700"
               >

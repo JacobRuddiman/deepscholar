@@ -85,7 +85,7 @@ export default function MobileBriefEditor({ onSubmit, initialData, briefId, isOw
       setEditingTitle(transformedData.title);
       setEditingAbstract(transformedData.abstract);
       setEditingContent(transformedData.content);
-      setTheme(determineTheme(transformedData.model));
+      setTheme(determineTheme(transformedData));
       setCurrentStep(briefId ? 'title' : 'input');
     }
   }, [initialData, briefId]);
@@ -122,7 +122,7 @@ export default function MobileBriefEditor({ onSubmit, initialData, briefId, isOw
       setEditingTitle(data.title);
       setEditingAbstract(data.abstract);
       setEditingContent(data.content);
-      setTheme(determineTheme(data.model));
+      setTheme(determineTheme(data));
       setCurrentStep('title');
       
     } catch (error) {
@@ -136,7 +136,7 @@ export default function MobileBriefEditor({ onSubmit, initialData, briefId, isOw
     const steps: MobileStep[] = ['input', 'title', 'abstract', 'content', 'sources', 'review'];
     const currentIndex = steps.indexOf(currentStep);
     if (currentIndex < steps.length - 1) {
-      setCurrentStep(steps[currentIndex + 1]);
+      setCurrentStep(steps[currentIndex + 1]!);
     }
   };
 
@@ -144,7 +144,7 @@ export default function MobileBriefEditor({ onSubmit, initialData, briefId, isOw
     const steps: MobileStep[] = ['input', 'title', 'abstract', 'content', 'sources', 'review'];
     const currentIndex = steps.indexOf(currentStep);
     if (currentIndex > 0) {
-      setCurrentStep(steps[currentIndex - 1]);
+      setCurrentStep(steps[currentIndex - 1]!);
     }
   };
 

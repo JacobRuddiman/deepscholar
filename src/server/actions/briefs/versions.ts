@@ -3,9 +3,22 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from "next/cache";
 import { sanitizeHtml, sanitizeText } from '@/lib/validation';
-import { getUserId } from './utils';
+import { getUserId, isResourceOwner } from './utils';
 
-// Get all versions of a brief
+interface BriefVersionData {
+  title: string;
+  abstract?: string;
+  prompt: string;
+  response: string;
+  thinking?: string;
+  categoryIds?: string[];
+  sourceIds?: string[];
+}
+
+/**
+ * Get all versions of a brief (including drafts)
+ * @param briefId - The ID of any brief in the version family
+ */
 export async function getBriefVersions(briefId: string) {
   try {
     const userId = await getUserId();
@@ -57,10 +70,10 @@ export async function getBriefVersions(briefId: string) {
     return {
       success: true,
       data: versions,
-      isOwner: brief.userId === userId,
+      isOwner: await isResourceOwner(brief.userId),
     };
   } catch (error) {
-    console.error('Error fetching brief versions:', error);
+    console.error('[Briefs] Failed to fetch brief versions:', error);
     return {
       success: false,
       error: 'Failed to fetch brief versions',
@@ -68,18 +81,16 @@ export async function getBriefVersions(briefId: string) {
   }
 }
 
-// Create a new version of a brief
+/**
+ * Create a new version of a brief
+ * Sets all previous versions to inactive and creates a new active version
+ * @param parentBriefId - The ID of the parent brief
+ * @param briefData - The data for the new version
+ * @param changeLog - Description of changes in this version
+ */
 export async function createBriefVersion(
-  parentBriefId: string, 
-  briefData: {
-    title: string;
-    abstract?: string;
-    prompt: string;
-    response: string;
-    thinking?: string;
-    categoryIds?: string[];
-    sourceIds?: string[];
-  },
+  parentBriefId: string,
+  briefData: BriefVersionData,
   changeLog: string
 ) {
   try {
@@ -184,26 +195,22 @@ export async function createBriefVersion(
       data: newVersion,
     };
   } catch (error) {
-    console.error('Error creating brief version:', error);
+    console.error('[Briefs] Failed to create brief version:', error);
     return {
       success: false,
-      error: 'Failed to create brief version',
+      error: error instanceof Error ? error.message : 'Failed to create brief version',
     };
   }
 }
 
-// Update an existing version or draft
+/**
+ * Update an existing version or draft
+ * @param briefId - The ID of the brief to update
+ * @param briefData - The updated data
+ */
 export async function updateBriefVersion(
   briefId: string,
-  briefData: {
-    title: string;
-    abstract?: string;
-    prompt: string;
-    response: string;
-    thinking?: string;
-    categoryIds?: string[];
-    sourceIds?: string[];
-  }
+  briefData: BriefVersionData
 ) {
   try {
     const userId = await getUserId();
@@ -230,12 +237,12 @@ export async function updateBriefVersion(
         prompt: briefData.prompt,
         response: briefData.response,
         thinking: briefData.thinking,
-        ...(briefData.categoryIds && {
+        ...(briefData.categoryIds && briefData.categoryIds.length > 0 && {
           categories: {
             set: briefData.categoryIds.map(id => ({ id })),
           },
         }),
-        ...(briefData.sourceIds && {
+        ...(briefData.sourceIds && briefData.sourceIds.length > 0 && {
           sources: {
             set: briefData.sourceIds.map(id => ({ id })),
           },
@@ -255,31 +262,31 @@ export async function updateBriefVersion(
       },
     });
 
+    revalidatePath('/my-briefs');
+    revalidatePath(`/briefs/${briefId}`);
+
     return {
       success: true,
       data: updatedBrief,
     };
   } catch (error) {
-    console.error('Error updating brief version:', error);
+    console.error('[Briefs] Failed to update brief version:', error);
     return {
       success: false,
-      error: 'Failed to update brief version',
+      error: error instanceof Error ? error.message : 'Failed to update brief version',
     };
   }
 }
 
-// Save current edits as a draft version
+/**
+ * Save current edits as a draft version
+ * Creates a new draft or updates the oldest if max drafts (3) reached
+ * @param briefId - The ID of the brief to create a draft from
+ * @param briefData - The draft data
+ */
 export async function saveBriefDraft(
   briefId: string,
-  briefData: {
-    title: string;
-    abstract?: string;
-    prompt: string;
-    response: string;
-    thinking?: string;
-    categoryIds?: string[];
-    sourceIds?: string[];
-  }
+  briefData: BriefVersionData
 ) {
   try {
     const userId = await getUserId();
@@ -344,12 +351,12 @@ export async function saveBriefDraft(
           response: briefData.response,
           thinking: briefData.thinking,
           changeLog: `Draft changes - ${new Date().toLocaleString()}`,
-          ...(briefData.categoryIds && {
+          ...(briefData.categoryIds && briefData.categoryIds.length > 0 && {
             categories: {
               set: briefData.categoryIds.map(id => ({ id })),
             },
           }),
-          ...(briefData.sourceIds && {
+          ...(briefData.sourceIds && briefData.sourceIds.length > 0 && {
             sources: {
               set: briefData.sourceIds.map(id => ({ id })),
             },
@@ -368,6 +375,9 @@ export async function saveBriefDraft(
           },
         },
       });
+
+      revalidatePath('/my-briefs');
+      revalidatePath(`/briefs/${briefId}`);
 
       return {
         success: true,
@@ -389,12 +399,12 @@ export async function saveBriefDraft(
           isDraft: true,
           published: false,
           changeLog: `Draft ${existingDrafts.length + 1} - ${new Date().toLocaleString()}`,
-          ...(briefData.categoryIds && {
+          ...(briefData.categoryIds && briefData.categoryIds.length > 0 && {
             categories: {
               connect: briefData.categoryIds.map(id => ({ id })),
             },
           }),
-          ...(briefData.sourceIds && {
+          ...(briefData.sourceIds && briefData.sourceIds.length > 0 && {
             sources: {
               connect: briefData.sourceIds.map(id => ({ id })),
             },
@@ -414,32 +424,31 @@ export async function saveBriefDraft(
         },
       });
 
+      revalidatePath('/my-briefs');
+      revalidatePath(`/briefs/${briefId}`);
+
       return {
         success: true,
         data: draft,
       };
     }
   } catch (error) {
-    console.error('Error saving brief draft:', error);
+    console.error('[Briefs] Failed to save brief draft:', error);
     return {
       success: false,
-      error: 'Failed to save brief draft',
+      error: error instanceof Error ? error.message : 'Failed to save brief draft',
     };
   }
 }
 
-// Push draft to version (update version with draft content and delete draft)
+/**
+ * Push draft to version (update version with draft content and delete draft)
+ * @param draftId - The ID of the draft to push
+ * @param briefData - The data to push to the version
+ */
 export async function pushDraftToVersion(
   draftId: string,
-  briefData: {
-    title: string;
-    abstract?: string;
-    prompt: string;
-    response: string;
-    thinking?: string;
-    categoryIds?: string[];
-    sourceIds?: string[];
-  }
+  briefData: BriefVersionData
 ) {
   try {
     const userId = await getUserId();
@@ -519,15 +528,19 @@ export async function pushDraftToVersion(
       data: updatedVersion,
     };
   } catch (error) {
-    console.error('Error pushing draft to version:', error);
+    console.error('[Briefs] Failed to push draft to version:', error);
     return {
       success: false,
-      error: 'Failed to push draft to version',
+      error: error instanceof Error ? error.message : 'Failed to push draft to version',
     };
   }
 }
 
-// Rename a version
+/**
+ * Update the change log for a version
+ * @param briefId - The ID of the brief version
+ * @param newChangeLog - The new change log text
+ */
 export async function renameBriefVersion(
   briefId: string,
   newChangeLog: string
@@ -558,15 +571,19 @@ export async function renameBriefVersion(
       data: updatedBrief,
     };
   } catch (error) {
-    console.error('Error renaming brief version:', error);
+    console.error('[Briefs] Failed to rename brief version:', error);
     return {
       success: false,
-      error: 'Failed to rename version',
+      error: error instanceof Error ? error.message : 'Failed to rename version',
     };
   }
 }
 
-// Set a version as the active version (only one can be active per brief family)
+/**
+ * Set a version as the active version
+ * Only one version can be active per brief family
+ * @param briefId - The ID of the version to set as active
+ */
 export async function setActiveVersion(briefId: string) {
   try {
     const userId = await getUserId();
@@ -616,14 +633,12 @@ export async function setActiveVersion(briefId: string) {
       },
     });
 
-    return {
-      success: true,
-    };
+    return { success: true };
   } catch (error) {
-    console.error('Error setting active version:', error);
+    console.error('[Briefs] Failed to set active version:', error);
     return {
       success: false,
-      error: 'Failed to set active version',
+      error: error instanceof Error ? error.message : 'Failed to set active version',
     };
   }
 }

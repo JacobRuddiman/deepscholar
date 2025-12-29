@@ -72,7 +72,7 @@ export default function ReviewsPage() {
         });
 
         if (result.success && result.data) {
-          setReviews(result.data.reviews);
+          setReviews(result.data.reviews as unknown as Review[]);
           setError(null);
         } else {
           setError(result.error ?? 'Failed to fetch reviews');
@@ -253,7 +253,14 @@ export default function ReviewsPage() {
 
   // Transform reviews for mobile component
   const mobileReviews = reviews.map(review => ({
-    ...review,
+    id: review.id,
+    content: review.content,
+    rating: review.rating,
+    author: review.author,
+    brief: {
+      id: review.brief.id,
+      title: review.brief.title
+    },
     helpful: review.helpfulMarks.length > 0,
     upvoteCount: review.upvotes.length,
     flagged: false, // Add flagged logic if needed
@@ -263,11 +270,18 @@ export default function ReviewsPage() {
 
   // Use mobile version on mobile devices
   if (isMobile) {
+    const handleMobileEditReview = (mobileReview: typeof mobileReviews[0]) => {
+      const fullReview = reviews.find(r => r.id === mobileReview.id);
+      if (fullReview) {
+        handleEditReview(fullReview);
+      }
+    };
+
     return (
       <MobileReviewsPage
         reviews={mobileReviews}
         onViewReview={handleViewReview}
-        onEditReview={handleEditReview}
+        onEditReview={handleMobileEditReview}
         onDeleteReview={handleDeleteReview}
         onToggleHelpful={handleToggleHelpful}
         onToggleFlag={handleToggleFlag}

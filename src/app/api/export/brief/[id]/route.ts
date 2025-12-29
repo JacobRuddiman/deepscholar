@@ -11,10 +11,11 @@ import { isLocalMode, getLocalSession } from '@/lib/localMode';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   console.log('🔍 Brief export API called');
-  console.log('📋 Params:', params);
+  console.log('📋 Params:', resolvedParams);
   console.log('🔗 URL:', request.url);
   
   try {
@@ -45,7 +46,7 @@ export async function GET(
 
     console.log('👤 User ID:', session.user.id);
 
-    const briefId = params.id;
+    const briefId = resolvedParams.id;
     const searchParams = request.nextUrl.searchParams;
     const format = searchParams.get('format') || 'json';
     const includeReferences = searchParams.get('includeReferences') === 'true';

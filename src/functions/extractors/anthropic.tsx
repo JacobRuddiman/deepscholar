@@ -62,7 +62,7 @@ export async function extractFromAnthropic(url: string): Promise<BriefData> {
       const originalQuery = window.navigator.permissions.query;
       window.navigator.permissions.query = (parameters) => (
         parameters.name === 'notifications' ?
-          Promise.resolve({ state: Notification.permission }) :
+          Promise.resolve({ state: Notification.permission } as PermissionStatus) :
           originalQuery(parameters)
       );
     });
@@ -94,7 +94,7 @@ export async function extractFromAnthropic(url: string): Promise<BriefData> {
     });
     
     // Wait a bit for any dynamic content to load
-    await page.waitForTimeout(3000);
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Check if we hit Cloudflare challenge
     const isCloudflareChallenge = await page.evaluate(() => {
@@ -343,7 +343,7 @@ export async function extractFromAnthropic(url: string): Promise<BriefData> {
       : "No references available";
     
     // Get model information
-    const model: "OpenAI" | "Perplexity" | "Anthropic" | "Other" = "Anthropic";
+    const model: "openai" | "perplexity" | "anthropic" | "other" = "anthropic";
     
     // Extract thinking content (this is usually not visible in Claude responses,
     // but we keep this as a placeholder)

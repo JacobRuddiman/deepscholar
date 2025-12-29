@@ -7,6 +7,7 @@ import BriefCard from './brief_card';
 import type { BriefCardProps } from './brief_card';
 import { useSession } from 'next-auth/react';
 import { isLocalMode, getLocalUser } from '@/lib/localMode';
+import { calculateAverageRating, calculateReadTime } from '@/lib/brief-utils';
 
 interface RecommendationScore {
   briefId: string;
@@ -32,12 +33,13 @@ interface RecommendationScore {
   };
 }
 
-// Transform recommendation to BriefCardProps
+/**
+ * Transform recommendation to BriefCardProps
+ * Uses shared utilities for consistent data transformation
+ */
 const transformRecommendation = (rec: RecommendationScore): BriefCardProps => {
   const reviewCount = rec.brief.reviews?.length ?? 0;
-  const averageRating = reviewCount > 0 
-    ? rec.brief.reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount 
-    : undefined;
+  const averageRating = calculateAverageRating(rec.brief.reviews);
 
   return {
     id: rec.brief.id,
@@ -45,17 +47,29 @@ const transformRecommendation = (rec: RecommendationScore): BriefCardProps => {
     abstract: rec.brief.abstract ?? '',
     model: rec.brief.model?.name ?? 'Unknown',
     date: new Date(rec.brief.createdAt).toISOString().split('T')[0]!,
-    readTime: `${Math.max(1, Math.ceil((rec.brief.response?.length ?? 0) / 1000))} min`,
+    readTime: `${calculateReadTime(rec.brief.response)} min`,
     category: rec.brief.categories?.[0]?.name ?? 'General',
     views: rec.brief.viewCount ?? 0,
     rating: averageRating,
-    reviewCount: reviewCount,
+    reviewCount,
     featured: rec.score > 70, // High recommendation score = featured
-    ...(rec.brief.slug && { slug: rec.brief.slug }),
+    _slug: rec.brief.slug ?? undefined,
     recommendationScore: Math.round(rec.score),
     _recommendationReasons: rec.reasons,
   };
 };
+
+const LoadingSkeleton: React.FC = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {Array.from({ length: 6 }).map((_, i) => (
+      <div key={i} className="bg-white rounded-lg shadow-sm p-4 animate-pulse">
+        <div className="h-4 bg-gray-200 rounded mb-2" />
+        <div className="h-3 bg-gray-200 rounded mb-2" />
+        <div className="h-3 bg-gray-200 rounded w-3/4" />
+      </div>
+    ))}
+  </div>
+);
 
 export default function ForYouSection() {
   const { data: session, status } = useSession();
@@ -78,7 +92,7 @@ export default function ForYouSection() {
             setError(result.error || 'Failed to fetch recommendations');
           }
         } catch (err) {
-          console.error('Failed to fetch recommendations:', err);
+          console.error('[ForYouSection] Failed to fetch recommendations:', err);
           setError('Failed to fetch recommendations');
         } finally {
           setLoading(false);
@@ -105,7 +119,7 @@ export default function ForYouSection() {
           setError(result.error || 'Failed to fetch recommendations');
         }
       } catch (err) {
-        console.error('Failed to fetch recommendations:', err);
+        console.error('[ForYouSection] Failed to fetch recommendations:', err);
         setError('Failed to fetch recommendations');
       } finally {
         setLoading(false);
@@ -182,18 +196,10 @@ export default function ForYouSection() {
           <span>Personalized recommendations</span>
         </div>
       </div>
-      
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-white rounded-lg shadow-sm p-4 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-            </div>
-          ))}
-        </div>
-      ) : (
+
+      {loading && <LoadingSkeleton />}
+
+      {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {recommendations.map((rec) => (
             <BriefCard key={rec.id} {...rec} compact showRecommendationScore />

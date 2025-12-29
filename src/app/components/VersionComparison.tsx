@@ -309,22 +309,50 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
 
   // Set default compare version when modal opens
   useEffect(() => {
-    if (isOpen && !rightVersionId && versions.length > 1) {
-      // Find a good default comparison target
+    if (isOpen && versions.length > 1) {
+      console.log('[VersionComparison] Setting up default versions');
+      console.log('[VersionComparison] Current version ID:', currentVersionId);
+      console.log('[VersionComparison] All versions:', versions);
+
+      // Reset selections when modal opens
+      setLeftVersionId(currentVersionId);
+
+      // Find a different version for comparison
       const currentIndex = versions.findIndex(v => v.id === currentVersionId);
-      if (currentIndex > 0) {
-        const prevVersion = versions[currentIndex - 1];
-        if (prevVersion) {
-          setRightVersionId(prevVersion.id);
+      console.log('[VersionComparison] Current index:', currentIndex);
+
+      let compareVersionId = '';
+
+      if (currentIndex !== -1) {
+        // Try to get the previous version first (to compare newer vs older)
+        if (currentIndex > 0) {
+          const prevVersion = versions[currentIndex - 1];
+          compareVersionId = prevVersion?.id || '';
+          console.log('[VersionComparison] Using previous version:', prevVersion);
         }
-      } else if (currentIndex < versions.length - 1) {
-        const nextVersion = versions[currentIndex + 1];
-        if (nextVersion) {
-          setRightVersionId(nextVersion.id);
+        // Otherwise get the next version
+        else if (currentIndex < versions.length - 1) {
+          const nextVersion = versions[currentIndex + 1];
+          compareVersionId = nextVersion?.id || '';
+          console.log('[VersionComparison] Using next version:', nextVersion);
         }
       }
+
+      // Fallback: if we still don't have a compare version, just use the first version that's not current
+      if (!compareVersionId) {
+        const otherVersion = versions.find(v => v.id !== currentVersionId);
+        compareVersionId = otherVersion?.id || '';
+        console.log('[VersionComparison] Using fallback version:', otherVersion);
+      }
+
+      console.log('[VersionComparison] Setting leftVersionId to:', currentVersionId);
+      console.log('[VersionComparison] Setting rightVersionId to:', compareVersionId);
+
+      if (compareVersionId && compareVersionId !== currentVersionId) {
+        setRightVersionId(compareVersionId);
+      }
     }
-  }, [isOpen, currentVersionId, rightVersionId, versions]);
+  }, [isOpen, currentVersionId, versions]);
 
   // Load brief data when version IDs change
   useEffect(() => {
@@ -348,7 +376,7 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
           id: leftResult.data.id,
           title: leftResult.data.title,
           abstract: leftResult.data.abstract || '',
-          response: leftResult.data.response || leftResult.data.content || '',
+          response: leftResult.data.response || (leftResult.data as any).content || '',
           thinking: leftResult.data.thinking || '',
           versionNumber: (leftResult.data as any).versionNumber || 1,
           isDraft: (leftResult.data as any).isDraft || false,
@@ -361,7 +389,7 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
           id: rightResult.data.id,
           title: rightResult.data.title,
           abstract: rightResult.data.abstract || '',
-          response: rightResult.data.response || rightResult.data.content || '',
+          response: rightResult.data.response || (rightResult.data as any).content || '',
           thinking: rightResult.data.thinking || '',
           versionNumber: (rightResult.data as any).versionNumber || 1,
           isDraft: (rightResult.data as any).isDraft || false,
@@ -427,28 +455,49 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
     return groups;
   }, [versions]);
 
-  const renderVersionOptions = (excludeId: string) => {
-    return Object.entries(groupedVersions)
+  const renderVersionOptions = (excludeId: string, dropdownName: string) => {
+    console.log(`[VersionComparison] Rendering ${dropdownName} dropdown, excluding:`, excludeId);
+
+    const options = Object.entries(groupedVersions)
       .sort(([a], [b]) => parseInt(b) - parseInt(a))
-      .map(([versionNumber, group]) => (
-        <React.Fragment key={versionNumber}>
-          {/* Published Version */}
-          {group.version && group.version.id !== excludeId && (
-            <option value={group.version.id}>
-              {getVersionDisplayName(group.version)}
-            </option>
-          )}
-          
-          {/* Drafts */}
-          {group.drafts
-            .filter(draft => draft.id !== excludeId)
-            .map((draft) => (
+      .flatMap(([versionNumber, group]) => {
+        const opts: JSX.Element[] = [];
+
+        // Published Version
+        if (group.version) {
+          const isExcluded = group.version.id === excludeId;
+          console.log(`[VersionComparison]   Version ${versionNumber} (${getVersionDisplayName(group.version)}):`,
+            isExcluded ? 'EXCLUDED' : 'INCLUDED');
+
+          if (!isExcluded) {
+            opts.push(
+              <option key={group.version.id} value={group.version.id}>
+                {getVersionDisplayName(group.version)}
+              </option>
+            );
+          }
+        }
+
+        // Drafts
+        group.drafts.forEach((draft) => {
+          const isExcluded = draft.id === excludeId;
+          console.log(`[VersionComparison]   Draft ${draft.draftNumber} for v${versionNumber}:`,
+            isExcluded ? 'EXCLUDED' : 'INCLUDED');
+
+          if (!isExcluded) {
+            opts.push(
               <option key={draft.id} value={draft.id}>
                 ↳ Draft {draft.draftNumber} (v{draft.versionNumber})
               </option>
-            ))}
-        </React.Fragment>
-      ));
+            );
+          }
+        });
+
+        return opts;
+      });
+
+    console.log(`[VersionComparison] ${dropdownName} dropdown will show ${options.length} options`);
+    return options;
   };
 
   // Render markdown content for side-by-side view
@@ -569,26 +618,41 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
                   onChange={(e) => setLeftVersionId(e.target.value)}
                   className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                 >
-                  {renderVersionOptions(rightVersionId)}
+                  {renderVersionOptions(rightVersionId, 'LEFT')}
                 </select>
               </div>
 
-              {/* Field Selector */}
+              {/* Swap Button & Field Selector */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Compare Field:
                 </label>
-                <select
-                  value={compareField}
-                  onChange={(e) => setCompareField(e.target.value as any)}
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Content</option>
-                  <option value="content">Content</option>
-                  <option value="title">Title</option>
-                  <option value="abstract">Abstract</option>
-                  <option value="thinking">Thinking</option>
-                </select>
+                <div className="flex gap-2">
+                  <TooltipWrapper content="Swap left and right versions" position="bottom">
+                    <button
+                      onClick={() => {
+                        const temp = leftVersionId;
+                        setLeftVersionId(rightVersionId);
+                        setRightVersionId(temp);
+                      }}
+                      className="p-2 border rounded-md hover:bg-gray-100 transition-colors"
+                      title="Swap versions"
+                    >
+                      <ArrowLeftRight className="w-4 h-4" />
+                    </button>
+                  </TooltipWrapper>
+                  <select
+                    value={compareField}
+                    onChange={(e) => setCompareField(e.target.value as any)}
+                    className="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Content</option>
+                    <option value="content">Content</option>
+                    <option value="title">Title</option>
+                    <option value="abstract">Abstract</option>
+                    <option value="thinking">Thinking</option>
+                  </select>
+                </div>
               </div>
 
               {/* Right Version Selector */}
@@ -601,7 +665,7 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
                   onChange={(e) => setRightVersionId(e.target.value)}
                   className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                 >
-                  {renderVersionOptions(leftVersionId)}
+                  {renderVersionOptions(leftVersionId, 'RIGHT')}
                 </select>
               </div>
             </div>

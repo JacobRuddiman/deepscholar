@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { 
-  Book, 
-  Star, 
-  ThumbsUp, 
-  Clock, 
+import {
+  Book,
+  Star,
+  ThumbsUp,
+  Clock,
   Bookmark,
   ChevronDown,
   ExternalLink,
@@ -18,8 +18,9 @@ import {
   Coins,
   Loader2
 } from 'lucide-react';
-import { getUserBriefs, getSavedBriefs, getUserReviews, getUserUpvotes, deleteBriefReview } from '@/server/actions/briefs';
+import { formatBriefDate } from '@/lib/brief-utils';
 import ErrorPopup from '../components/error_popup';
+import { useUserProfile } from '@/hooks/queries/useUserProfile';
 
 /**
  * PROFILE PAGE COMPONENT
@@ -67,76 +68,22 @@ type Review = {
 export default function ProfilePage() {
   // Session management for authentication
   const { data: session } = useSession();
-  
-  // State management for different data types and UI controls
+
+  // State management for UI controls
   const [activeTab, setActiveTab] = useState<ActivityType>('all');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
-  const [briefs, setBriefs] = useState<Brief[]>([]);
-  const [savedBriefs, setSavedBriefs] = useState<Brief[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [userUpvotes, setUserUpvotes] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  /**
-   * INITIAL DATA LOADING
-   * Fetches user's briefs and saved briefs when component mounts
-   */
-  useEffect(() => {
-    loadUserData();
-  }, []);
- 
-  /**
-   * LOAD USER DATA
-   * Fetches all user-related data including briefs and saved briefs
-   * Handles both LOCAL mode and production authentication
-   */
-  const loadUserData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Load user's own briefs
-      const briefsResult = await getUserBriefs();
-      if (!briefsResult.success) {
-        throw new Error(briefsResult.error);
-      }
-      setBriefs(briefsResult.data || []);
+  // React Query hook for user profile data
+  const profileQuery = useUserProfile();
 
-      // Load saved briefs
-      const savedResult = await getSavedBriefs();
-      if (savedResult.success && savedResult.data) {
-        setSavedBriefs(savedResult.data);
-      }
-
-      // Load user's reviews
-      const reviewsResult = await getUserReviews();
-      if (reviewsResult.success && reviewsResult.data) {
-        setReviews(reviewsResult.data);
-        console.log('Loaded user reviews:', reviewsResult.data.length);
-      } else {
-        console.error('Failed to load user reviews:', reviewsResult.error);
-        // Don't fail the entire load if reviews fail - just log the error
-        setReviews([]);
-      }
-
-      // Load user's upvotes
-      const upvotesResult = await getUserUpvotes();
-      if (upvotesResult.success && upvotesResult.data) {
-        setUserUpvotes(upvotesResult.data);
-        console.log('Loaded user upvotes:', upvotesResult.data.length);
-      } else {
-        console.error('Failed to load user upvotes:', upvotesResult.error);
-        setUserUpvotes([]);
-      }
-
-    } catch (error) {
-      setError('Failed to load profile data. Please try again later.');
-      console.error('Error loading profile data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Extract data from query
+  const briefs = profileQuery.data?.briefs || [];
+  const savedBriefs = profileQuery.data?.savedBriefs || [];
+  const reviews = profileQuery.data?.reviews || [];
+  const userUpvotes = profileQuery.data?.upvotes || [];
+  const tokenBalance = profileQuery.data?.tokenBalance || 0;
+  const isLoading = profileQuery.isLoading;
+  const error = profileQuery.error?.message || null;
 
   /**
    * CALCULATE USER STATISTICS
@@ -147,7 +94,7 @@ export default function ProfilePage() {
     reviews: reviews.length, // Reviews written by user
     upvotes: briefs.reduce((acc, brief) => acc + brief.upvotes.length, 0), // Upvotes received on user's briefs
     savedBriefs: savedBriefs.length,
-    tokenBalance: 550 // TODO: Implement actual token balance from database
+    tokenBalance: tokenBalance
   };
 
   /**
@@ -339,14 +286,14 @@ export default function ProfilePage() {
       </div>
       <div className="flex-1">
         {link ? (
-          <a href={link} className="text-sm hover:text-blue-600 transition-colors">
+          <Link href={link} className="text-sm hover:text-blue-600 transition-colors">
             {title}
-          </a>
+          </Link>
         ) : (
           <p className="text-sm">{title}</p>
         )}
         <p className="text-xs text-gray-500">
-          {new Date(date).toLocaleDateString()}
+          {formatBriefDate(date)}
         </p>
       </div>
     </div>
@@ -380,7 +327,7 @@ export default function ProfilePage() {
       <ErrorPopup
         isVisible={!!error}
         message={error ?? ''}
-        onClose={() => setError(null)}
+        onClose={() => {}}
         autoClose={true}
       />
       {/* PROFILE HEADER SECTION */}
@@ -493,7 +440,7 @@ export default function ProfilePage() {
                       </span>
                       <span className="flex items-center">
                         <Clock className="w-4 h-4 mr-1" />
-                        {new Date(brief.createdAt).toLocaleDateString()}
+                        {formatBriefDate(brief.createdAt)}
                       </span>
                     </div>
                   </div>

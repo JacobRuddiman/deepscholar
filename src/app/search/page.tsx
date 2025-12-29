@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Search, Grid, List, Loader2 } from 'lucide-react';
 import SearchBar from '@/app/components/SearchBar';
@@ -29,6 +29,7 @@ interface CorrectionInfo {
 
 function SearchContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -54,11 +55,8 @@ function SearchContent() {
 
   // Real search function using database
   const performSearch = async () => {
-    console.log('SearchPage: performSearch called with params:', { 
-      query, categories, model, sort, date, time, rating
-    });
     setIsLoading(true);
-    
+
     try {
       const searchResult = await searchBriefs({
         query,
@@ -78,13 +76,13 @@ function SearchContent() {
         setTotalResults(searchResult.data.totalCount);
         setCorrectionInfo(searchResult.data.correctionInfo ?? null);
       } else {
-        console.error('Search failed:', searchResult.error);
+        console.error('[Search] Search failed:', searchResult.error);
         setResults([]);
         setTotalResults(0);
         setCorrectionInfo(null);
       }
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('[Search] Search error:', error);
       setResults([]);
       setTotalResults(0);
     } finally {
@@ -226,8 +224,8 @@ function SearchContent() {
             <p className="text-gray-600 mb-4">
               Try adjusting your search terms or filters to find what you&rsquo;re looking for.
             </p>
-            <button 
-              onClick={() => window.location.href = '/search'}
+            <button
+              onClick={() => router.push('/search')}
               className="text-blue-600 hover:text-blue-700 font-medium"
             >
               Clear search and start over

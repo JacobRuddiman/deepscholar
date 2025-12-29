@@ -12,7 +12,10 @@ export interface RecommendationScore {
 export async function calculateRecommendationScore(userId: string, briefId: string): Promise<RecommendationScore | null> {
   try {
     const [userRecommendation, brief] = await Promise.all([
-      prisma.userRecommendation.findUnique({ where: { userId } }),
+      prisma.userRecommendation.findUnique({ where: { userId } }).catch(err => {
+        console.error('[Recommendations] Error fetching userRecommendation:', err);
+        throw err;
+      }),
       prisma.brief.findUnique({ 
         where: { id: briefId },
         include: {
@@ -169,7 +172,10 @@ export async function calculateRecommendationScore(userId: string, briefId: stri
 // Get personalized recommendations for a user
 export async function getPersonalizedRecommendations(userId: string, limit: number = 10): Promise<RecommendationScore[]> {
   try {
+    console.log('[Recommendations] Getting recommendations for user:', userId, 'with limit:', limit);
+
     // Get all briefs
+    console.log('[Recommendations] Fetching all briefs from database...');
     const allBriefs = await prisma.brief.findMany({
       include: {
         categories: true,
@@ -180,19 +186,31 @@ export async function getPersonalizedRecommendations(userId: string, limit: numb
         }
       }
     });
+    console.log('[Recommendations] Fetched', allBriefs.length, 'briefs');
 
     // Calculate scores for all briefs
+    console.log('[Recommendations] Calculating scores for all briefs...');
     const scores = await Promise.all(
       allBriefs.map(brief => calculateRecommendationScore(userId, brief.id))
     );
+    console.log('[Recommendations] Calculated scores for', scores.length, 'briefs');
 
     // Filter out null scores and sort by score descending
     const validScores = scores.filter(score => score !== null) as RecommendationScore[];
+    console.log('[Recommendations] Valid scores:', validScores.length);
     validScores.sort((a, b) => b.score - a.score);
 
-    return validScores.slice(0, limit);
+    const result = validScores.slice(0, limit);
+    console.log('[Recommendations] Returning top', result.length, 'recommendations');
+    return result;
   } catch (error) {
-    console.error('Error getting personalized recommendations:', error);
+    console.error('[Recommendations] Failed to get personalized recommendations:', {
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+      limit
+    });
     return [];
   }
 }

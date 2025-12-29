@@ -12,15 +12,16 @@ import {
   createCategories, 
   createSources 
 } from './creators/basic';
-import { 
-  createBriefs, 
-  createReviews, 
-  createAIReviews, 
-  createUpvotes, 
-  createSavedBriefs, 
-  createBriefViews, 
-  createTokenData, 
-  createExportHistory 
+import {
+  createBriefs,
+  createReviews,
+  createAIReviews,
+  createUpvotes,
+  createSavedBriefs,
+  createBriefViews,
+  createTokenData,
+  createExportHistory,
+  createUserRecommendations
 } from './creators/advanced';
 
 // Re-export types and functions
@@ -215,6 +216,13 @@ export async function seed(config: SeedConfig = DEFAULT_CONFIG) {
         await createExportHistory(config, createdData);
         progress.increment('✅ Export history created');
       }
+    }
+
+    // Create user recommendations based on activity
+    if (createdData.users.length > 0 && createdData.briefs.length > 0) {
+      progress.report('🎯 Generating user recommendations...');
+      await createUserRecommendations(config, createdData);
+      progress.increment('✅ User recommendations generated');
     }
 
     const endTime = Date.now();

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { toggleBriefUpvote, toggleBriefSave, addBriefReview, deleteBriefReview } from '@/server/actions/briefs';
 import { deleteBrief } from '@/server/actions/briefs/core-operations';
@@ -10,10 +10,12 @@ import ErrorPopup from '@/app/components/error_popup';
 import { getBriefBySlug } from '@/server/actions/briefs/core-operations';
 import HelpfulButton from '@/app/components/helpful_button';
 import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
-import { 
-  ThumbsUp, 
-  MessageSquare, 
-  Clock, 
+import { calculateAverageRating, calculateReadTime, formatBriefDate } from '@/lib/brief-utils';
+import { LOCAL_USER } from '@/lib/localMode';
+import {
+  ThumbsUp,
+  MessageSquare,
+  Clock,
   Loader2,
   AlertCircle,
   Bookmark,
@@ -37,6 +39,29 @@ import {
   Menu,
   X
 } from 'lucide-react';
+
+// Styles for reference highlighting
+const referenceStyles = `
+  .reference-highlight {
+    background-color: #fef3c7;
+    border-bottom: 2px solid #f59e0b;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-style: italic;
+    color: #92400e;
+  }
+
+  .reference-source {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 0.875em;
+    margin-left: 4px;
+  }
+
+  .reference-source:hover {
+    text-decoration: underline;
+  }
+`;
 
 // Keep the existing Brief type definition
 type Brief = {
@@ -95,6 +120,7 @@ type Brief = {
 
 export default function BriefPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const { isMobile, isTablet } = useDeviceDetection();
   
@@ -124,7 +150,7 @@ export default function BriefPage() {
   // Keep all existing useEffect and handler functions...
   useEffect(() => {
     if (id) {
-      loadBrief().catch(console.error);
+      void loadBrief();
     }
 
     const timer = setTimeout(() => {
@@ -151,7 +177,7 @@ export default function BriefPage() {
         const briefData = result.data as unknown as Brief;
         setUpvoteCount(briefData.upvotes?.length ?? 0);
         
-        const currentUserId = 'local-user-1';
+        const currentUserId = LOCAL_USER.id;
         const hasUpvoted = briefData.upvotes?.some(upvote => upvote.userId === currentUserId) ?? false;
         setIsUpvoted(hasUpvoted);
         
@@ -169,7 +195,7 @@ export default function BriefPage() {
       }
     } catch (error) {
       setError('Failed to load brief. Please try again later.');
-      console.error('Error loading brief:', error);
+      console.error('[BriefDetail] Failed to load brief:', error);
     } finally {
       setIsLoading(false);
     }
@@ -185,20 +211,20 @@ export default function BriefPage() {
         setUpvoteCount(prev => result.upvoted ? prev + 1 : prev - 1);
       }
     } catch (error) {
-      console.error('Error toggling upvote:', error);
+      console.error('[BriefDetail] Failed to toggle upvote:', error);
     }
   };
 
   const handleSave = async () => {
     if (!brief) return;
-    
+
     try {
       const result = await toggleBriefSave(brief.id);
       if (result.success && result.saved !== undefined) {
         setIsSaved(result.saved);
       }
     } catch (error) {
-      console.error('Error toggling save:', error);
+      console.error('[BriefDetail] Failed to toggle save:', error);
     }
   };
 
@@ -219,7 +245,7 @@ export default function BriefPage() {
       }
     } catch (error) {
       setError('Failed to submit review. Please try again.');
-      console.error('Error submitting review:', error);
+      console.error('[BriefDetail] Failed to submit review:', error);
     } finally {
       setIsSubmittingReview(false);
     }
@@ -227,10 +253,10 @@ export default function BriefPage() {
 
   const handleDeleteReview = async (reviewId: string) => {
     if (!confirm('Are you sure you want to delete this review?')) return;
-    
+
     try {
       const result = await deleteBriefReview(reviewId);
-      
+
       if (result.success) {
         await loadBrief();
       } else {
@@ -238,25 +264,25 @@ export default function BriefPage() {
       }
     } catch (error) {
       setError('Failed to delete review. Please try again.');
-      console.error('Error deleting review:', error);
+      console.error('[BriefDetail] Failed to delete review:', error);
     }
   };
 
   const handleDeleteBrief = async () => {
     if (!brief) return;
     if (!confirm('Are you sure you want to delete this brief? This action cannot be undone.')) return;
-    
+
     try {
       const result = await deleteBrief(brief.id);
-      
+
       if (result.success) {
-        window.location.href = '/my-briefs';
+        router.push('/my-briefs');
       } else {
         setError(result.error ?? 'Failed to delete brief');
       }
     } catch (error) {
       setError('Failed to delete brief. Please try again.');
-      console.error('Error deleting brief:', error);
+      console.error('[BriefDetail] Failed to delete brief:', error);
     }
   };
 
@@ -267,36 +293,28 @@ export default function BriefPage() {
     }));
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const calculateReadTime = (content: string) => {
-    const wordsPerMinute = 200;
-    const wordCount = content.split(/\s+/).length;
-    return Math.ceil(wordCount / wordsPerMinute);
-  };
-
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
+      <>
+        <style>{referenceStyles}</style>
+        <div className="flex justify-center items-center min-h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      </>
     );
   }
 
   if (!brief && !isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="bg-red-50 text-red-800 p-4 rounded-lg flex items-center">
-          <AlertCircle className="w-5 h-5 mr-2" />
-          Brief not found
+      <>
+        <style>{referenceStyles}</style>
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="bg-red-50 text-red-800 p-4 rounded-lg flex items-center">
+            <AlertCircle className="w-5 h-5 mr-2" />
+            Brief not found
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -304,14 +322,14 @@ export default function BriefPage() {
     return null;
   }
 
-  const averageRating = brief.reviews.length > 0 
-    ? brief.reviews.reduce((sum, review) => sum + review.rating, 0) / brief.reviews.length 
-    : null;
+  const averageRating = calculateAverageRating(brief.reviews) ?? null;
 
   // Mobile Layout
   if (isMobile) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <>
+        <style>{referenceStyles}</style>
+        <div className="min-h-screen bg-gray-50">
         {/* Mobile Header */}
         <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-14 z-20">
           <div className="flex items-center justify-between">
@@ -337,7 +355,7 @@ export default function BriefPage() {
               </div>
               
               <div className="space-y-3">
-                {brief.author.id !== 'local-user-1' && (
+                {brief.author.id !== LOCAL_USER.id && (
                   <>
                     <button
                       onClick={async () => {
@@ -371,7 +389,7 @@ export default function BriefPage() {
                   </>
                 )}
 
-                {brief.author.id === 'local-user-1' && (
+                {brief.author.id === LOCAL_USER.id && (
                   <>
                     <button
                       onClick={() => {
@@ -420,7 +438,7 @@ export default function BriefPage() {
               </span>
               <span className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
-                {formatDate(brief.createdAt)}
+                {formatBriefDate(brief.createdAt)}
               </span>
               <span className="flex items-center">
                 <Eye className="w-4 h-4 mr-1" />
@@ -534,7 +552,7 @@ export default function BriefPage() {
             </button>
             {expandedSections.reviews && (
               <div className="px-4 pb-4">
-                {brief.author.id !== 'local-user-1' && (
+                {brief.author.id !== LOCAL_USER.id && (
                   <button
                     onClick={() => {
                       if (!canInteract) {
@@ -631,8 +649,8 @@ export default function BriefPage() {
                       </div>
                       <p className="text-gray-700 text-sm mb-2">{review.content}</p>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-500">{formatDate(review.createdAt)}</span>
-                        {review.author.id === 'local-user-1' && (
+                        <span className="text-xs text-gray-500">{formatBriefDate(review.createdAt)}</span>
+                        {review.author.id === LOCAL_USER.id && (
                           <button
                             onClick={() => handleDeleteReview(review.id)}
                             className="text-red-600 text-xs"
@@ -646,7 +664,7 @@ export default function BriefPage() {
                   
                   {brief.reviews.length === 0 && (
                     <p className="text-gray-500 text-center py-4 text-sm">
-                      {brief.author.id !== 'local-user-1' ? 'No reviews yet. Be the first!' : 'No reviews yet.'}
+                      {brief.author.id !== LOCAL_USER.id ? 'No reviews yet. Be the first!' : 'No reviews yet.'}
                     </p>
                   )}
                 </div>
@@ -760,13 +778,16 @@ export default function BriefPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </>
     );
   }
 
   // Desktop/Tablet Layout (keep existing layout with minor responsive improvements)
   return (
-    <div className={`container mx-auto px-4 py-8 ${isTablet ? 'max-w-4xl' : 'max-w-4xl'}`}>
+    <>
+      <style>{referenceStyles}</style>
+      <div className={`container mx-auto px-4 py-8 ${isTablet ? 'max-w-4xl' : 'max-w-4xl'}`}>
       {/* Keep existing desktop layout but add responsive classes */}
       <ErrorPopup
         isVisible={!!error}
@@ -797,7 +818,7 @@ export default function BriefPage() {
               </span>
               <span className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
-                {formatDate(brief.createdAt)}
+                {formatBriefDate(brief.createdAt)}
               </span>
               <span className="flex items-center">
                 <Eye className="w-4 h-4 mr-1" />
@@ -830,7 +851,7 @@ export default function BriefPage() {
 
           {/* Action buttons */}
           <div className={`flex ${isTablet ? 'flex-row space-x-2' : 'flex-col space-y-2'} ${isTablet ? '' : 'ml-4'}`}>
-            {brief.author.id !== 'local-user-1' && (
+            {brief.author.id !== LOCAL_USER.id && (
               <>
                 <button
                   onClick={async () => {
@@ -863,7 +884,7 @@ export default function BriefPage() {
               </>
             )}
 
-            {brief.author.id === 'local-user-1' && (
+            {brief.author.id === LOCAL_USER.id && (
               <>
                 <button
                   onClick={() => window.location.href = `/briefs/${brief.id}/edit`}
@@ -953,7 +974,7 @@ export default function BriefPage() {
       >
         <div className={`flex ${isTablet ? 'flex-col space-y-4' : 'justify-between items-center'} mb-4`}>
           <h3 className="text-xl font-semibold">Reviews ({brief.reviews.length})</h3>
-          {brief.author.id !== 'local-user-1' && (
+          {brief.author.id !== LOCAL_USER.id && (
             <button
               onClick={() => {
                 if (!canInteract) {
@@ -1054,14 +1075,14 @@ export default function BriefPage() {
                     ))}
                   </div>
                   <span className="text-sm text-gray-500">
-                    {formatDate(review.createdAt)}
+                    {formatBriefDate(review.createdAt)}
                   </span>
                 </div>
               </div>
               <p className="text-gray-700 mb-3">{review.content}</p>
               <div className="flex justify-between items-center">
                 <div>
-                  {review.author.id === 'local-user-1' && (
+                  {review.author.id === LOCAL_USER.id && (
                     <button
                       onClick={() => handleDeleteReview(review.id)}
                       className="flex items-center space-x-1 px-3 py-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm"
@@ -1074,12 +1095,12 @@ export default function BriefPage() {
                 <HelpfulButton
                   reviewId={review.id}
                   helpfulCount={review.helpfulMarks?.length ?? 0}
-                  isMarkedHelpful={review.helpfulMarks?.some(mark => mark.userId === 'local-user-1') ?? false}
+                  isMarkedHelpful={review.helpfulMarks?.some(mark => mark.userId === LOCAL_USER.id) ?? false}
                   onUpdate={async () => {
                     try {
                       await loadBrief();
                     } catch (error) {
-                      console.error(error);
+                      console.error('[BriefDetail] Failed to refresh brief after update:', error);
                     }
                   }}
                   onError={(error) => setError(error)}
@@ -1088,12 +1109,12 @@ export default function BriefPage() {
             </div>
           ))}
           
-          {brief.reviews.length === 0 && brief.author.id !== 'local-user-1' && (
+          {brief.reviews.length === 0 && brief.author.id !== LOCAL_USER.id && (
             <p className="text-gray-500 text-center py-8">
               No reviews yet. Be the first to review this brief!
             </p>
           )}
-          {brief.reviews.length === 0 && brief.author.id === 'local-user-1' && (
+          {brief.reviews.length === 0 && brief.author.id === LOCAL_USER.id && (
             <p className="text-gray-500 text-center py-8">
               No reviews yet.
             </p>
@@ -1128,7 +1149,7 @@ export default function BriefPage() {
                       ))}
                     </div>
                     <span className="text-sm text-gray-500">
-                      {formatDate(aiReview.createdAt)}
+                      {formatBriefDate(aiReview.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -1198,6 +1219,7 @@ export default function BriefPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

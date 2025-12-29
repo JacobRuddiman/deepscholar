@@ -5,21 +5,7 @@ export function generateConsoleCommand(config: SeedConfig): string {
   
   // Basic flags
   if (!config.deleteAll) command += ' --no-delete';
-  
-  // Demo user
-  if (config.demoUser?.enabled) {
-    command += ' --demo-user';
-    if (config.demoUser.email !== 'demo@deepscholar.local') {
-      command += ` --demo-email ${config.demoUser.email}`;
-    }
-    if (config.demoUser.activityMultiplier !== 3.0) {
-      command += ` --demo-activity ${config.demoUser.activityMultiplier}`;
-    }
-    if (!config.demoUser.adminPrivileges) {
-      command += ' --demo-no-admin';
-    }
-  }
-  
+
   // Users
   if (config.users?.enabled) {
     if (config.users.count) command += ` --users ${config.users.count}`;
@@ -84,47 +70,7 @@ export function generateConsoleCommand(config: SeedConfig): string {
   if (config.exports?.enabled && config.exports.exportsPerUser) {
     command += ` --exports-per-user ${config.exports.exportsPerUser[0]},${config.exports.exportsPerUser[1]}`;
   }
-  
-  // System features
-  if (config.userRecommendations?.enabled) {
-    command += ' --user-recommendations';
-    if (config.userRecommendations.recommendationRatio !== 0.7) {
-      command += ` --recommendation-ratio ${config.userRecommendations.recommendationRatio}`;
-    }
-  }
-  
-  if (config.emailSystem?.enabled) {
-    command += ' --email-system';
-    if (config.emailSystem.footerCount !== 3) {
-      command += ` --email-footers ${config.emailSystem.footerCount}`;
-    }
-  }
-  
-  if (config.sessions?.enabled) {
-    command += ' --sessions';
-    if (config.sessions.activeSessionRatio !== 0.3) {
-      command += ` --active-session-ratio ${config.sessions.activeSessionRatio}`;
-    }
-  }
-  
-  if (config.reviewHelpfulness?.enabled) {
-    command += ' --review-helpfulness';
-    if (config.reviewHelpfulness.helpfulMarkRatio !== 0.4) {
-      command += ` --helpful-ratio ${config.reviewHelpfulness.helpfulMarkRatio}`;
-    }
-  }
-  
-  if (config.exportUsage?.enabled) {
-    command += ' --export-usage';
-  }
-  
-  if (config.briefQualityTiers?.enabled) {
-    command += ' --quality-tiers';
-    if (config.briefQualityTiers.highQualityRatio !== 0.2) {
-      command += ` --high-quality-ratio ${config.briefQualityTiers.highQualityRatio}`;
-    }
-  }
-  
+
   // Data skew flags
   if (config.dataSkew?.powerUsers) command += ' --power-users';
   if (config.dataSkew?.viralBriefs) command += ' --viral-briefs';

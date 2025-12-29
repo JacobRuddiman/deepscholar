@@ -38,7 +38,7 @@ export async function extractFromGoogle(url: string): Promise<BriefData> {
       sources: [],
       references: "No references available",
       thinking: "",
-      model: "Other",
+      model: "other",
       rawHtml
     };
     //

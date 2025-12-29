@@ -4,6 +4,7 @@
 import { useDeviceDetection } from '../../hooks/useDeviceDetection'
 import MobileBriefEditor from './MobileBriefEditor';
 import TabletBriefEditor from './TabletBriefEditor';
+import DesktopBriefEditor from '../BriefEditorDesktop';
 import type { BriefData } from '@/functions/types';
 
 interface BriefEditorProps {
@@ -28,10 +29,8 @@ export default function BriefEditor(props: BriefEditorProps) {
 
     return <TabletBriefEditor {...props} />;
   }
-  console.info("Using DT===============================")
+  console.info("Using Desktop ===============================")
 
-  // For desktop, we'll keep the original complex editor
-  // You can import and use the original desktop version here
-  // For now, let's use the tablet version as fallback
-  return <TabletBriefEditor {...props} />;
+  // Use the full-featured desktop editor with version control
+  return <DesktopBriefEditor {...props} />;
 }

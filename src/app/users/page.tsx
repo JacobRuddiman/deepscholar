@@ -353,7 +353,7 @@ const UsersPage = () => {
           <div className="text-center py-12">
             <div className="text-red-600 mb-2">{error}</div>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => router.refresh()}
               className="text-blue-600 hover:text-blue-800"
             >
               Try again

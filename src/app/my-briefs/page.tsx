@@ -4,11 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { getUserBriefs, deleteBrief } from '@/server/actions/briefs/core-operations';
-
-import { 
-  ThumbsUp, 
-  MessageSquare, 
-  Clock, 
+import { formatBriefDate } from '@/lib/brief-utils';
+import {
+  ThumbsUp,
+  MessageSquare,
+  Clock,
   Loader2,
   ExternalLink,
   Filter,
@@ -16,6 +16,18 @@ import {
   Edit2
 } from 'lucide-react';
 import ErrorPopup from '../components/error_popup';
+import {
+  BulkSelectProvider,
+  useBulkSelect,
+  BulkSelectCheckbox,
+  BulkSelectAllCheckbox,
+  BulkActionsToolbar,
+} from '@/components/bulk/BulkSelectProvider';
+import {
+  useBulkDeleteBriefs,
+  useBulkUpdateVisibility,
+} from '@/hooks/mutations/useBulkMutations';
+import { BulkExportButton } from '@/components/export/ExportButton';
 
 type Brief = {
   id: string;
@@ -33,11 +45,22 @@ type Brief = {
 };
 
 export default function MyBriefsPage() {
+  return (
+    <BulkSelectProvider>
+      <MyBriefsContent />
+    </BulkSelectProvider>
+  );
+}
+
+function MyBriefsContent() {
   const router = useRouter();
   const [briefs, setBriefs] = useState<Brief[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const { selectedIds, clearSelection } = useBulkSelect();
+  const deleteBulk = useBulkDeleteBriefs();
+  const updateVisibility = useBulkUpdateVisibility();
 
   useEffect(() => {
     void loadBriefs();
@@ -48,7 +71,7 @@ export default function MyBriefsPage() {
       setIsLoading(true);
       setError(null);
       const result = await getUserBriefs();
-      
+
       if (!result.success) {
         if (result.error === 'Not authenticated') {
           setError('Please log in to view your research briefs.');
@@ -63,9 +86,46 @@ export default function MyBriefsPage() {
       }
     } catch (error) {
       setError('Failed to load briefs. Please try again later.');
-      console.error('Error loading briefs:', error);
+      console.error('[MyBriefs] Failed to load briefs:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} briefs? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await deleteBulk.mutateAsync(selectedIds);
+      clearSelection();
+      await loadBriefs();
+    } catch (error) {
+      setError('Failed to delete briefs. Please try again.');
+      console.error('[MyBriefs] Bulk delete failed:', error);
+    }
+  };
+
+  const handleBulkMakePublic = async () => {
+    try {
+      await updateVisibility.mutateAsync({ briefIds: selectedIds, isPublic: true });
+      clearSelection();
+      await loadBriefs();
+    } catch (error) {
+      setError('Failed to update visibility. Please try again.');
+      console.error('[MyBriefs] Bulk visibility update failed:', error);
+    }
+  };
+
+  const handleBulkMakePrivate = async () => {
+    try {
+      await updateVisibility.mutateAsync({ briefIds: selectedIds, isPublic: false });
+      clearSelection();
+      await loadBriefs();
+    } catch (error) {
+      setError('Failed to update visibility. Please try again.');
+      console.error('[MyBriefs] Bulk visibility update failed:', error);
     }
   };
 
@@ -89,7 +149,7 @@ export default function MyBriefsPage() {
       }
     } catch (error) {
       setError('Failed to delete brief. Please try again.');
-      console.error('Error deleting brief:', error);
+      console.error('[MyBriefs] Failed to delete brief:', error);
     }
   };
 
@@ -122,8 +182,13 @@ export default function MyBriefsPage() {
         autoClose={true}
       />
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">My Research Briefs</h1>
-        
+        <div className="flex items-center gap-4">
+          {filteredBriefs.length > 0 && (
+            <BulkSelectAllCheckbox allIds={filteredBriefs.map((b) => b.id)} />
+          )}
+          <h1 className="text-3xl font-bold">My Research Briefs</h1>
+        </div>
+
         {/* Category Filter */}
         <div className="flex items-center space-x-2">
           <Filter className="w-4 h-4 text-gray-500" />
@@ -158,31 +223,36 @@ export default function MyBriefsPage() {
               onClick={() => handleBriefClick(brief.id)}
             >
               <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h2 className="text-xl font-semibold hover:text-blue-600 transition-colors">
-                      {brief.title}
-                    </h2>
-                    <ExternalLink className="w-4 h-4 text-gray-400" />
+                <div className="flex items-center gap-4 flex-1">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <BulkSelectCheckbox id={brief.id} />
                   </div>
-                  
-                  {brief.abstract && (
-                    <p className="text-gray-600 mb-4">{brief.abstract}</p>
-                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h2 className="text-xl font-semibold hover:text-blue-600 transition-colors">
+                        {brief.title}
+                      </h2>
+                      <ExternalLink className="w-4 h-4 text-gray-400" />
+                    </div>
 
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-                    <span className="flex items-center">
-                      <ThumbsUp className="w-4 h-4 mr-1" />
-                      {brief.upvotes.length} upvotes
-                    </span>
-                    <span className="flex items-center">
-                      <MessageSquare className="w-4 h-4 mr-1" />
-                      {brief.reviews.length} reviews
-                    </span>
-                    <span className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1" />
-                      {new Date(brief.createdAt).toLocaleDateString()}
-                    </span>
+                    {brief.abstract && (
+                      <p className="text-gray-600 mb-4">{brief.abstract}</p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                      <span className="flex items-center">
+                        <ThumbsUp className="w-4 h-4 mr-1" />
+                        {brief.upvotes.length} upvotes
+                      </span>
+                      <span className="flex items-center">
+                        <MessageSquare className="w-4 h-4 mr-1" />
+                        {brief.reviews.length} reviews
+                      </span>
+                      <span className="flex items-center">
+                        <Clock className="w-4 h-4 mr-1" />
+                        {formatBriefDate(brief.createdAt)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -225,6 +295,16 @@ export default function MyBriefsPage() {
           ))}
         </div>
       )}
+
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        onDelete={handleBulkDelete}
+        onMakePublic={handleBulkMakePublic}
+        onMakePrivate={handleBulkMakePrivate}
+        onExport={() => {
+          /* Export handled via BulkExportButton separately */
+        }}
+      />
     </div>
   );
 }

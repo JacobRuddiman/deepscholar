@@ -4,7 +4,7 @@ import DiscordProvider from "next-auth/providers/discord";
 import GoogleProvider from "next-auth/providers/google";
 
 import { db } from "@/server/db";
-import { isLocalMode, getLocalSession } from "@/lib/localMode";
+import { isLocalAuth, getLocalSession } from "@/lib/localMode";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -31,8 +31,8 @@ declare module "next-auth" {
  * @see https://next-auth.js.org/configuration/options
  */
 export const authConfig = {
-  providers: isLocalMode() 
-    ? [] // No providers in local mode
+  providers: isLocalAuth()
+    ? [] // No providers in local auth mode
     : [
         DiscordProvider,
         GoogleProvider({
@@ -49,22 +49,26 @@ export const authConfig = {
          * @see https://next-auth.js.org/providers/github
          */
       ],
-  adapter: isLocalMode() ? undefined : PrismaAdapter(db),
+  adapter: isLocalAuth() ? undefined : PrismaAdapter(db),
   callbacks: {
     session: ({ session, user }) => {
-      // In local mode, return the mock session
-      if (isLocalMode()) {
+      // In local auth mode, return the mock session
+      if (isLocalAuth()) {
         const localSession = getLocalSession();
         return {
           ...session,
           user: {
             ...localSession?.user,
-            id: localSession?.user.id ?? 'local-user-1',
+            id: localSession?.user.id ?? 'demo-user-id',
           },
         };
       }
 
-      // Normal session handling
+      // Normal session handling - check if user exists to prevent null payload error
+      if (!user) {
+        return session;
+      }
+
       return {
         ...session,
         user: {
@@ -74,8 +78,8 @@ export const authConfig = {
       };
     },
     authorized: ({ auth, request: { nextUrl } }) => {
-      // Always allow in local mode
-      if (isLocalMode()) {
+      // Always allow in local auth mode
+      if (isLocalAuth()) {
         return true;
       }
       

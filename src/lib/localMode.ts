@@ -1,11 +1,16 @@
 // Local mode utilities and configuration
-export const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === 'true';
+// Separate flags for auth and database
+export const LOCAL_AUTH = process.env.NEXT_PUBLIC_LOCAL_AUTH === 'true';
+export const LOCAL_DB = process.env.NEXT_PUBLIC_LOCAL_DB === 'true';
+
+// Backward compatibility: LOCAL_MODE is true if either LOCAL_AUTH or LOCAL_DB is true
+export const LOCAL_MODE = LOCAL_AUTH || LOCAL_DB;
 
 // Mock user for local development
 export const LOCAL_USER = {
-  id: 'local-user-1',
+  id: 'demo-user-id',
   name: 'Demo User',
-  email: 'demo@localhost',
+  email: 'demo@deepscholar.local',
   image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iNzUiIGN5PSI3NSIgcj0iNzUiIGZpbGw9IiNFNUU3RUIiLz48Y2lyY2xlIGN4PSI3NSIgY3k9IjYwIiByPSIyNSIgZmlsbD0iIzlDQTNBRiIvPjxwYXRoIGQ9Ik03NSA5NUM5NSA5NSAxMTUgMTA1IDExNSAxMjVWMTUwSDM1VjEyNUMzNSAxMDUgNTUgOTUgNzUgOTVaIiBmaWxsPSIjOUNBM0FGIi8+PC9zdmc+',
   emailVerified: new Date(),
   createdAt: new Date('2024-01-01'),
@@ -43,15 +48,23 @@ export const LOCAL_SESSION = {
 
 // Helper functions
 export function getLocalUser() {
-  return LOCAL_MODE ? LOCAL_USER : null;
+  return LOCAL_AUTH ? LOCAL_USER : null;
 }
 
 export function getLocalSession() {
-  return LOCAL_MODE ? LOCAL_SESSION : null;
+  return LOCAL_AUTH ? LOCAL_SESSION : null;
 }
 
 export function isLocalMode() {
   return LOCAL_MODE;
+}
+
+export function isLocalAuth() {
+  return LOCAL_AUTH;
+}
+
+export function isLocalDb() {
+  return LOCAL_DB;
 }
 
 // Mock data generators

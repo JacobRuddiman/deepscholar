@@ -314,7 +314,7 @@ async function getContentPerformanceAnalytics(startDate: Date, additionalFilters
     // Calculate brief creation velocity (briefs per day)
     const briefsByDay = new Map<string, number>();
     briefs.forEach(brief => {
-      const day = brief.createdAt.toISOString().split('T')[0];
+      const day = brief.createdAt.toISOString().split('T')[0]!;
       briefsByDay.set(day, (briefsByDay.get(day) || 0) + 1);
     });
     
@@ -326,7 +326,7 @@ async function getContentPerformanceAnalytics(startDate: Date, additionalFilters
     const ratingsByDay = new Map<string, { sum: number, count: number }>();
     briefs.forEach(brief => {
       brief.reviews.forEach(review => {
-        const day = review.createdAt.toISOString().split('T')[0];
+        const day = review.createdAt.toISOString().split('T')[0]!;
         if (!ratingsByDay.has(day)) {
           ratingsByDay.set(day, { sum: 0, count: 0 });
         }
@@ -364,7 +364,7 @@ async function getContentPerformanceAnalytics(startDate: Date, additionalFilters
     const upvotesByDay = new Map<string, number>();
     briefs.forEach(brief => {
       brief.upvotes.forEach(upvote => {
-        const day = upvote.createdAt.toISOString().split('T')[0];
+        const day = upvote.createdAt.toISOString().split('T')[0]!;
         upvotesByDay.set(day, (upvotesByDay.get(day) || 0) + 1);
       });
     });
@@ -386,7 +386,7 @@ async function getContentPerformanceAnalytics(startDate: Date, additionalFilters
     
     // Combine views and upvotes to calculate engagement rate
     const engagementRateByDay = processedViewsByDay.map(viewItem => {
-      const day = viewItem.day;
+      const day = viewItem.day!;
       const upvotes = upvotesByDay.get(day) || 0;
       const views = viewItem.count;
       
@@ -451,7 +451,7 @@ async function getTokenEconomicsAnalytics(startDate: Date, additionalFil: any) {
     // Group purchases by day
     const purchasesByDay = new Map<string, { tokens: number, revenue: number, count: number }>();
     tokenPurchases.forEach(purchase => {
-      const day = purchase.createdAt.toISOString().split('T')[0];
+      const day = purchase.createdAt.toISOString().split('T')[0]!;
       if (!purchasesByDay.has(day)) {
         purchasesByDay.set(day, { tokens: 0, revenue: 0, count: 0 });
       }
@@ -486,7 +486,7 @@ async function getTokenEconomicsAnalytics(startDate: Date, additionalFil: any) {
     // Group usage by day and reason
     const usageByDay = new Map<string, Map<string, number>>();
     tokenUsage.forEach(transaction => {
-      const day = transaction.createdAt.toISOString().split('T')[0];
+      const day = transaction.createdAt.toISOString().split('T')[0]!;
       if (!usageByDay.has(day)) {
         usageByDay.set(day, new Map<string, number>());
       }
@@ -640,21 +640,21 @@ async function getReviewAnalyticsData(startDate: Date, additionalFilters: any) {
     const userRatingDistribution = [0, 0, 0, 0, 0]; // 1-5 stars
     userReviews.forEach(review => {
       if (review.rating >= 1 && review.rating <= 5) {
-        userRatingDistribution[review.rating - 1]++;
+        userRatingDistribution[review.rating - 1]!++;
       }
     });
     
     const aiRatingDistribution = [0, 0, 0, 0, 0]; // 1-5 stars
     aiReviews.forEach(review => {
       if (review.rating >= 1 && review.rating <= 5) {
-        aiRatingDistribution[review.rating - 1]++;
+        aiRatingDistribution[review.rating - 1]!++;
       }
     });
     
     // Reviews over time
     const userReviewsByDay = new Map<string, { count: number, sumRating: number }>();
     userReviews.forEach(review => {
-      const day = review.createdAt.toISOString().split('T')[0];
+      const day = review.createdAt.toISOString().split('T')[0]!;
       if (!userReviewsByDay.has(day)) {
         userReviewsByDay.set(day, { count: 0, sumRating: 0 });
       }
@@ -665,7 +665,7 @@ async function getReviewAnalyticsData(startDate: Date, additionalFilters: any) {
     
     const aiReviewsByDay = new Map<string, { count: number, sumRating: number }>();
     aiReviews.forEach(review => {
-      const day = review.createdAt.toISOString().split('T')[0];
+      const day = review.createdAt.toISOString().split('T')[0]!;
       if (!aiReviewsByDay.has(day)) {
         aiReviewsByDay.set(day, { count: 0, sumRating: 0 });
       }
@@ -841,7 +841,7 @@ async function getCategoryTrendsAnalytics(startDate: Date, additionalFilters: an
         stats.upvoteCount += brief.upvotes.length;
         brief.reviews.forEach(review => stats.ratings.push(review.rating));
         
-        const day = brief.createdAt.toISOString().split('T')[0];
+        const day = brief.createdAt.toISOString().split('T')[0]!;
         stats.briefsByDay.set(day, (stats.briefsByDay.get(day) || 0) + 1);
       });
     });
@@ -918,11 +918,11 @@ async function getCategoryTrendsAnalytics(startDate: Date, additionalFilters: an
       
       for (let i = 0; i < categories.length; i++) {
         for (let j = i + 1; j < categories.length; j++) {
-          const cat1 = categories[i].name;
-          const cat2 = categories[j].name;
-          
+          const cat1 = categories[i]!.name;
+          const cat2 = categories[j]!.name;
+
           // Ensure consistent ordering of category pairs
-          const [catA, catB] = [cat1, cat2].sort();
+          const [catA, catB] = [cat1, cat2].sort() as [string, string];
           
           const existingCorrelation = categoryCorrelations.find(
             c => c.category1 === catA && c.category2 === catB

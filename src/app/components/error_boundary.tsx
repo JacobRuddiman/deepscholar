@@ -2,6 +2,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { errorMonitoring } from '@/lib/errorMonitoring';
 
 interface Props {
   children: ReactNode;
@@ -27,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Error Boundary caught an error:', error, errorInfo);
-    
+
     this.setState({
       error,
       errorInfo,
@@ -38,16 +39,12 @@ export class ErrorBoundary extends Component<Props, State> {
       this.props.onError(error, errorInfo);
     }
 
-    // Log to external service in production
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: Send to error monitoring service (Sentry, etc.)
-      console.error('Production error:', {
-        error: error.message,
-        stack: error.stack,
-        componentStack: errorInfo.componentStack,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    // Send to error monitoring service
+    errorMonitoring.captureException(error, {
+      componentStack: errorInfo.componentStack ?? undefined,
+      url: typeof window !== 'undefined' ? window.location.href : undefined,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+    });
   }
 
   handleRetry = () => {
@@ -147,18 +144,13 @@ export function withErrorBoundary<P extends object>(
 export function useErrorHandler() {
   return (error: Error, errorInfo?: string) => {
     console.error('Manual error report:', error, errorInfo);
-    
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: Send to error monitoring service
-      console.error('Production error report:', {
-        error: error.message,
-        stack: error.stack,
-        info: errorInfo,
-        timestamp: new Date().toISOString(),
-        userAgent: navigator.userAgent,
-        url: window.location.href,
-      });
-    }
+
+    // Send to error monitoring service
+    errorMonitoring.captureException(error, {
+      info: errorInfo,
+      url: typeof window !== 'undefined' ? window.location.href : undefined,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+    });
   };
 }
 

@@ -31,25 +31,27 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
     // Extract the main content, abstract, and references
       const { mainContent, abstractContent, referencesList } = await page.evaluate(() => {
         // Helper function to convert inline links to markdown format
-        const preserveLinksAsMarkdown = (element) => {
+        const preserveLinksAsMarkdown = (element: Element | null) => {
           if (!element) return '';
-          
+
           // Clone the element to avoid modifying the original
-          const clone = element.cloneNode(true);
-          
+          const clone = element.cloneNode(true) as Element;
+
           // Find all anchor tags within the element
           const links = clone.querySelectorAll('a');
           
           links.forEach(link => {
             const url = link.getAttribute('href') || '';
             const text = link.textContent || '';
-            
+
             // Create a markdown link format
             const markdownLink = ` [${text}](${url}) `;
-            
+
             // Replace the link element with the markdown text
             const textNode = document.createTextNode(markdownLink);
-            link.parentNode.replaceChild(textNode, link);
+            if (link.parentNode) {
+              link.parentNode.replaceChild(textNode, link);
+            }
           });
           
           // Return the text content with preserved markdown links
@@ -262,8 +264,8 @@ export async function extractFromChatGPT(url: string): Promise<BriefData> {
       
     // Extract inline links from abstract and content
     const inlineReferences = await page.evaluate(() => {
-      const references = [];
-      const seenUrls = new Set();
+      const references: Array<{ url: string; title: string; context: string }> = [];
+      const seenUrls = new Set<string>();
       
       // Find all links in the research result
       const links = document.querySelectorAll('div.deep-research-result a[href^="http"]');

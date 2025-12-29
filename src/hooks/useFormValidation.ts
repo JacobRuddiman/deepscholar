@@ -53,7 +53,7 @@ export function useFormValidation<T extends Record<string, string | number | boo
     
     Object.keys(initialValues).forEach((key) => {
       fields[key as keyof T] = {
-        value: initialValues[key as keyof T],
+        value: initialValues[key as keyof T] as string | number | boolean | string[],
         touched: false,
         dirty: false,
       };
@@ -94,7 +94,7 @@ export function useFormValidation<T extends Record<string, string | number | boo
               ...prev.fields,
               [field]: {
                 ...prev.fields[field],
-                error: fieldErrors[0].message,
+                error: fieldErrors[0]!.message,
               },
             },
           }));
@@ -340,7 +340,7 @@ export function useFormValidation<T extends Record<string, string | number | boo
     
     Object.keys(initialValues).forEach((key) => {
       fields[key as keyof T] = {
-        value: initialValues[key as keyof T],
+        value: initialValues[key as keyof T] as string | number | boolean | string[],
         touched: false,
         dirty: false,
       };

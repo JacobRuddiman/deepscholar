@@ -1,39 +1,18 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { BriefCardProps } from './brief_card';
 import BriefCard from './brief_card';
 import { getBriefsByCategory, getFeaturedCategories } from '@/server/actions/home';
 import { ChevronRight } from 'lucide-react';
+import { transformBrief } from '@/lib/brief-utils';
 
 type Category = {
   id: string;
   name: string;
   _count: {
     briefs: number;
-  };
-};
-
-// Transform database brief to BriefCardProps
-const transformBrief = (brief: any): BriefCardProps => {
-  const reviewCount = brief.reviews?.length ?? 0;
-  const averageRating = reviewCount > 0 
-    ? brief.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviewCount 
-    : undefined;
-
-  return {
-    id: brief.id,
-    title: brief.title,
-    abstract: brief.abstract ?? '',
-    model: brief.model?.name ?? 'Unknown',
-    date: brief.createdAt.toISOString().split('T')[0],
-    readTime: `${Math.max(1, Math.ceil((brief.response?.length ?? 0) / 1000))} min`,
-    category: brief.categories?.[0]?.name ?? 'General',
-    views: brief.viewCount ?? 0,
-    rating: averageRating,
-    reviewCount: reviewCount,
-    featured: (brief.viewCount ?? 0) > 100,
-    _slug: brief.slug ?? undefined,
   };
 };
 
@@ -76,14 +55,14 @@ const TopBriefsByCategory: React.FC = () => {
         
         setCategoryBriefs(briefsMap);
       } catch (err) {
+        console.error('[TopBriefsByCategory] Failed to fetch data:', err);
         setError('Failed to load category data');
-        console.error('Error fetching category data:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    void fetchData();
   }, []);
 
   if (loading) {
@@ -126,7 +105,10 @@ const TopBriefsByCategory: React.FC = () => {
       <section className="py-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Research by Category</h2>
         <div className="text-center py-8 text-gray-500">
-          No categories available yet. <a href="/brief_upload" className="text-blue-600 hover:text-blue-800">Create the first brief!</a>
+          No categories available yet.{' '}
+          <Link href="/brief_upload" className="text-blue-600 hover:text-blue-800">
+            Create the first brief!
+          </Link>
         </div>
       </section>
     );
@@ -136,9 +118,9 @@ const TopBriefsByCategory: React.FC = () => {
     <section className="py-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Research by Category</h2>
-        <a href="/briefs" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+        <Link href="/briefs" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
           Browse all categories
-        </a>
+        </Link>
       </div>
       
       <div className="space-y-8">
@@ -154,13 +136,13 @@ const TopBriefsByCategory: React.FC = () => {
                     {category._count.briefs} {category._count.briefs === 1 ? 'brief' : 'briefs'}
                   </span>
                 </div>
-                <a 
+                <Link
                   href={`/briefs?category=${encodeURIComponent(category.name)}`}
                   className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium group"
                 >
                   View all
                   <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                </a>
+                </Link>
               </div>
               
               {briefs.length > 0 ? (
@@ -172,9 +154,9 @@ const TopBriefsByCategory: React.FC = () => {
               ) : (
                 <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
                   <p>No briefs in this category yet.</p>
-                  <a href="/brief_upload" className="text-blue-600 hover:text-blue-800 text-sm">
+                  <Link href="/brief_upload" className="text-blue-600 hover:text-blue-800 text-sm">
                     Be the first to contribute!
-                  </a>
+                  </Link>
                 </div>
               )}
             </div>
@@ -184,17 +166,19 @@ const TopBriefsByCategory: React.FC = () => {
       
       {/* Call to Action */}
       <div className="mt-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-8 text-center">
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">Don't see your field of interest?</h3>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          Don't see your field of interest?
+        </h3>
         <p className="text-gray-600 mb-4">
           Help expand our research repository by contributing insights from your area of expertise.
         </p>
-        <a 
+        <Link
           href="/brief_upload"
           className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
         >
           Contribute Research
           <ChevronRight className="h-4 w-4 ml-2" />
-        </a>
+        </Link>
       </div>
     </section>
   );

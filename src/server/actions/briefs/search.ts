@@ -2,7 +2,22 @@
 
 import { prisma } from '@/lib/prisma';
 
-// Search briefs with comprehensive filtering
+interface SearchParams {
+  query?: string;
+  categories?: string[];
+  model?: string;
+  sortBy?: 'popular' | 'new' | 'controversial';
+  dateRange?: 'all' | 'today' | 'week' | 'month' | 'year';
+  rating?: 'all' | '4+' | '3+' | '2+';
+  readingTime?: 'all' | 'short' | 'medium' | 'long';
+  searchFullContent?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Search briefs with comprehensive filtering
+ */
 export async function searchBriefs({
   query,
   categories,
@@ -14,22 +29,8 @@ export async function searchBriefs({
   searchFullContent = false,
   page = 1,
   limit = 20
-}: {
-  query?: string;
-  categories?: string[];
-  model?: string;
-  sortBy?: 'popular' | 'new' | 'controversial';
-  dateRange?: 'all' | 'today' | 'week' | 'month' | 'year';
-  rating?: 'all' | '4+' | '3+' | '2+';
-  readingTime?: 'all' | 'short' | 'medium' | 'long';
-  searchFullContent?: boolean;
-  page?: number;
-  limit?: number;
-}) {
+}: SearchParams) {
   try {
-    console.log('searchBriefs called with params:', {
-      query, categories, model, sortBy, dateRange, rating, page, limit
-    });
 
     // Build where clause for filtering
     const whereClause: any = {
@@ -40,13 +41,11 @@ export async function searchBriefs({
 
     // Text search in title, abstract, and content with typo correction
     let correctionInfo = null;
-    if (query && query.trim()) {
+    if (query?.trim()) {
       const { getSearchVariations, correctSearchQuery } = await import('@/lib/spellcheck');
       const searchVariations = getSearchVariations(query.trim());
       const correction = correctSearchQuery(query.trim());
-      
-      console.log('Search variations (including typo corrections):', searchVariations);
-      
+
       // Store correction info for the response
       if (correction.correctedQuery && correction.corrections.length > 0) {
         correctionInfo = {
@@ -153,9 +152,6 @@ export async function searchBriefs({
     // Calculate pagination
     const skip = (page - 1) * limit;
 
-    console.log('Executing search with where clause:', JSON.stringify(whereClause, null, 2));
-    console.log('Order by:', JSON.stringify(orderBy, null, 2));
-
     // Execute the search query
     const [briefs, totalCount] = await Promise.all([
       prisma.brief.findMany({
@@ -201,12 +197,8 @@ export async function searchBriefs({
         skip,
         take: limit,
       }),
-      prisma.brief.count({
-        where: whereClause,
-      }),
+      prisma.brief.count({ where: whereClause }),
     ]);
-
-    console.log(`Found ${briefs.length} briefs out of ${totalCount} total`);
 
     // Transform results to match the expected SearchResult interface
     const results = briefs
@@ -243,29 +235,18 @@ export async function searchBriefs({
 
         return true;
       })
-      .map(brief => {
-        // Calculate average rating
-        const avgRating = brief.reviews.length > 0
-          ? brief.reviews.reduce((sum, review) => sum + review.rating, 0) / brief.reviews.length
-          : undefined;
-
-        // Estimate read time (rough calculation: 200 words per minute)
-        const wordCount = brief.response ? brief.response.split(' ').length : 0;
-        const readTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
-
-        return {
-          id: brief.id,
-          title: brief.title,
-          abstract: brief.abstract || '',
-          model: brief.model.name,
-          date: brief.createdAt.toLocaleDateString(),
-          readTime: `${readTimeMinutes} min read`,
-          category: brief.categories.length > 0 ? brief.categories[0]!.name : 'Uncategorized',
-          views: 0, // TODO: Implement view tracking
-          rating: avgRating ? Math.round(avgRating * 10) / 10 : undefined,
-          reviewCount: brief.reviews.length,
-        };
-      });
+      .map(brief => ({
+        id: brief.id,
+        title: brief.title,
+        abstract: brief.abstract || '',
+        model: brief.model.name,
+        date: brief.createdAt.toLocaleDateString(),
+        readTime: `${calculateReadTime(brief.response)} min read`,
+        category: brief.categories[0]?.name || 'Uncategorized',
+        views: brief.viewCount,
+        rating: calculateAverageRating(brief.reviews),
+        reviewCount: brief.reviews.length,
+      }));
 
     // Adjust total count if rating filter was applied
     const filteredTotalCount = rating !== 'all' ? results.length : totalCount;
@@ -282,10 +263,30 @@ export async function searchBriefs({
       },
     };
   } catch (error) {
-    console.error('Error searching briefs:', error);
+    console.error('[Briefs] Failed to search briefs:', error);
     return {
       success: false,
       error: 'Failed to search briefs',
     };
   }
+}
+
+/**
+ * Calculate average rating from reviews
+ */
+function calculateAverageRating(reviews: { rating: number }[]): number | undefined {
+  if (reviews.length === 0) return undefined;
+  const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+  return Math.round((sum / reviews.length) * 10) / 10;
+}
+
+/**
+ * Calculate estimated read time in minutes
+ * @param content - The content to calculate read time for
+ * @param wordsPerMinute - Reading speed (default: 200 wpm)
+ */
+function calculateReadTime(content: string | null, wordsPerMinute = 200): number {
+  if (!content) return 1;
+  const wordCount = content.split(/\s+/).length;
+  return Math.max(1, Math.ceil(wordCount / wordsPerMinute));
 }

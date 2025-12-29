@@ -129,7 +129,7 @@ export const mockDb = {
       const user = mockData.users.find(u => u.id === options.where.id);
       if (!user) return null;
 
-      let enrichedUser = { ...user };
+      let enrichedUser: any = { ...user };
 
       if (options?.include) {
         if (options.include._count) {
@@ -258,13 +258,13 @@ export const mockDb = {
     },
 
     findUnique: async (options: any) => {
-      const brief = mockData.briefs.find(b => 
+      const brief = mockData.briefs.find(b =>
         b.id === options.where.id || b.slug === options.where.slug
       );
-      
+
       if (!brief) return null;
 
-      let enrichedBrief = { ...brief };
+      let enrichedBrief: any = { ...brief };
 
       if (options?.include) {
         if (options.include.author) {

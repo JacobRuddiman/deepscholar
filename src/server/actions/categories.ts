@@ -32,8 +32,8 @@ function generateNodeColor(categories: string[]): string {
   const hash = sortedCategories.join('').split('').reduce((acc, char) => {
     return acc + char.charCodeAt(0);
   }, 0);
-  
-  return colors[hash % colors.length];
+
+  return colors[hash % colors.length]!;
 }
 
 // Check if two nodes should be connected (share at least one category)
@@ -43,8 +43,6 @@ function nodesShareCategories(node1: CategoryNode, node2: CategoryNode): boolean
 
 export async function getCategoryNetwork() {
   try {
-    console.log('Fetching category network data');
-    
     // Get all published briefs with their categories
     const briefs = await prisma.brief.findMany({
       where: {
@@ -58,8 +56,6 @@ export async function getCategoryNetwork() {
         },
       },
     });
-
-    console.log(`Found ${briefs.length} published briefs`);
 
     // Group briefs by category combinations
     const categoryGroups = new Map<string, CategoryNode>();
@@ -94,8 +90,8 @@ export async function getCategoryNetwork() {
     
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
-        const node1 = nodes[i];
-        const node2 = nodes[j];
+        const node1 = nodes[i]!;
+        const node2 = nodes[j]!;
         
         // Create a unique identifier for this pair
         const pairId = [node1.id, node2.id].sort().join('<->');
@@ -110,8 +106,6 @@ export async function getCategoryNetwork() {
       }
     }
 
-    console.log(`Generated ${nodes.length} nodes and ${connections.length} connections`);
-
     return {
       success: true,
       data: {
@@ -120,7 +114,7 @@ export async function getCategoryNetwork() {
       } as CategoryNetworkData,
     };
   } catch (error) {
-    console.error('Error fetching category network:', error);
+    console.error('[Categories] Failed to fetch category network:', error);
     return {
       success: false,
       error: 'Failed to fetch category network data',

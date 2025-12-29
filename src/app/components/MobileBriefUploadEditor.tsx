@@ -201,7 +201,7 @@ export default function MobileBriefUploadEditor({
       setShowSourcesSection(true);
       setShowReferencesSection(true);
       setShowMetadataSection(true);
-      setTheme(determineTheme(transformedData.model));
+      setTheme(determineTheme(transformedData));
     }
   }, [initialData]);
 

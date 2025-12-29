@@ -30,9 +30,9 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
   // Refs
   const modalRef = useRef<HTMLDivElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
-  const fullPreRef = useRef<HTMLPreElement>(null);
-  const headPreRef = useRef<HTMLPreElement>(null);
-  const bodyPreRef = useRef<HTMLPreElement>(null);
+  const fullPreRef = useRef<HTMLDivElement>(null);
+  const headPreRef = useRef<HTMLDivElement>(null);
+  const bodyPreRef = useRef<HTMLDivElement>(null);
 
   // Add logging to check HTML content
   useEffect(() => {
@@ -106,8 +106,8 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
       
       // Check for headings (highest priority)
       if ((match = line.match(headingRegex))) {
-        tag = match[1];
-        preview = match[2].replace(/<[^>]*>/g, '').trim();
+        tag = match[1]!;
+        preview = match[2]!.replace(/<[^>]*>/g, '').trim();
         if (preview.length > 30) preview = preview.substring(0, 30) + '...';
         indent = parseInt(tag.substring(1)) - 1;
         type = "heading";
@@ -115,7 +115,7 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
       // Check for divs with IDs
       else if ((match = line.match(divWithIdRegex))) {
         tag = `${match[1]}#${match[2]}`;
-        preview = match[0].replace(/<[^>]*>/g, '').trim();
+        preview = match[0]!.replace(/<[^>]*>/g, '').trim();
         if (preview.length > 30) preview = preview.substring(0, 30) + '...';
         indent = 3;
         type = "container";
@@ -139,7 +139,7 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
       // Check for script tags
       else if ((match = line.match(scriptRegex))) {
         tag = 'script';
-        preview = match[1];
+        preview = match[1] ?? "";
         if (preview.length > 30) preview = preview.substring(0, 30) + '...';
         indent = 2;
         type = "script";
@@ -147,7 +147,7 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
       // Check for img tags
       else if ((match = line.match(imgRegex))) {
         tag = 'img';
-        preview = match[1] || match[2] || "";
+        preview = match[1] ?? match[2] ?? "";
         if (preview.length > 30) preview = preview.substring(0, 30) + '...';
         indent = 3;
         type = "image";
@@ -155,7 +155,7 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
       // Check for form tags
       else if ((match = line.match(formRegex))) {
         tag = 'form';
-        preview = match[1] || match[2] || match[3] || "";
+        preview = match[1] ?? match[2] ?? match[3] ?? "";
         if (preview.length > 30) preview = preview.substring(0, 30) + '...';
         indent = 3;
         type = "form";
@@ -542,14 +542,20 @@ const HtmlInspector: React.FC<HtmlInspectorProps> = ({ html, isOpen, onClose }) 
 
   // Group outline items by type for better organization
   const groupedOutline = useMemo(() => {
-    const groups: {[key: string]: typeof currentOutline} = {
+    const groups: {
+      headings: typeof currentOutline;
+      containers: typeof currentOutline;
+      meta: typeof currentOutline;
+      resources: typeof currentOutline;
+      other: typeof currentOutline;
+    } = {
       headings: [],
       containers: [],
       meta: [],
       resources: [],
       other: []
     };
-    
+
     currentOutline.forEach(item => {
       if (item.type === 'heading') {
         groups.headings.push(item);

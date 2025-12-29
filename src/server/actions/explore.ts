@@ -19,8 +19,6 @@ export async function getBriefs({
   modelFilter?: string;
 } = {}) {
   try {
-    console.log('Fetching briefs with filters:', { page, limit, sortBy, categories, search, modelFilter });
-    
     const whereClause = {
       published: true,
       ...(search && {
@@ -97,8 +95,6 @@ export async function getBriefs({
       prisma.brief.count({ where: whereClause })
     ]);
 
-    console.log(`Found ${briefs.length} briefs out of ${total} total`);
-
     return {
       success: true,
       data: briefs,
@@ -108,7 +104,7 @@ export async function getBriefs({
       totalPages: Math.ceil(total / limit)
     };
   } catch (error) {
-    console.error('Error fetching briefs:', error);
+    console.error('[Explore] Failed to fetch briefs:', error);
     return {
       success: false,
       error: 'Failed to fetch briefs',
@@ -124,8 +120,6 @@ export async function getBriefs({
 // Get all categories for filtering
 export async function getAllCategories() {
   try {
-    console.log('Fetching all categories');
-    
     const categories = await prisma.category.findMany({
       include: {
         _count: {
@@ -143,14 +137,12 @@ export async function getAllCategories() {
       },
     });
 
-    console.log(`Found ${categories.length} categories`);
-
     return {
       success: true,
       data: categories,
     };
   } catch (error) {
-    console.error('Error fetching categories:', error);
+    console.error('[Explore] Failed to fetch categories:', error);
     return {
       success: false,
       error: 'Failed to fetch categories',
@@ -161,8 +153,6 @@ export async function getAllCategories() {
 // Get all models for filtering
 export async function getAllModels() {
   try {
-    console.log('Fetching all models');
-    
     const models = await prisma.researchAIModel.findMany({
       include: {
         _count: {
@@ -180,14 +170,12 @@ export async function getAllModels() {
       },
     });
 
-    console.log(`Found ${models.length} models`);
-
     return {
       success: true,
       data: models,
     };
   } catch (error) {
-    console.error('Error fetching models:', error);
+    console.error('[Explore] Failed to fetch models:', error);
     return {
       success: false,
       error: 'Failed to fetch models',

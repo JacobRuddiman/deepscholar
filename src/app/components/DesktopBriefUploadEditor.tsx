@@ -38,6 +38,28 @@ import {
   urlCardVariants
 } from './brief_editor_utils';
 
+const customStyles = `
+  .reference-highlight {
+    background-color: #fef3c7;
+    border-bottom: 2px solid #f59e0b;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-style: italic;
+    color: #92400e;
+  }
+
+  .reference-source {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 0.875em;
+    margin-left: 4px;
+  }
+
+  .reference-source:hover {
+    text-decoration: underline;
+  }
+`;
+
 interface DesktopBriefUploadEditorProps {
   onSubmit?: (briefData: BriefData) => void;
   initialData?: BriefData;
@@ -182,7 +204,7 @@ export default function DesktopBriefUploadEditor({
       setShowSourcesSection(true);
       setShowReferencesSection(true);
       setShowMetadataSection(true);
-      setTheme(determineTheme(transformedData.model));
+      setTheme(determineTheme(transformedData));
     }
   }, [initialData]);
 
@@ -519,15 +541,17 @@ export default function DesktopBriefUploadEditor({
   );
 
   return (
-    <div className="px-4 py-8">
-      {/* HTML Inspector Modal */}
-      {briefData?.rawHtml && (
-        <HtmlInspector
-          html={briefData.rawHtml}
-          isOpen={showHtmlInspector}
-          onClose={() => setShowHtmlInspector(false)}
-        />
-      )}
+    <>
+      <style>{customStyles}</style>
+      <div className="px-4 py-8">
+        {/* HTML Inspector Modal */}
+        {briefData?.rawHtml && (
+          <HtmlInspector
+            html={briefData.rawHtml}
+            isOpen={showHtmlInspector}
+            onClose={() => setShowHtmlInspector(false)}
+          />
+        )}
       
       {/* Desktop Layout - Grid */}
       <div className="grid grid-cols-12 gap-6">
@@ -930,6 +954,7 @@ export default function DesktopBriefUploadEditor({
         briefContent={briefData?.content || ''}
         briefAbstract={briefData?.abstract || ''}
       />
-    </div>
+      </div>
+    </>
   );
 }

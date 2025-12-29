@@ -8,6 +8,10 @@ import ErrorBoundary from "./components/error_boundary";
 import { TooltipProvider } from "./components/TooltipProvider";
 import MobileNavigation from "./components/MobileNavigation";
 import { AdminAlertContainer } from "./components/admin/AdminAlert";
+import { logEnvVarsToServer } from "@/server/actions/debug";
+import { QueryProvider } from "./providers/QueryProvider";
+import { BackgroundLoadingIndicator } from "./components/BackgroundLoadingIndicator";
+import { SkipLinks } from "@/components/accessibility/SkipLinks";
 
 export const metadata: Metadata = {
   title: "Deep Scholar",
@@ -20,29 +24,34 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${GeistSans.variable}`}>
+      
       <body className="min-h-screen relative">
+        <SkipLinks />
         <div className="relative min-h-screen">
           {/* Desktop Navigation */}
-          <div className="hidden md:block">
+          <div id="navigation" className="hidden md:block">
             <NavTriangles />
           </div>
-          
+
           {/* Mobile Navigation */}
-          <div className="md:hidden">
+          <div id="navigation" className="md:hidden">
             <MobileNavigation />
           </div>
-          
-          <ClientSessionProvider>
-            <TooltipProvider>
-              <ErrorBoundary>
-                {/* Content with appropriate padding for mobile/desktop */}
-                <main className="relative z-10 md:pt-18 pb-20 md:pb-0">
-                  {children}
-                  <AdminAlertContainer />
-                </main>
-              </ErrorBoundary>
-            </TooltipProvider>
-          </ClientSessionProvider>
+
+          <QueryProvider>
+            <BackgroundLoadingIndicator />
+            <ClientSessionProvider>
+              <TooltipProvider>
+                <ErrorBoundary>
+                  {/* Content with appropriate padding for mobile/desktop */}
+                  <main id="main-content" className="relative z-10 md:pt-18 pb-20 md:pb-0">
+                    {children}
+                    <AdminAlertContainer />
+                  </main>
+                </ErrorBoundary>
+              </TooltipProvider>
+            </ClientSessionProvider>
+          </QueryProvider>
         </div>
       </body>
     </html>

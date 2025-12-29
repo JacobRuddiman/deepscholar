@@ -3,8 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import BriefCard from '../components/brief_card';
-import { getBriefs, getAllCategories, getAllModels } from '@/server/actions/explore';
-import { Filter, SortAsc, SortDesc, Search, X, ChevronDown, Grid, List } from 'lucide-react';
+import { Filter, SortAsc, SortDesc, Search, X, ChevronDown, Grid, List, Download } from 'lucide-react';
+import { calculateAverageRating, calculateReadTime, formatBriefDate } from '@/lib/brief-utils';
+import Link from 'next/link';
+import { useBriefs } from '@/hooks/queries/useBriefs';
+import { useCategories } from '@/hooks/queries/useCategories';
+import { useModels } from '@/hooks/queries/useModels';
 
 type Brief = {
   id: string;
@@ -33,24 +37,51 @@ type Model = {
   _count: { briefs: number };
 };
 
+const LoadingSkeleton: React.FC = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {Array.from({ length: 6 }).map((_, i) => (
+      <div key={i} className="bg-white rounded-lg shadow-sm p-6 animate-pulse">
+        <div className="h-4 bg-gray-200 rounded mb-3" />
+        <div className="h-3 bg-gray-200 rounded mb-2" />
+        <div className="h-3 bg-gray-200 rounded w-3/4" />
+      </div>
+    ))}
+  </div>
+);
+
 const ExploreBriefsPage = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
-  
-  const [briefs, setBriefs] = useState<Brief[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [models, setModels] = useState<Model[]>([]);
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [sortBy, setSortBy] = useState<'popular' | 'new' | 'controversial'>('popular');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // React Query hooks replace manual fetching
+  const briefsQuery = useBriefs({
+    page,
+    sortBy,
+    categories: selectedCategories,
+    search: searchQuery,
+    modelFilter: selectedModel
+  });
+
+  const categoriesQuery = useCategories();
+  const modelsQuery = useModels();
+
+  // Extract data from queries
+  const briefs = briefsQuery.data?.data || [];
+  const totalPages = briefsQuery.data?.totalPages || 1;
+  const total = briefsQuery.data?.total || 0;
+  const loading = briefsQuery.isLoading;
+  const error = briefsQuery.error?.message || null;
+
+  const categories = categoriesQuery.data || [];
+  const models = modelsQuery.data || [];
 
   // Initialize from URL params
   useEffect(() => {
@@ -58,7 +89,7 @@ const ExploreBriefsPage = () => {
     const sort = searchParams.get('sort') as 'popular' | 'new' | 'controversial' || 'popular';
     const category = searchParams.get('category');
     const model = searchParams.get('model') || '';
-    
+
     setSearchQuery(search);
     setSortBy(sort);
     setSelectedModel(model);
@@ -66,51 +97,6 @@ const ExploreBriefsPage = () => {
       setSelectedCategories([category]);
     }
   }, [searchParams]);
-
-  // Fetch categories and models
-  useEffect(() => {
-    const fetchFilters = async () => {
-      const [categoriesResult, modelsResult] = await Promise.all([
-        getAllCategories(),
-        getAllModels()
-      ]);
-      
-      if (categoriesResult.success && categoriesResult.data) {
-        setCategories(categoriesResult.data);
-      }
-      
-      if (modelsResult.success && modelsResult.data) {
-        setModels(modelsResult.data);
-      }
-    };
-    fetchFilters();
-  }, []);
-
-  // Fetch briefs
-  useEffect(() => {
-    const fetchBriefs = async () => {
-      setLoading(true);
-      setError(null);
-      
-      const result = await getBriefs({
-        page,
-        sortBy,
-        categories: selectedCategories,
-        search: searchQuery,
-        modelFilter: selectedModel
-      });
-      
-      if (result.success && result.data) {
-        setBriefs(result.data);
-        setTotalPages(result.totalPages);
-        setTotal(result.total);
-      } else {
-        setError('Failed to load briefs');
-      }
-      setLoading(false);
-    };
-    fetchBriefs();
-  }, [page, sortBy, selectedCategories, searchQuery, selectedModel]);
 
   const updateURL = () => {
     const params = new URLSearchParams();
@@ -172,7 +158,17 @@ const ExploreBriefsPage = () => {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Explore Research Briefs</h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">Explore Research Briefs</h1>
+            <Link
+              href="/export"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export Data</span>
+              <span className="sm:hidden">Export</span>
+            </Link>
+          </div>
           <p className="text-gray-600">
             Discover AI-generated research insights from leading models across various fields
           </p>
@@ -320,20 +316,12 @@ const ExploreBriefsPage = () => {
 
         {/* Results */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white rounded-lg shadow-sm p-6 animate-pulse">
-                <div className="h-4 bg-gray-200 rounded mb-3"></div>
-                <div className="h-3 bg-gray-200 rounded mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-              </div>
-            ))}
-          </div>
+          <LoadingSkeleton />
         ) : error ? (
           <div className="text-center py-12">
             <div className="text-red-600 mb-2">{error}</div>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => router.refresh()}
               className="text-blue-600 hover:text-blue-800"
             >
               Try again
@@ -356,15 +344,13 @@ const ExploreBriefsPage = () => {
             </button>
           </div>
         ) : (
-          <div className={viewMode === 'grid' 
-            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' 
+          <div className={viewMode === 'grid'
+            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
             : 'space-y-4'
           }>
             {briefs.map(brief => {
               const reviewCount = brief.reviews?.length ?? 0;
-              const averageRating = reviewCount > 0 
-                ? brief.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviewCount 
-                : undefined;
+              const averageRating = calculateAverageRating(brief.reviews);
 
               return (
                 <BriefCard
@@ -373,8 +359,8 @@ const ExploreBriefsPage = () => {
                   title={brief.title}
                   abstract={brief.abstract ?? ''}
                   model={brief.model.name}
-                  date={brief.createdAt.toISOString()}
-                  readTime={`${Math.ceil(brief.response.length / 200)} min`}
+                  date={formatBriefDate(brief.createdAt)}
+                  readTime={`${calculateReadTime(brief.response)} min`}
                   category={brief.categories[0]?.name ?? 'General'}
                   views={brief.viewCount}
                   rating={averageRating}

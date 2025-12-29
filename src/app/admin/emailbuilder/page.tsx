@@ -9,7 +9,7 @@ import {
   CheckSquare, Square, Filter, UserCheck
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { showAdminAlert, createLog, AdminAlertContainer } from '@/app/components/admin/AdminAlert';
+import { showAdminAlert, createLog, AdminAlertContainer, type AlertType, type AlertLog } from '@/app/components/admin/AdminAlert';
 import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
 import MobileEmailBuilderPage from '@/app/components/admin/MobileEmailBuilderPage';
 
@@ -60,8 +60,8 @@ const UserSelectionModal = React.memo(({
   removeTag: (id: string) => void;
   handleBulkSelect: (type: 'all' | 'emailNotifications' | 'briefInterestUpdates' | 'promotionalNotifications') => void;
   handleBulkUnselect: (type: 'all' | 'emailNotifications' | 'briefInterestUpdates' | 'promotionalNotifications') => void;
-  showAdminAlert: typeof showAdminAlert;
-  createLog: typeof createLog;
+  showAdminAlert: (type: AlertType, title: string, message: string, logs?: AlertLog[], autoClose?: boolean, duration?: number) => void;
+  createLog: (message: string, data?: any) => AlertLog;
 }) => {
   console.log('[DEBUG] UserSelectionModal render - showUserModal:', showUserModal);
   console.log('[DEBUG] UserSelectionModal render - users length:', users?.length);
@@ -459,7 +459,7 @@ Unsubscribe: https://deepscholar.com/unsubscribe
       }
     } else if (e.key === 'Backspace' && inputValue === '' && emailTags.length > 0) {
       // Remove the last tag when backspace is pressed on empty input
-      removeTag(emailTags[emailTags.length - 1].id);
+      removeTag(emailTags[emailTags.length - 1]!.id);
     }
   };
 
@@ -539,12 +539,12 @@ Unsubscribe: https://deepscholar.com/unsubscribe
   }, [users, emailTags, addTag]);
 
   const handleBulkUnselect = useCallback((notificationType: 'all' | 'emailNotifications' | 'briefInterestUpdates' | 'promotionalNotifications') => {
-    const logs = [];
+    const logs: AlertLog[] = [];
     const previousCount = emailTags.length;
     logs.push(createLog(`Bulk unselecting: ${notificationType}`, { previousCount }));
 
     setEmailTags(prev => {
-      let filtered;
+      let filtered: EmailTag[];
       switch (notificationType) {
         case 'all':
           filtered = [];
@@ -731,7 +731,7 @@ Unsubscribe: https://deepscholar.com/unsubscribe
 
   const getRecipientsText = () => {
     if (emailTags.length === 0) return 'No recipients selected';
-    if (emailTags.length === 1) return emailTags[0].value;
+    if (emailTags.length === 1) return emailTags[0]!.value;
     return `${emailTags.length} recipients selected`;
   };
 

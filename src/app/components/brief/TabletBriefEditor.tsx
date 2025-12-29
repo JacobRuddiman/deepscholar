@@ -76,7 +76,7 @@ export default function TabletBriefEditor({ onSubmit, initialData, briefId, isOw
       setEditingTitle(transformedData.title);
       setEditingAbstract(transformedData.abstract);
       setEditingContent(transformedData.content);
-      setTheme(determineTheme(transformedData.model));
+      setTheme(determineTheme(transformedData));
     }
   }, [initialData]);
 
@@ -112,7 +112,7 @@ export default function TabletBriefEditor({ onSubmit, initialData, briefId, isOw
       setEditingTitle(data.title);
       setEditingAbstract(data.abstract);
       setEditingContent(data.content);
-      setTheme(determineTheme(data.model));
+      setTheme(determineTheme(data));
       
     } catch (error) {
       setError("Failed to fetch brief data. Please check the URL and try again.");

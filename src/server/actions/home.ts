@@ -21,8 +21,6 @@ type ActionResult<T> =
 // Get popular briefs for home page
 export async function getPopularBriefs(limit = 8): Promise<ActionResult<BriefWithRelations[]>> {
   try {
-    console.log('Fetching popular briefs with limit:', limit);
-    
     const briefs = await db.brief.findMany({
       where: {
         published: true,
@@ -50,14 +48,12 @@ export async function getPopularBriefs(limit = 8): Promise<ActionResult<BriefWit
       take: limit,
     });
 
-    console.log(`Found ${briefs.length} popular briefs`);
-
     return {
       success: true,
       data: briefs as BriefWithRelations[],
     };
   } catch (error) {
-    console.error('Error fetching popular briefs:', error);
+    console.error('[Home] Failed to fetch popular briefs:', error);
     return {
       success: false,
       error: 'Failed to fetch popular briefs',
@@ -68,8 +64,6 @@ export async function getPopularBriefs(limit = 8): Promise<ActionResult<BriefWit
 // Get recent briefs for home page
 export async function getRecentBriefs(limit = 8): Promise<ActionResult<BriefWithRelations[]>> {
   try {
-    console.log('Fetching recent briefs with limit:', limit);
-    
     const briefs = await db.brief.findMany({
       where: {
         published: true,
@@ -96,14 +90,12 @@ export async function getRecentBriefs(limit = 8): Promise<ActionResult<BriefWith
       take: limit,
     });
 
-    console.log(`Found ${briefs.length} recent briefs`);
-
     return {
       success: true,
       data: briefs as BriefWithRelations[],
     };
   } catch (error) {
-    console.error('Error fetching recent briefs:', error);
+    console.error('[Home] Failed to fetch recent briefs:', error);
     return {
       success: false,
       error: 'Failed to fetch recent briefs',
@@ -113,12 +105,10 @@ export async function getRecentBriefs(limit = 8): Promise<ActionResult<BriefWith
 
 // Get briefs by category for home page
 export async function getBriefsByCategory(
-  categoryName?: string, 
+  categoryName?: string,
   limit = 4
 ): Promise<ActionResult<BriefWithRelations[]>> {
   try {
-    console.log('Fetching briefs by category:', categoryName, 'with limit:', limit);
-    
     const whereClause = {
       published: true,
       isActive: true,
@@ -133,7 +123,7 @@ export async function getBriefsByCategory(
         },
       }),
     };
-    
+
     const briefs = await db.brief.findMany({
       where: whereClause,
       include: {
@@ -157,14 +147,12 @@ export async function getBriefsByCategory(
       take: limit,
     });
 
-    console.log(`Found ${briefs.length} briefs for category: ${categoryName ?? 'all'}`);
-
     return {
       success: true,
       data: briefs as BriefWithRelations[],
     };
   } catch (error) {
-    console.error('Error fetching briefs by category:', error);
+    console.error(`[Home] Failed to fetch briefs by category "${categoryName}":`, error);
     return {
       success: false,
       error: 'Failed to fetch briefs by category',
@@ -182,11 +170,9 @@ type BriefStats = {
 // Get brief statistics for home page
 export async function getBriefStats(): Promise<ActionResult<BriefStats>> {
   try {
-    console.log('Fetching brief statistics');
-    
     const [briefCount, modelCount, userCount] = await Promise.all([
       db.brief.count({
-        where: { 
+        where: {
           published: true,
           isActive: true,
           isDraft: false,
@@ -195,8 +181,6 @@ export async function getBriefStats(): Promise<ActionResult<BriefStats>> {
       db.researchAIModel.count(),
       db.user.count(),
     ]);
-
-    console.log('Statistics:', { briefCount, modelCount, userCount });
 
     return {
       success: true,
@@ -207,7 +191,7 @@ export async function getBriefStats(): Promise<ActionResult<BriefStats>> {
       },
     };
   } catch (error) {
-    console.error('Error fetching brief statistics:', error);
+    console.error('[Home] Failed to fetch statistics:', error);
     return {
       success: false,
       error: 'Failed to fetch statistics',
@@ -225,8 +209,6 @@ type CategoryWithCount = Category & {
 // Get featured categories with brief counts
 export async function getFeaturedCategories(): Promise<ActionResult<CategoryWithCount[]>> {
   try {
-    console.log('Fetching featured categories');
-    
     const categories = await db.category.findMany({
       include: {
         _count: {
@@ -249,14 +231,12 @@ export async function getFeaturedCategories(): Promise<ActionResult<CategoryWith
       take: 6,
     });
 
-    console.log(`Found ${categories.length} featured categories`);
-
     return {
       success: true,
       data: categories as CategoryWithCount[],
     };
   } catch (error) {
-    console.error('Error fetching featured categories:', error);
+    console.error('[Home] Failed to fetch featured categories:', error);
     return {
       success: false,
       error: 'Failed to fetch featured categories',

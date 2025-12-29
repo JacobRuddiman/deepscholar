@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Components } from 'react-markdown';
 import DiffMatchPatch from 'diff-match-patch';
 
-import type { BriefData } from '../../components/extract_brief';
+import type { BriefData } from '@/functions/types';
 
 // Initialize diff match patch
 const dmp = new DiffMatchPatch();
@@ -52,15 +52,15 @@ export const themeColors: Record<ThemeSource, ThemeColors> = {
 // Helper function to determine theme based on URL or model
 export function determineTheme(briefData: BriefData | null): ThemeSource {
   if (!briefData) return 'default';
-  
-  if (briefData.url?.includes('openai.com') || briefData.model?.toLowerCase().includes('chatgpt')) {
+
+  if (briefData.model?.toLowerCase().includes('chatgpt') || briefData.model === 'openai') {
     return 'openai';
   }
-  
-  if (briefData.url?.includes('perplexity.ai') || briefData.model?.toLowerCase().includes('perplexity')) {
+
+  if (briefData.model?.toLowerCase().includes('perplexity') || briefData.model === 'perplexity') {
     return 'perplexity';
   }
-  
+
   return 'default';
 }
 
@@ -100,7 +100,7 @@ export function getFaviconUrl(domain: string): string {
 
 // Add this type for the code component props
 export type CodeComponentProps = {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   inline?: boolean;
 } & React.HTMLAttributes<HTMLElement>;
 
@@ -133,16 +133,28 @@ export const markdownComponents: Components = {
   h5: ({children, ...props}) => <h5 className="text-sm font-bold my-2" {...props}>{children}</h5>,
   h6: ({children, ...props}) => <h6 className="text-xs font-bold my-2" {...props}>{children}</h6>,
   p: ({children, ...props}) => <p className="mb-4 leading-relaxed" {...props}>{children}</p>,
-  a: ({ href, children }) => (
-    <a 
-      href={href} 
-      target="_blank" 
-      rel="noopener noreferrer"
-      className="text-blue-600 hover:text-blue-800 underline mx-1"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ href, children, className, ...props }) => {
+    // Check if this is a reference source link
+    const isReferenceSource = className?.includes('reference-source');
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={isReferenceSource ? "reference-source" : "text-blue-600 hover:text-blue-800 underline mx-1"}
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
+  span: ({ className, children, ...props }) => {
+    // Check if this is a reference highlight
+    if (className?.includes('reference-highlight')) {
+      return <span className="reference-highlight" {...props}>{children}</span>;
+    }
+    return <span className={className} {...props}>{children}</span>;
+  },
   ul: ({children, ...props}) => <ul className="list-disc pl-5 my-3" {...props}>{children}</ul>,
   ol: ({children, ...props}) => <ol className="list-decimal pl-5 my-3" {...props}>{children}</ol>,
   li: ({children, ...props}) => <li className="my-1" {...props}>{children}</li>,
@@ -171,14 +183,61 @@ export const referenceComponents: Components = {
   a: ({children, ...props}) => <a className="text-blue-600 hover:underline text-sm" {...props}>{children}</a>
 };
 
+/**
+ * Automatically detects and formats references in text
+ * Supports multiple patterns:
+ * 1. "quoted text" [Source Name](URL)
+ * 2. "quoted text" (URL)
+ * 3. "quoted text" - Source Name
+ * 4. According to Source Name, "quoted text"
+ */
+export function detectAndFormatReferences(text: string): string {
+  let formattedText = text;
+
+  // Pattern 1: "quoted text" [Source Name](URL) or "quoted text" (URL)
+  // Converts to our reference format
+  formattedText = formattedText.replace(
+    /"([^"]+)"\s*\[([^\]]+)\]\(([^)]+)\)/g,
+    '<span class="reference-highlight">"$1"</span> <a href="$3" class="reference-source" target="_blank" rel="noopener noreferrer">[$2]</a>'
+  );
+
+  // Pattern 2: "quoted text" (https://...)
+  formattedText = formattedText.replace(
+    /"([^"]+)"\s*\((https?:\/\/[^)]+)\)/g,
+    (match, quote, url) => {
+      try {
+        const urlObj = new URL(url);
+        const domain = urlObj.hostname.replace('www.', '');
+        return `<span class="reference-highlight">"${quote}"</span> <a href="${url}" class="reference-source" target="_blank" rel="noopener noreferrer">[${domain}]</a>`;
+      } catch {
+        return match; // Return original if URL parsing fails
+      }
+    }
+  );
+
+  // Pattern 3: "quoted text" - Source Name (assuming source name doesn't contain URLs)
+  formattedText = formattedText.replace(
+    /"([^"]+)"\s*-\s*([A-Z][^.\n]+?)(?=\.|$|\n)/g,
+    '<span class="reference-highlight">"$1"</span> - $2'
+  );
+
+  // Pattern 4: According to [Source](URL), "quoted text"
+  formattedText = formattedText.replace(
+    /According to \[([^\]]+)\]\(([^)]+)\),\s*"([^"]+)"/gi,
+    'According to <a href="$2" class="reference-source" target="_blank" rel="noopener noreferrer">[$1]</a>, <span class="reference-highlight">"$3"</span>'
+  );
+
+  return formattedText;
+}
+
 // Animation variants
 export const sectionVariants = {
   hidden: { opacity: 0, y: -20, height: 0, overflow: "hidden" },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
+  visible: {
+    opacity: 1,
+    y: 0,
     height: "auto",
-    transition: { 
+    transition: {
       duration: 0.5,
       ease: "easeOut"
     }

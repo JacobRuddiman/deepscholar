@@ -65,7 +65,7 @@ export async function extractGeneric(url: string): Promise<BriefData> {
       sources,
       references: "No references available",
       thinking: "",
-      model: "Other",
+      model: "other",
       rawHtml: await page.content()
     };
   } finally {

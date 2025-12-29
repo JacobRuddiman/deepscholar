@@ -11,9 +11,11 @@ import { isLocalMode, getLocalSession } from '@/lib/localMode';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
+
     // Get authentication (handle local mode)
     let session;
     if (isLocalMode()) {
@@ -35,7 +37,7 @@ export async function GET(
       );
     }
 
-    const userId = params.id;
+    const userId = resolvedParams.id;
     const searchParams = request.nextUrl.searchParams;
     const format = searchParams.get('format') || 'json';
     const includeReferences = searchParams.get('includeReferences') === 'true';

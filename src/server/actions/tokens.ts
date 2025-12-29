@@ -3,13 +3,12 @@
 import { auth } from '@/server/auth';
 import { db } from "@/server/db";
 import { revalidatePath } from "next/cache";
+import { isLocalAuth, LOCAL_USER } from '@/lib/localMode';
 
-// Helper function to get user ID with LOCAL mode support
+// Helper function to get user ID with LOCAL_AUTH mode support
 async function getUserId() {
-  const isLocalMode = process.env.NEXT_PUBLIC_LOCAL_MODE === 'true';
-  
-  if (isLocalMode) {
-    return 'local-user-1';
+  if (isLocalAuth()) {
+    return LOCAL_USER.id;
   } else {
     const session = await auth();
     if (!session?.user?.id) {
@@ -33,7 +32,7 @@ export async function getUserTokenBalance() {
       balance: userToken?.balance ?? 0,
     };
   } catch (error) {
-    console.error('Error fetching user token balance:', error);
+    console.error('[Tokens] Failed to fetch user token balance:', error);
     return {
       success: false,
       error: 'Failed to fetch token balance',
@@ -65,7 +64,7 @@ export async function initializeUserTokens(userId: string) {
 
     return { success: true };
   } catch (error) {
-    console.error('Error initializing user tokens:', error);
+    console.error('[Tokens]initializing user tokens:', error);
     return { success: false, error: 'Failed to initialize tokens' };
   }
 }
@@ -92,7 +91,7 @@ export async function deductTokens(amount: number, reason: string, briefId?: str
       balance: result.newBalance ?? 0,
     };
   } catch (error) {
-    console.error('Error deducting tokens:', error);
+    console.error('[Tokens]deducting tokens:', error);
     return {
       success: false,
       error: 'Failed to deduct tokens',
@@ -105,41 +104,24 @@ export async function awardTokens(amount: number, reason: string, briefId?: stri
   try {
     const userId = targetUserId ?? await getUserId();
 
-    // Ensure user token record exists
-    await db.userToken.upsert({
-      where: { userId },
-      update: {
-        balance: {
-          increment: amount,
-        },
-      },
-      create: {
-        userId,
-        balance: amount,
-      },
-    });
+    // Use atomic operation to prevent race conditions
+    const { atomicTokenOperation } = await import('@/lib/database');
+    const result = await atomicTokenOperation(userId, 'award', amount, reason, briefId, reviewId);
 
-    // Create transaction record
-    await db.tokenTransaction.create({
-      data: {
-        userId,
-        amount,
-        reason,
-        briefId,
-        reviewId,
-      },
-    });
-
-    const updatedToken = await db.userToken.findUnique({
-      where: { userId },
-    });
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error ?? 'Failed to award tokens',
+        balance: result.newBalance ?? 0,
+      };
+    }
 
     return {
       success: true,
-      balance: updatedToken?.balance ?? 0,
+      balance: result.newBalance ?? 0,
     };
   } catch (error) {
-    console.error('Error awarding tokens:', error);
+    console.error('[Tokens] Failed to award tokens:', error);
     return {
       success: false,
       error: 'Failed to award tokens',
@@ -174,7 +156,7 @@ export async function getUserTokenTransactions(limit = 20) {
       data: transactions,
     };
   } catch (error) {
-    console.error('Error fetching token transactions:', error);
+    console.error('[Tokens]fetching token transactions:', error);
     return {
       success: false,
       error: 'Failed to fetch transactions',
@@ -264,23 +246,14 @@ export async function createTokenPurchase(packageId: string) {
       },
     });
 
-    // Award tokens
+    // Award tokens using atomic operation (includes transaction record creation)
     await awardTokens(
       tokenPackage.tokens,
       `Token purchase: ${tokenPackage.name}`,
       undefined,
-      undefined
+      undefined,
+      userId
     );
-
-    // Create transaction record linking to purchase
-    await db.tokenTransaction.create({
-      data: {
-        userId,
-        amount: tokenPackage.tokens,
-        reason: `Purchase: ${tokenPackage.name}`,
-        purchaseId: purchase.id,
-      },
-    });
 
     revalidatePath('/tokens');
     revalidatePath('/profile');
@@ -291,7 +264,7 @@ export async function createTokenPurchase(packageId: string) {
       tokensAwarded: tokenPackage.tokens,
     };
   } catch (error) {
-    console.error('Error creating token purchase:', error);
+    console.error('[Tokens]creating token purchase:', error);
     return {
       success: false,
       error: 'Failed to process purchase',
@@ -316,7 +289,7 @@ export async function getUserPurchases() {
       data: purchases,
     };
   } catch (error) {
-    console.error('Error fetching user purchases:', error);
+    console.error('[Tokens]fetching user purchases:', error);
     return {
       success: false,
       error: 'Failed to fetch purchases',
@@ -391,7 +364,7 @@ export async function markReviewHelpful(reviewId: string) {
       success: true,
     };
   } catch (error) {
-    console.error('Error marking review as helpful:', error);
+    console.error('[Tokens]marking review as helpful:', error);
     return {
       success: false,
       error: 'Failed to mark review as helpful',
@@ -446,7 +419,7 @@ export async function unmarkReviewHelpful(reviewId: string) {
       success: true,
     };
   } catch (error) {
-    console.error('Error unmarking review as helpful:', error);
+    console.error('[Tokens]unmarking review as helpful:', error);
     return {
       success: false,
       error: 'Failed to unmark review as helpful',

@@ -1,8 +1,66 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ["@prisma/client"],
+
+  // Optimize production builds
+  productionBrowserSourceMaps: false,
+  compress: true,
+
+  // Code splitting and optimization
   experimental: {
-    serverComponentsExternalPackages: ["@prisma/client"],
+    optimizePackageImports: ['lucide-react', 'framer-motion', 'date-fns'],
   },
+
+  // Webpack optimizations
+  webpack: (config, { isServer }) => {
+    // Optimize client-side bundle
+    if (!isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            // Vendor splitting
+            default: false,
+            vendors: false,
+
+            // React and Next.js core
+            framework: {
+              name: 'framework',
+              test: /[\\/]node_modules[\\/](react|react-dom|next)[\\/]/,
+              priority: 40,
+              enforce: true,
+            },
+
+            // Common libraries
+            lib: {
+              test: /[\\/]node_modules[\\/]/,
+              name(module) {
+                const packageName = module.context.match(
+                  /[\\/]node_modules[\\/](.*?)([\\/]|$)/
+                )[1];
+                return `npm.${packageName.replace('@', '')}`;
+              },
+              priority: 30,
+              minChunks: 1,
+              reuseExistingChunk: true,
+            },
+
+            // Shared components
+            commons: {
+              name: 'commons',
+              minChunks: 2,
+              priority: 20,
+              reuseExistingChunk: true,
+            },
+          },
+        },
+      };
+    }
+
+    return config;
+  },
+
   async headers() {
     return [
       {

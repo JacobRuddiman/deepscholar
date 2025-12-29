@@ -378,10 +378,10 @@ export async function extractFromPerplexity(url: string): Promise<BriefData> {
           .map(line => `• ${line.trim()}`)
           .join('\n')
       : "No references available";
-    
+
     // Get model information
-    const model: "OpenAI" | "Perplexity" | "Anthropic" | "Other" = "Perplexity";
-    
+    const model: "openai" | "perplexity" | "anthropic" | "other" = "perplexity";
+
     // Extract thinking content (this is usually not visible in Perplexity responses,
     // but we keep this as a placeholder)
     const thinking = "";

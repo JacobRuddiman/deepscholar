@@ -1,109 +1,93 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { TrendingUp, Clock, Filter, BookOpen, Users, Brain, ArrowRight, ChevronDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { TrendingUp, Clock, Filter, BookOpen, Users, Brain, ArrowRight, ChevronDown, Download } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import PopularBriefs from '../components/popular_briefs';
 import TopBriefsByCategory from '../components/top_briefs_by_category';
 import ForYouSection from '../components/for_you_section';
 import SearchBar from '../components/SearchBar';
-import { getBriefStats, getRecentBriefs, BriefWithRelations } from '@/server/actions/home';
 import BriefCard from '../components/brief_card';
 import type { BriefCardProps } from '../components/brief_card';
 import TooltipWrapper from '../components/TooltipWrapper';
 import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import { transformBrief } from '@/lib/brief-utils';
+import { useStats } from '@/hooks/queries/useStats';
+import { useBriefs } from '@/hooks/queries/useBriefs';
 
-
-// Define the database brief type based on your Prisma schema
-interface DatabaseBrief {
-  id: string;
-  title: string;
-  abstract: string | null;
-  createdAt: Date;
-  response: string;
-  slug: string | null;
-  viewCount: number | null;
-  model: {
-    name: string;
-  };
-  categories: Array<{
-    name: string;
-  }>;
-  reviews: Array<{
-    rating: number;
-  }>;
+interface StatCardProps {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  loading: boolean;
+  formatter?: (val: number) => string;
 }
 
-// Transform database brief to BriefCardProps
-const transformBrief = (brief: BriefWithRelations): BriefCardProps => {
-  const reviewCount = brief.reviews?.length ?? 0;
-  const averageRating = reviewCount > 0 
-    ? brief.reviews.reduce((sum: number, review) => sum + review.rating, 0) / reviewCount 
-    : undefined;
+const StatCard: React.FC<StatCardProps> = ({ icon, label, value, loading, formatter }) => (
+  <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm text-center">
+    <div className="flex items-center justify-center mb-1 md:mb-2">{icon}</div>
+    <p className="text-gray-500 text-xs md:text-sm">{label}</p>
+    {loading ? (
+      <div className="h-6 md:h-8 bg-gray-200 rounded animate-pulse mt-1" />
+    ) : (
+      <p className="text-xl md:text-3xl font-bold text-gray-900">
+        {formatter ? formatter(value) : value}
+      </p>
+    )}
+  </div>
+);
 
-  return {
-    id: brief.id,
-    title: brief.title,
-    abstract: brief.abstract ?? '',
-    model: brief.model.name,
-    date: brief.createdAt.toISOString().split('T')[0]!,
-    readTime: `${Math.max(1, Math.ceil(brief.response.length / 1000))} min`,
-    category: brief.categories.length > 0 ? brief.categories[0]!.name : 'General',
-    views: brief.viewCount ?? 0,
-    rating: averageRating,
-    reviewCount: reviewCount,
-    featured: (brief.viewCount ?? 0) > 100,
-    _slug: brief.slug ?? undefined,
-  };
-};
+interface StatsSectionProps {
+  stats: { briefCount: number; modelCount: number; userCount: number };
+  loading: boolean;
+}
+
+const StatsSection: React.FC<StatsSectionProps> = ({ stats, loading }) => (
+  <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
+    <StatCard
+      icon={<BookOpen className="h-6 md:h-8 w-6 md:w-8 text-blue-600" />}
+      label="Research"
+      value={stats.briefCount}
+      loading={loading}
+      formatter={(val) => val.toLocaleString()}
+    />
+    <StatCard
+      icon={<Brain className="h-6 md:h-8 w-6 md:w-8 text-green-600" />}
+      label="AI Models"
+      value={stats.modelCount}
+      loading={loading}
+    />
+    <StatCard
+      icon={<Users className="h-6 md:h-8 w-6 md:w-8 text-purple-600" />}
+      label="Contributors"
+      value={stats.userCount}
+      loading={loading}
+      formatter={(val) => val.toLocaleString()}
+    />
+  </div>
+);
 
 export default function HomePage() {
-  const [stats, setStats] = useState({ briefCount: 0, modelCount: 0, userCount: 0 });
-  const [recentBriefs, setRecentBriefs] = useState<BriefCardProps[]>([]);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [loadingRecent, setLoadingRecent] = useState(true);
-  const [showQuickActions, setShowQuickActions] = useState(false);
+  const router = useRouter();
   const { isMobile } = useDeviceDetection();
+  const [showQuickActions, setShowQuickActions] = useState(false);
 
-  useEffect(() => {
-    // Fetch statistics
-    const fetchStats = async () => {
-      try {
-        const result = await getBriefStats();
-        if (result.success && result.data) {
-          setStats(result.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch stats:', error);
-      } finally {
-        setLoadingStats(false);
-      }
-    };
+  // React Query hooks
+  const statsQuery = useStats();
+  const recentBriefsQuery = useBriefs({
+    sortBy: 'new',
+    limit: isMobile ? 2 : 3,
+  });
 
-    // Fetch recent briefs
-    const fetchRecent = async () => {
-      try {
-        const result = await getRecentBriefs(isMobile ? 2 : 3);
-        if (result.success && result.data) {
-          setRecentBriefs(result.data.map(transformBrief));
-        }
-      } catch (error) {
-        console.error('Failed to fetch recent briefs:', error);
-      } finally {
-        setLoadingRecent(false);
-      }
-    };
-
-    void fetchStats();
-    void fetchRecent();
-  }, [isMobile]);
+  // Extract data from queries
+  const stats = statsQuery.data || { briefCount: 0, modelCount: 0, userCount: 0 };
+  const recentBriefs = recentBriefsQuery.data?.data?.slice(0, isMobile ? 2 : 3).map(transformBrief) || [];
+  const loadingStats = statsQuery.isLoading;
+  const loadingRecent = recentBriefsQuery.isLoading;
 
   const handleFilterClick = (type: 'trending' | 'recent') => {
-    if (type === 'trending') {
-      window.location.href = '/briefs?sort=popular';
-    } else {
-      window.location.href = '/briefs?sort=recent';
-    }
+    router.push(`/briefs?sort=${type === 'trending' ? 'popular' : 'recent'}`);
   };
 
   return (
@@ -126,24 +110,31 @@ export default function HomePage() {
             
             {/* Mobile Filter Buttons */}
             {isMobile ? (
-              <div className="flex justify-center space-x-4 mt-4">
-                <button 
+              <div className="flex justify-center space-x-2 mt-4">
+                <button
                   onClick={() => handleFilterClick('trending')}
-                  className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-medium"
+                  className="bg-white/20 backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium"
                 >
                   Trending
                 </button>
-                <button 
+                <button
                   onClick={() => handleFilterClick('recent')}
-                  className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-medium"
+                  className="bg-white/20 backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium"
                 >
                   Recent
                 </button>
-                <Link 
+                <Link
                   href="/briefs"
-                  className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-medium"
+                  className="bg-white/20 backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium"
                 >
-                  Browse All
+                  Browse
+                </Link>
+                <Link
+                  href="/export"
+                  className="bg-white/20 backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1"
+                >
+                  <Download className="h-4 w-4" />
+                  Export
                 </Link>
               </div>
             ) : (
@@ -174,16 +165,28 @@ export default function HomePage() {
                     <span className="text-sm">Recent</span>
                   </button>
                 </TooltipWrapper>
-                <TooltipWrapper 
+                <TooltipWrapper
                   content="Browse all research briefs with advanced filtering options"
                   position="bottom"
                 >
-                  <Link 
-                    href="/briefs" 
+                  <Link
+                    href="/briefs"
                     className="flex items-center text-blue-100 hover:text-white transition-colors"
                   >
                     <Filter className="h-4 w-4 mr-1" />
                     <span className="text-sm">Browse All</span>
+                  </Link>
+                </TooltipWrapper>
+                <TooltipWrapper
+                  content="Export your research data in various formats"
+                  position="bottom"
+                >
+                  <Link
+                    href="/export"
+                    className="flex items-center text-blue-100 hover:text-white transition-colors"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    <span className="text-sm">Export</span>
                   </Link>
                 </TooltipWrapper>
               </div>
@@ -206,41 +209,7 @@ export default function HomePage() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-4 md:py-6 max-w-full overflow-x-hidden">
         {/* Stats Section */}
-        <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
-          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm text-center">
-            <div className="flex items-center justify-center mb-1 md:mb-2">
-              <BookOpen className="h-6 md:h-8 w-6 md:w-8 text-blue-600" />
-            </div>
-            <p className="text-gray-500 text-xs md:text-sm">Research</p>
-            {loadingStats ? (
-              <div className="h-6 md:h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
-            ) : (
-              <p className="text-xl md:text-3xl font-bold text-gray-900">{stats.briefCount.toLocaleString()}</p>
-            )}
-          </div>
-          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm text-center">
-            <div className="flex items-center justify-center mb-1 md:mb-2">
-              <Brain className="h-6 md:h-8 w-6 md:w-8 text-green-600" />
-            </div>
-            <p className="text-gray-500 text-xs md:text-sm">AI Models</p>
-            {loadingStats ? (
-              <div className="h-6 md:h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
-            ) : (
-              <p className="text-xl md:text-3xl font-bold text-gray-900">{stats.modelCount}</p>
-            )}
-          </div>
-          <div className="bg-white p-3 md:p-6 rounded-lg shadow-sm text-center">
-            <div className="flex items-center justify-center mb-1 md:mb-2">
-              <Users className="h-6 md:h-8 w-6 md:w-8 text-purple-600" />
-            </div>
-            <p className="text-gray-500 text-xs md:text-sm">Contributors</p>
-            {loadingStats ? (
-              <div className="h-6 md:h-8 bg-gray-200 rounded animate-pulse mt-1"></div>
-            ) : (
-              <p className="text-xl md:text-3xl font-bold text-gray-900">{stats.userCount.toLocaleString()}</p>
-            )}
-          </div>
-        </div>
+        <StatsSection stats={stats} loading={loadingStats} />
         
         {/* Quick Actions - Mobile Dropdown */}
         {isMobile ? (
@@ -406,10 +375,10 @@ export default function HomePage() {
             </div>
             
             <div className="flex flex-wrap justify-center md:justify-end gap-4 md:space-x-6">
-              <a href="/about" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">About</a>
-              <a href="/privacy" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Privacy</a>
-              <a href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Terms</a>
-              <a href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Contact</a>
+              <Link href="/about" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">About</Link>
+              <Link href="/privacy" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Privacy</Link>
+              <Link href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Terms</Link>
+              <Link href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors text-sm">Contact</Link>
             </div>
           </div>
           

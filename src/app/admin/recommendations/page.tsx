@@ -469,7 +469,7 @@ export default function RecommendationsPage() {
         const result = await getAdminRecommendations();
 
         if (result.success && result.data) {
-          setRecommendations(result.data);
+          setRecommendations(result.data as unknown as UserRecommendation[]);
           setError(null);
         } else {
           setError(result.error || 'Failed to fetch recommendations');
@@ -515,7 +515,7 @@ export default function RecommendationsPage() {
             setTimeout(async () => {
               const fetchResult = await getAdminRecommendations();
               if (fetchResult.success && fetchResult.data) {
-                setRecommendations(fetchResult.data);
+                setRecommendations(fetchResult.data as unknown as UserRecommendation[]);
               }
               setRecalcProgress({});
             }, 500);
@@ -740,7 +740,7 @@ export default function RecommendationsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="w-12">&nbsp;</TableHead>
               <TableHead className="min-w-[200px]">User</TableHead>
               <TableHead className="min-w-[150px]">
                 <div className="flex flex-col">

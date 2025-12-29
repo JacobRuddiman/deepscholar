@@ -70,18 +70,18 @@ export default function MobileAdminNavigation() {
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+
+    const clientX = 'touches' in e ? e.touches[0]?.clientX ?? 0 : e.clientX;
     setStartX(clientX);
   };
 
   // Handle drag move
   const handleDragMove = (e: TouchEvent | MouseEvent) => {
     if (!isDragging) return;
-    
+
     e.preventDefault();
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+
+    const clientX = 'touches' in e ? e.touches[0]?.clientX ?? 0 : e.clientX;
     
     let newWidth = clientX;
     
