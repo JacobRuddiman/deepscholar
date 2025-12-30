@@ -50,6 +50,13 @@ export const authConfig = {
          */
       ],
   adapter: isLocalAuth() ? undefined : PrismaAdapter(db),
+  // SECURITY: Reduced session lifetime from 30 days to 14 days
+  // Aligns with NIST 800-63B recommendations for session management
+  session: {
+    strategy: "database" as const,
+    maxAge: 14 * 24 * 60 * 60, // 14 days in seconds
+    updateAge: 24 * 60 * 60, // Update session every 24 hours
+  },
   callbacks: {
     session: ({ session, user }) => {
       // In local auth mode, return the mock session
