@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import DOMPurify from 'isomorphic-dompurify';
 
 // Common validation schemas
 export const emailSchema = z.string().email('Please enter a valid email address');
@@ -125,17 +126,56 @@ export function validateInput<T>(schema: z.ZodSchema<T>, data: unknown): {
   }
 }
 
-export function sanitizeHtml(html: string): string {
-  // Basic HTML sanitization - in production, use a library like DOMPurify
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
-    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, '')
-    .replace(/<link\b[^<]*(?:(?!<\/link>)<[^<]*)*<\/link>/gi, '')
-    .replace(/<meta\b[^<]*(?:(?!<\/meta>)<[^<]*)*<\/meta>/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/on\w+\s*=/gi, '');
+/**
+ * Sanitize HTML content using DOMPurify
+ * SECURITY: Replaces regex-based sanitization to prevent XSS attacks
+ *
+ * @param html - HTML string to sanitize
+ * @param options - Optional DOMPurify configuration
+ * @returns Sanitized HTML string safe for rendering
+ *
+ * @see https://github.com/cure53/DOMPurify
+ * @see OWASP XSS Prevention Cheat Sheet
+ */
+export function sanitizeHtml(
+  html: string,
+  options?: {
+    allowedTags?: string[];
+    allowedAttributes?: Record<string, string[]>;
+  }
+): string {
+  // Default safe configuration
+  const config: DOMPurify.Config = {
+    // Allow only safe tags by default
+    ALLOWED_TAGS: options?.allowedTags || [
+      'p', 'br', 'strong', 'em', 'u', 's', 'del', 'ins',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'ul', 'ol', 'li',
+      'blockquote', 'pre', 'code',
+      'a', 'img',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+      'div', 'span'
+    ],
+    // Allow only safe attributes
+    ALLOWED_ATTR: options?.allowedAttributes
+      ? Object.values(options.allowedAttributes).flat()
+      : ['href', 'src', 'alt', 'title', 'class', 'id'],
+    // Forbid specific tags
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+    // Forbid specific attributes
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+    // Use safe protocols only
+    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    // Keep content safe
+    KEEP_CONTENT: true,
+    // Return DOM instead of string for better security
+    RETURN_DOM: false,
+    RETURN_DOM_FRAGMENT: false,
+    // Sanitize in place
+    IN_PLACE: false,
+  };
+
+  return DOMPurify.sanitize(html, config);
 }
 
 export function sanitizeText(text: string): string {

@@ -64,25 +64,30 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Apply CSP to all routes
+        // Apply security headers to all routes
         source: '/(.*)',
         headers: [
           {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://va.vercel-scripts.com",
+              // FIXED: Removed 'unsafe-eval' and 'unsafe-inline' for better XSS protection
+              "script-src 'self' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://www.google-analytics.com",
+              // Note: 'unsafe-inline' still needed for Tailwind and component styles
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https: http:",
+              "font-src 'self' https://fonts.gstatic.com data:",
+              // FIXED: Restricted img-src to specific whitelisted domains
+              "img-src 'self' data: blob: https://lh3.googleusercontent.com https://cdn.discordapp.com https://avatars.githubusercontent.com https://*.supabase.co",
               "media-src 'self' data: blob:",
-              "connect-src 'self' https://vercel.live wss://ws-us3.pusher.com https://sockjs-us3.pusher.com",
+              "connect-src 'self' https://vercel.live wss://ws-us3.pusher.com https://sockjs-us3.pusher.com https://*.supabase.co https://www.google-analytics.com",
               "frame-src 'self' https://vercel.live",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'none'",
-              "upgrade-insecure-requests"
+              "upgrade-insecure-requests",
+              // ADDED: CSP violation reporting endpoint
+              "report-uri /api/csp-report"
             ].join('; ')
           },
           {
@@ -104,6 +109,11 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()'
+          },
+          // ADDED: HSTS header for HTTPS enforcement
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains'
           }
         ],
       },
