@@ -22,6 +22,7 @@ import type { BriefData } from '@/functions/types';
 import ErrorPopup from './error_popup';
 import TooltipWrapper from './TooltipWrapper';
 import AddReferencePopup from './AddReferencePopup';
+import { parseManualBriefContent } from '@/functions/parsers/manual_parser';
 
 import {
   urlSchema,
@@ -57,6 +58,10 @@ export default function DesktopBriefUploadEditor({
   const [error, setError] = useState<string | null>(null);
   const [briefData, setBriefData] = useState<BriefData | null>(null);
   const [showHtmlInspector, setShowHtmlInspector] = useState(false);
+
+  // Manual entry states
+  const [inputMode, setInputMode] = useState<'url' | 'manual'>('url');
+  const [manualContent, setManualContent] = useState("");
   
   // Theme state
   const [theme, setTheme] = useState(determineTheme(null));
@@ -200,21 +205,21 @@ export default function DesktopBriefUploadEditor({
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const data = await fetchBriefFromUrl(url);
-      
+
       // Set default prompt if not provided
       if (!data.prompt) {
         data.prompt = "PROMPT UNKNOWN";
       }
-      
+
       setBriefData(data);
-      
+
       setTheme(determineTheme(data));
-      
+
       setOriginalAbstract(data.abstract || "");
       setOriginalContent(data.content || "");
-      
+
       setShowTitleSection(true);
       setTimeout(() => setShowPromptSection(true), 150);
       setTimeout(() => setShowAbstractSection(true), 300);
@@ -222,10 +227,51 @@ export default function DesktopBriefUploadEditor({
       setTimeout(() => setShowSourcesSection(true), 600);
       setTimeout(() => setShowReferencesSection(true), 750);
       setTimeout(() => setShowMetadataSection(true), 900);
-      
+
     } catch (error) {
       console.error("Error fetching brief:", error);
       setError("Failed to fetch brief data. Please check the URL and try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle manual content parsing
+  const handleManualParse = () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (!manualContent.trim()) {
+        setError("Please paste some content to parse");
+        setIsLoading(false);
+        return;
+      }
+
+      const data = parseManualBriefContent(manualContent);
+
+      // Set default prompt if not provided
+      if (!data.prompt) {
+        data.prompt = "PROMPT UNKNOWN";
+      }
+
+      setBriefData(data);
+      setTheme(determineTheme(data));
+
+      setOriginalAbstract(data.abstract || "");
+      setOriginalContent(data.content || "");
+
+      setShowTitleSection(true);
+      setTimeout(() => setShowPromptSection(true), 150);
+      setTimeout(() => setShowAbstractSection(true), 300);
+      setTimeout(() => setShowContentSection(true), 450);
+      setTimeout(() => setShowSourcesSection(true), 600);
+      setTimeout(() => setShowReferencesSection(true), 750);
+      setTimeout(() => setShowMetadataSection(true), 900);
+
+    } catch (error) {
+      console.error("Error parsing manual content:", error);
+      setError("Failed to parse content. Please check the format and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -234,6 +280,7 @@ export default function DesktopBriefUploadEditor({
   // Handle clearing the form
   const handleClearForm = () => {
     setUrl("");
+    setManualContent("");
     setIsValidUrl(null);
     setError(null);
     setBriefData(null);
@@ -346,69 +393,142 @@ export default function DesktopBriefUploadEditor({
   // URL Input Section
   const renderUrlInputSection = () => (
     <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4">
-      <label htmlFor="brief-url" className="block text-sm font-medium text-gray-700 mb-2">
-        Research URL
-      </label>
-      <div className="flex flex-col">
-        <div className="relative flex-1 mb-2">
-          <input
-            id="brief-url"
-            type="text"
-            value={url}
-            onChange={handleUrlChange}
-            placeholder="Paste research URL"
-            className={`w-full p-2 pr-10 border rounded-md focus:ring-2 focus:outline-none ${
-              isValidUrl === true ? 'border-green-500 focus:ring-green-200' :
-              isValidUrl === false ? 'border-red-500 focus:ring-red-200' :
-              'border-gray-300 focus:ring-blue-200'
-            }`}
-          />
-          {isValidUrl === true && (
-            <CheckCircle className="absolute right-2 top-2 text-green-500" size={18} />
-          )}
-          {isValidUrl === false && (
-            <AlertCircle className="absolute right-2 top-2 text-red-500" size={18} />
-          )}
-        </div>
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={handleFetchBrief}
-            disabled={!isValidUrl || isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors"
-          >
-            {isLoading ? (
-              <Loader2 className="animate-spin mx-auto" size={20} />
-            ) : (
-              "Fetch Brief"
-            )}
-          </button>
-          
-          {briefData && (
-            <>
+      {/* Tab Switcher */}
+      <div className="flex gap-2 mb-4 border-b border-gray-200">
+        <button
+          onClick={() => setInputMode('url')}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            inputMode === 'url'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          URL Extract
+        </button>
+        <button
+          onClick={() => setInputMode('manual')}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            inputMode === 'manual'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Manual Entry
+        </button>
+      </div>
+
+      {/* URL Input Mode */}
+      {inputMode === 'url' && (
+        <>
+          <label htmlFor="brief-url" className="block text-sm font-medium text-gray-700 mb-2">
+            Research URL
+          </label>
+          <div className="flex flex-col">
+            <div className="relative flex-1 mb-2">
+              <input
+                id="brief-url"
+                type="text"
+                value={url}
+                onChange={handleUrlChange}
+                placeholder="Paste research URL"
+                className={`w-full p-2 pr-10 border rounded-md focus:ring-2 focus:outline-none ${
+                  isValidUrl === true ? 'border-green-500 focus:ring-green-200' :
+                  isValidUrl === false ? 'border-red-500 focus:ring-red-200' :
+                  'border-gray-300 focus:ring-blue-200'
+                }`}
+              />
+              {isValidUrl === true && (
+                <CheckCircle className="absolute right-2 top-2 text-green-500" size={18} />
+              )}
+              {isValidUrl === false && (
+                <AlertCircle className="absolute right-2 top-2 text-red-500" size={18} />
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
               <button
-                onClick={handleClearForm}
-                className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                onClick={handleFetchBrief}
+                disabled={!isValidUrl || isLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors"
               >
-                <Trash2 size={16} />
-                <span>Clear Form</span>
+                {isLoading ? (
+                  <Loader2 className="animate-spin mx-auto" size={20} />
+                ) : (
+                  "Fetch Brief"
+                )}
               </button>
-              
-              {briefData?.rawHtml && (
+
+              {briefData && (
+                <>
+                  <button
+                    onClick={handleClearForm}
+                    className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                    <span>Clear Form</span>
+                  </button>
+
+                  {briefData?.rawHtml && (
+                    <button
+                      onClick={() => setShowHtmlInspector(true)}
+                      className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      <CodeIcon size={16} />
+                      <span>Inspect HTML</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-gray-500 text-center">
+            Supports OpenAI and Perplexity deep research URLs
+          </p>
+        </>
+      )}
+
+      {/* Manual Entry Mode */}
+      {inputMode === 'manual' && (
+        <>
+          <label htmlFor="manual-content" className="block text-sm font-medium text-gray-700 mb-2">
+            Paste Research Content
+          </label>
+          <div className="flex flex-col">
+            <textarea
+              id="manual-content"
+              value={manualContent}
+              onChange={(e) => setManualContent(e.target.value)}
+              placeholder="Paste your entire research content here...&#10;&#10;The parser will automatically extract:&#10;• Title (from first heading or line)&#10;• Prompt/Question (if labeled)&#10;• Main Content&#10;• Abstract/Conclusion (if labeled)&#10;• References (if labeled)&#10;• Source URLs (from links)"
+              className="w-full p-3 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 font-mono text-sm min-h-[300px] resize-y"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {manualContent.length} characters
+            </p>
+            <div className="flex flex-col gap-2 mt-2">
+              <button
+                onClick={handleManualParse}
+                disabled={!manualContent.trim() || isLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors"
+              >
+                {isLoading ? (
+                  <Loader2 className="animate-spin mx-auto" size={20} />
+                ) : (
+                  "Parse Content"
+                )}
+              </button>
+
+              {briefData && (
                 <button
-                  onClick={() => setShowHtmlInspector(true)}
-                  className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                  onClick={handleClearForm}
+                  className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
                 >
-                  <CodeIcon size={16} />
-                  <span>Inspect HTML</span>
+                  <Trash2 size={16} />
+                  <span>Clear Form</span>
                 </button>
               )}
-            </>
-          )}
-        </div>
-      </div>
-      <p className="mt-2 text-xs text-gray-500 text-center">
-        Supports OpenAI and Perplexity deep research URLs
-      </p>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 
