@@ -26,6 +26,7 @@ The script automatically detects the platform:
 - `chatgpt.com` or `chat.openai.com` → ChatGPT extractor
 - `perplexity.ai` → Perplexity extractor
 - `claude.ai` or `anthropic.com` → Anthropic/Claude extractor
+- `docs.google.com` or `drive.google.com/file` → Google Docs extractor (Gemini)
 - `google.com` → Google extractor
 - Others → Generic extractor
 

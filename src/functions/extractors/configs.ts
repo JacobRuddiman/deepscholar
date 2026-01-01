@@ -178,6 +178,42 @@ export const GOOGLE_CONFIG: ExtractorConfig = {
   contentWaitTimeout: 5000
 };
 
+export const GOOGLE_DOCS_CONFIG: ExtractorConfig = {
+  platformName: 'google-docs',
+
+  contentSelectors: [
+    '.kix-paginateddocumentplugin',  // Main document container
+    '.kix-page',                      // Individual pages
+    '[role="document"]',
+    '.doc-content',
+    'body'
+  ],
+
+  abstractPatterns: [
+    /\n\s*(?:Conclusion|Summary|Abstract|Key Takeaways|In Conclusion)\s*\n/i,
+    /\n\s*(?:Conclusion|Summary)\s*[:]/i
+  ],
+
+  referencesPatterns: [
+    /\n\s*(?:References|Sources|Citations|Bibliography)\s*[:]/i,
+    /\n\s*(?:References|Sources)\s*\n/i
+  ],
+
+  modalCloseSelectors: [
+    'button[aria-label="Close"]',
+    '[data-dismiss="modal"]'
+  ],
+
+  waitForSelectors: [
+    '.kix-paginateddocumentplugin',
+    '[role="document"]',
+    'body'
+  ],
+
+  navigationTimeout: 30000,
+  contentWaitTimeout: 5000
+};
+
 export const GENERIC_CONFIG: ExtractorConfig = {
   platformName: 'generic',
 
@@ -225,6 +261,8 @@ export function getConfigForPlatform(platform: string): ExtractorConfig {
     'anthropic': ANTHROPIC_CONFIG,
     'claude': ANTHROPIC_CONFIG,
     'google': GOOGLE_CONFIG,
+    'google-docs': GOOGLE_DOCS_CONFIG,
+    'docs': GOOGLE_DOCS_CONFIG,
     'generic': GENERIC_CONFIG
   };
 

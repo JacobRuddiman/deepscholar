@@ -217,6 +217,8 @@ const testCases: TestCase[] = args.map(arg => {
       platform = 'perplexity';
     } else if (lowerUrl.includes('claude.ai') || lowerUrl.includes('anthropic.com')) {
       platform = 'anthropic';
+    } else if (lowerUrl.includes('docs.google.com') || lowerUrl.includes('drive.google.com/file')) {
+      platform = 'google-docs';
     } else if (lowerUrl.includes('google.com')) {
       platform = 'google';
     }
