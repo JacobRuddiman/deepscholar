@@ -24,6 +24,7 @@ import type { BriefData } from '@/functions/types';
 import ErrorPopup from './error_popup';
 import TooltipWrapper from './TooltipWrapper';
 import AddReferencePopup from './AddReferencePopup';
+import { parseManualBriefContent } from '@/functions/parsers/manual_parser';
 
 import {
   urlSchema,
@@ -59,7 +60,10 @@ export default function MobileBriefUploadEditor({
   const [error, setError] = useState<string | null>(null);
   const [briefData, setBriefData] = useState<BriefData | null>(null);
   const [showHtmlInspector, setShowHtmlInspector] = useState(false);
-  
+
+  // Manual entry state
+  const [manualContent, setManualContent] = useState("");
+
   // Theme state
   const [theme, setTheme] = useState(determineTheme(null));
   
@@ -85,7 +89,7 @@ export default function MobileBriefUploadEditor({
   
   // Mobile-specific states
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [activeTab, setActiveTab] = useState<'url' | 'sources'>('url');
+  const [activeTab, setActiveTab] = useState<'url' | 'manual' | 'sources'>('url');
   
   // Refs
   const bottomControlsRef = useRef<HTMLDivElement>(null);
@@ -252,10 +256,55 @@ export default function MobileBriefUploadEditor({
       setIsLoading(false);
     }
   };
-  
+
+  // Handle manual content parsing
+  const handleManualParse = () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (!manualContent.trim()) {
+        setError("Please paste some content to parse");
+        setIsLoading(false);
+        return;
+      }
+
+      const data = parseManualBriefContent(manualContent);
+
+      // Set default prompt if not provided
+      if (!data.prompt) {
+        data.prompt = "PROMPT UNKNOWN";
+      }
+
+      setBriefData(data);
+      setTheme(determineTheme(data));
+
+      setOriginalAbstract(data.abstract || "");
+      setOriginalContent(data.content || "");
+
+      setShowTitleSection(true);
+      setTimeout(() => setShowPromptSection(true), 150);
+      setTimeout(() => setShowAbstractSection(true), 300);
+      setTimeout(() => setShowContentSection(true), 450);
+      setTimeout(() => setShowSourcesSection(true), 600);
+      setTimeout(() => setShowReferencesSection(true), 750);
+      setTimeout(() => setShowMetadataSection(true), 900);
+
+      // Switch to sources tab after parsing
+      setActiveTab('sources');
+
+    } catch (error) {
+      console.error("Error parsing manual content:", error);
+      setError("Failed to parse content. Please check the format and try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle clearing the form
   const handleClearForm = () => {
     setUrl("");
+    setManualContent("");
     setIsValidUrl(null);
     setError(null);
     setBriefData(null);
@@ -370,34 +419,43 @@ export default function MobileBriefUploadEditor({
   // Mobile sidebar content
   const renderSidebarContent = () => (
     <>
-      {/* Mobile Tabs - Only show when brief data exists */}
-      {briefData && (
-        <div className="flex border-b border-gray-200 mb-4">
-          <button
-            onClick={() => setActiveTab('url')}
-            className={`flex-1 py-2 px-4 text-sm font-medium ${
-              activeTab === 'url' 
-                ? 'text-blue-600 border-b-2 border-blue-600' 
-                : 'text-gray-600'
-            }`}
-          >
-            URL Input
-          </button>
-          <button
-            onClick={() => setActiveTab('sources')}
-            className={`flex-1 py-2 px-4 text-sm font-medium ${
-              activeTab === 'sources' 
-                ? 'text-blue-600 border-b-2 border-blue-600' 
-                : 'text-gray-600'
-            }`}
-          >
-            Sources
-          </button>
-        </div>
-      )}
+      {/* Mobile Tabs - Always show */}
+      <div className="flex border-b border-gray-200 mb-4">
+        <button
+          onClick={() => setActiveTab('url')}
+          className={`flex-1 py-2 px-4 text-sm font-medium ${
+            activeTab === 'url'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600'
+          }`}
+        >
+          URL Extract
+        </button>
+        <button
+          onClick={() => setActiveTab('manual')}
+          className={`flex-1 py-2 px-4 text-sm font-medium ${
+            activeTab === 'manual'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600'
+          }`}
+        >
+          Manual
+        </button>
+        <button
+          onClick={() => setActiveTab('sources')}
+          disabled={!briefData}
+          className={`flex-1 py-2 px-4 text-sm font-medium ${
+            activeTab === 'sources'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : briefData ? 'text-gray-600' : 'text-gray-400'
+          }`}
+        >
+          Sources
+        </button>
+      </div>
 
-      {/* Show URL input when no brief data or when URL tab is active */}
-      {(!briefData || activeTab === 'url') && (
+      {/* Show URL input when URL tab is active */}
+      {activeTab === 'url' && (
         /* URL Input Section */
         <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4">
           <label htmlFor="brief-url" className="block text-sm font-medium text-gray-700 mb-2">
@@ -470,6 +528,50 @@ export default function MobileBriefUploadEditor({
           <p className="mt-2 text-xs text-gray-500 text-center">
             Supports OpenAI and Perplexity deep research URLs
           </p>
+        </div>
+      )}
+
+      {/* Show Manual Entry when manual tab is active */}
+      {activeTab === 'manual' && (
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4">
+          <label htmlFor="manual-content" className="block text-sm font-medium text-gray-700 mb-2">
+            Paste Research Content
+          </label>
+          <div className="flex flex-col">
+            <textarea
+              id="manual-content"
+              value={manualContent}
+              onChange={(e) => setManualContent(e.target.value)}
+              placeholder="Paste your entire research content here...&#10;&#10;The parser will automatically extract:&#10;• Title (from first heading or line)&#10;• Prompt/Question (if labeled)&#10;• Main Content&#10;• Abstract/Conclusion (if labeled)&#10;• References (if labeled)&#10;• Source URLs (from links)"
+              className="w-full p-3 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 font-mono text-sm min-h-[400px] resize-y"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {manualContent.length} characters
+            </p>
+            <div className="flex flex-col gap-2 mt-2">
+              <button
+                onClick={handleManualParse}
+                disabled={!manualContent.trim() || isLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors"
+              >
+                {isLoading ? (
+                  <Loader2 className="animate-spin mx-auto" size={20} />
+                ) : (
+                  "Parse Content"
+                )}
+              </button>
+
+              {briefData && (
+                <button
+                  onClick={handleClearForm}
+                  className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  <Trash2 size={16} />
+                  <span>Clear Form</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
