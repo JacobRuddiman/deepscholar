@@ -17,4 +17,8 @@ export type BriefData = {
   model: "openai" | "perplexity" | "anthropic" | "other";
   rawHtml?: string;
   references?: string;
+
+  // Quality metrics (added in Phase 2)
+  confidence?: 'high' | 'medium' | 'low';
+  warnings?: string[];
 };
