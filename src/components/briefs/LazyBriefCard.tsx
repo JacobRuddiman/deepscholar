@@ -13,7 +13,7 @@ const BriefCard = dynamic(() => import('./BriefCard'), {
 
 interface LazyBriefCardProps {
   briefId: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -34,12 +34,18 @@ export function LazyBriefCard({ briefId, ...props }: LazyBriefCardProps) {
   );
 }
 
+/** Brief item in a list, must have an id and may include additional fields */
+interface BriefListItem {
+  id: string;
+  [key: string]: unknown;
+}
+
 /**
  * Lazy-loaded list of brief cards with staggered loading
  */
 interface LazyBriefListProps {
-  briefs: Array<{ id: string; [key: string]: any }>;
-  BriefCardComponent?: ComponentType<any>;
+  briefs: BriefListItem[];
+  BriefCardComponent?: ComponentType<{ [key: string]: unknown }>;
   className?: string;
 }
 
@@ -70,9 +76,9 @@ function LazyBriefCardWrapper({
   index,
   BriefCardComponent,
 }: {
-  brief: any;
+  brief: BriefListItem;
   index: number;
-  BriefCardComponent: ComponentType<any>;
+  BriefCardComponent: ComponentType<{ [key: string]: unknown }>;
 }) {
   const [ref, isVisible] = useLazyLoad<HTMLDivElement>('150px');
 
@@ -100,11 +106,11 @@ function LazyBriefCardWrapper({
  * Infinite scroll container for brief lists
  */
 interface InfiniteScrollBriefListProps {
-  briefs: Array<{ id: string; [key: string]: any }>;
+  briefs: BriefListItem[];
   onLoadMore: () => void | Promise<void>;
   hasMore: boolean;
   loading?: boolean;
-  BriefCardComponent?: ComponentType<any>;
+  BriefCardComponent?: ComponentType<{ [key: string]: unknown }>;
   className?: string;
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { apiSuccess, apiError } from '@/lib/api-response';
 
 /**
  * API endpoint to receive Core Web Vitals metrics
@@ -31,20 +32,7 @@ export async function POST(request: NextRequest) {
 
     // Validate metric
     if (!metric.name || metric.value === undefined) {
-      return NextResponse.json(
-        { error: 'Invalid metric data' },
-        { status: 400 }
-      );
-    }
-
-    // Log in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Web Vitals]', {
-        name: metric.name,
-        value: metric.value,
-        rating: metric.rating,
-        url: metric.url,
-      });
+      return apiError('Invalid metric data', 400);
     }
 
     // In production, store metrics in database
@@ -74,12 +62,12 @@ export async function POST(request: NextRequest) {
     // - New Relic
     // - Custom analytics service
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ received: true });
   } catch (error) {
     console.error('[Analytics API] Error processing web vital:', error);
 
     // Don't return error to client - analytics should never break the app
-    return NextResponse.json({ success: true }, { status: 200 });
+    return apiSuccess({ received: true });
   }
 }
 

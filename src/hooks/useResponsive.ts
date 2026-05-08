@@ -2,6 +2,14 @@
 
 import { useState, useEffect } from 'react';
 
+interface NavigatorWithMSTouch extends Navigator {
+  msMaxTouchPoints?: number;
+}
+
+interface NavigatorWithStandalone extends Navigator {
+  standalone?: boolean;
+}
+
 /**
  * Breakpoints matching Tailwind CSS defaults
  */
@@ -99,7 +107,7 @@ export function useTouchDevice() {
       setIsTouch(
         'ontouchstart' in window ||
         navigator.maxTouchPoints > 0 ||
-        (navigator as any).msMaxTouchPoints > 0
+        (navigator as NavigatorWithMSTouch).msMaxTouchPoints! > 0
       );
     };
 
@@ -145,7 +153,7 @@ export function useStandalone() {
     const checkStandalone = () => {
       setIsStandalone(
         window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as any).standalone === true
+        (window.navigator as NavigatorWithStandalone).standalone === true
       );
     };
 

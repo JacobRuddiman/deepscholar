@@ -56,7 +56,7 @@ Thank you for your interest in contributing to DeepScholar! This guide will help
 
 6. **Access Application**
    - Open http://localhost:3000
-   - If using LOCAL_MODE=true, authentication is bypassed
+   - If using NEXT_PUBLIC_LOCAL_AUTH=true, authentication is bypassed
 
 ## Project Structure
 
@@ -82,7 +82,8 @@ deepscholar/
 │   └── functions/          # Business logic
 ├── prisma/                  # Database schema and migrations
 ├── public/                  # Static assets
-└── tests/                   # Test files
+├── e2e/                     # Playwright end-to-end tests
+└── scripts/                 # Utility scripts
 
 ```
 
@@ -199,8 +200,9 @@ refactor(hooks): simplify useKeyboardNavigation logic
 # Unit tests
 npm test
 
-# E2E tests (when implemented)
-npm run test:e2e
+# E2E tests
+npm run test:e2e          # Full suite
+npm run test:e2e:smoke    # Smoke tests only
 
 # Type checking
 npm run type-check

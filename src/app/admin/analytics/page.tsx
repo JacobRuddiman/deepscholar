@@ -19,6 +19,7 @@ import { getAdminAnalytics } from '@/server/actions/analytics';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Select } from '@/app/components/ui/select';
+import { EmptyStates } from '@/components/empty-states/EmptyState';
 
 // Color palette for charts
 const COLORS = {
@@ -31,12 +32,102 @@ const COLORS = {
 };
 
 // Types for analytics data
+interface TimeSeriesPoint {
+  date: string;
+  count: number;
+}
+
+interface RetentionCohort {
+  cohort: string;
+  totalUsers: number;
+  retainedUsers: number;
+  retentionRate: number;
+}
+
+interface DailyActiveUser {
+  date: string;
+  activeUsers: number;
+}
+
+interface UserEngagementData {
+  newUserRegistrations: TimeSeriesPoint[];
+  userInteractions: TimeSeriesPoint[];
+  briefViews: TimeSeriesPoint[];
+  retentionCohorts: RetentionCohort[];
+  dailyActiveUsers: DailyActiveUser[];
+  error?: string;
+}
+
+interface TopBrief {
+  id: string;
+  title: string;
+  viewCount: number;
+  upvoteCount: number;
+  averageRating: number | null;
+  engagementRate: number;
+}
+
+interface ContentPerformanceData {
+  briefCreationVelocity: Array<{ day: string; count: number }>;
+  averageRatingsByDay: Array<{ day: string; averageRating: number | null }>;
+  topPerformingBriefs: TopBrief[];
+  engagementRateByDay: Array<{ day: string; views: number; upvotes: number; engagementRate: number }>;
+  totalBriefs: number;
+  totalViews: number;
+  totalUpvotes: number;
+  error?: string;
+}
+
+interface TokenEconomicsData {
+  tokenPurchasesByDay: Array<{ day: string; tokensAmount: number; revenue: number; purchaseCount: number }>;
+  tokenUsageByDay: Array<{ day: string; totalUsage: number; usageByReason: Record<string, number> }>;
+  tokenBalanceDistribution: Record<string, number>;
+  transactionCategories: Array<{ reason: string; totalAmount: number; transactionCount: number }>;
+  revenueProjection: { next30Days: number; next90Days: number; next365Days: number };
+  totalRevenue: number;
+  totalTokensPurchased: number;
+  totalTokensUsed: number;
+  error?: string;
+}
+
+interface ReviewAnalyticsData {
+  userRatingDistribution: number[];
+  aiRatingDistribution: number[];
+  reviewTrends: Array<{ day: string; userReviewCount: number; userAverageRating: number | null; aiReviewCount: number; aiAverageRating: number | null }>;
+  userHelpfulnessMetrics: Array<{ id: string; helpfulCount: number; upvoteCount: number; helpfulnessRatio: number }>;
+  aiHelpfulnessMetrics: Array<{ id: string; helpfulCount: number; helpfulnessRatio: number }>;
+  comparison: { userReviewCount: number; aiReviewCount: number; userAverageRating: number; aiAverageRating: number; ratingDifference: number };
+  reviewCorrelationData: Array<{ userReviews: number; aiReviews: number }>;
+  error?: string;
+}
+
+interface CategoryStat {
+  id: string;
+  name: string;
+  briefCount: number;
+  viewCount: number;
+  upvoteCount: number;
+  averageRating: number | null;
+  engagementRate: number;
+  trendByDay: Array<{ day: string; count: number }>;
+}
+
+interface CategoryTrendsData {
+  categoryStats: CategoryStat[];
+  emergingCategories: Array<{ id: string; name: string; growthRate: number }>;
+  categoryCorrelations: Array<{ category1: string; category2: string; count: number }>;
+  totalCategories: number;
+  mostPopularCategory: CategoryStat | null;
+  fastestGrowingCategory: { id: string; name: string; growthRate: number } | null;
+  error?: string;
+}
+
 interface AnalyticsData {
-  userEngagement: any;
-  contentPerformance: any;
-  tokenEconomics: any;
-  reviewAnalytics: any;
-  categoryTrends: any;
+  userEngagement: UserEngagementData;
+  contentPerformance: ContentPerformanceData;
+  tokenEconomics: TokenEconomicsData;
+  reviewAnalytics: ReviewAnalyticsData;
+  categoryTrends: CategoryTrendsData;
   metadata: {
     period: { value: number; unit: string };
     generatedAt: string;
@@ -157,7 +248,7 @@ export default function AnalyticsPage() {
   };
 
   // Export data handler
-  const handleExportData = (chartId: string, chartData: any) => {
+  const handleExportData = (chartId: string, chartData: unknown) => {
     try {
       const dataStr = JSON.stringify(chartData, null, 2);
       const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
@@ -389,20 +480,20 @@ export default function AnalyticsPage() {
 }
 
 // Component 1: User Engagement Chart
-function UserEngagementChart({ 
-  data, 
-  expanded, 
-  onToggleExpand, 
-  filter, 
+function UserEngagementChart({
+  data,
+  expanded,
+  onToggleExpand,
+  filter,
   onFilterChange,
-  onExport 
+  onExport
 }: {
-  data: any;
+  data: UserEngagementData;
   expanded: boolean;
   onToggleExpand: () => void;
   filter?: ChartFilter;
   onFilterChange: (filter: ChartFilter) => void;
-  onExport: (data: any) => void;
+  onExport: (data: unknown) => void;
 }) {
   const [viewType, setViewType] = useState<'registrations' | 'interactions' | 'retention' | 'active'>('registrations');
   
@@ -519,14 +610,14 @@ function UserEngagementChart({
         <div className="bg-purple-50 p-4 rounded-lg">
           <p className="text-sm font-medium text-purple-600">Total Views</p>
           <p className="text-2xl font-bold text-purple-900">
-            {data.briefViews?.reduce((sum: number, item: any) => sum + (item.count || 0), 0) || 0}
+            {data.briefViews?.reduce((sum: number, item: TimeSeriesPoint) => sum + (item.count || 0), 0) || 0}
           </p>
         </div>
         <div className="bg-yellow-50 p-4 rounded-lg">
           <p className="text-sm font-medium text-yellow-600">Avg Retention</p>
           <p className="text-2xl font-bold text-yellow-900">
             {data.retentionCohorts?.length > 0
-              ? `${(data.retentionCohorts.reduce((sum: number, c: any) => sum + c.retentionRate, 0) / data.retentionCohorts.length).toFixed(1)}%`
+              ? `${(data.retentionCohorts.reduce((sum: number, c: RetentionCohort) => sum + c.retentionRate, 0) / data.retentionCohorts.length).toFixed(1)}%`
               : 'N/A'}
           </p>
         </div>
@@ -593,20 +684,20 @@ function UserEngagementChart({
 }
 
 // Component 2: Content Performance Chart
-function ContentPerformanceChart({ 
-  data, 
-  expanded, 
-  onToggleExpand, 
-  filter, 
+function ContentPerformanceChart({
+  data,
+  expanded,
+  onToggleExpand,
+  filter,
   onFilterChange,
-  onExport 
+  onExport
 }: {
-  data: any;
+  data: ContentPerformanceData;
   expanded: boolean;
   onToggleExpand: () => void;
   filter?: ChartFilter;
   onFilterChange: (filter: ChartFilter) => void;
-  onExport: (data: any) => void;
+  onExport: (data: unknown) => void;
 }) {
   const [viewType, setViewType] = useState<'velocity' | 'engagement' | 'ratings' | 'top'>('velocity');
   
@@ -794,11 +885,7 @@ function ContentPerformanceChart({
       </LineChart>
     </ResponsiveContainer>
   ) : (
-    <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg">
-      <Activity className="h-12 w-12 text-gray-300 mb-4" />
-      <p className="text-gray-500 text-lg">Not enough engagement data available</p>
-      <p className="text-gray-400 text-sm mt-2">Try expanding the time period or wait for more user activity</p>
-    </div>
+    <EmptyStates.NoAnalyticsData message="Not enough engagement data available. Try expanding the time period or wait for more user activity." />
   )
 )}
       
@@ -839,17 +926,13 @@ function ContentPerformanceChart({
       </AreaChart>
     </ResponsiveContainer>
   ) : (
-    <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg">
-      <Star className="h-12 w-12 text-gray-300 mb-4" />
-      <p className="text-gray-500 text-lg">Not enough rating data available</p>
-      <p className="text-gray-400 text-sm mt-2">Try expanding the time period or wait for more reviews</p>
-    </div>
+    <EmptyStates.NoAnalyticsData message="Not enough rating data available. Try expanding the time period or wait for more reviews." />
   )
 )}
       
       {viewType === 'top' && (
         <div className="space-y-3">
-          {(data.topPerformingBriefs || []).map((brief: any, index: number) => (
+          {(data.topPerformingBriefs || []).map((brief: TopBrief, index: number) => (
             <div key={brief.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center space-x-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
@@ -881,20 +964,20 @@ function ContentPerformanceChart({
 }
 
 // Component 3: Token Economics Chart
-function TokenEconomicsChart({ 
-  data, 
-  expanded, 
-  onToggleExpand, 
-  filter, 
+function TokenEconomicsChart({
+  data,
+  expanded,
+  onToggleExpand,
+  filter,
   onFilterChange,
-  onExport 
+  onExport
 }: {
-  data: any;
+  data: TokenEconomicsData;
   expanded: boolean;
   onToggleExpand: () => void;
   filter?: ChartFilter;
   onFilterChange: (filter: ChartFilter) => void;
-  onExport: (data: any) => void;
+  onExport: (data: unknown) => void;
 }) {
   const [viewType, setViewType] = useState<'purchases' | 'usage' | 'distribution' | 'projection'>('purchases');
   
@@ -1119,7 +1202,7 @@ function TokenEconomicsChart({
           
           <div className="bg-gray-50 p-4 rounded-lg">
             <h5 className="font-medium text-gray-900 mb-3">Transaction Categories</h5>
-            {(data.transactionCategories || []).map((category: any) => (
+            {(data.transactionCategories || []).map((category: { reason: string; totalAmount: number; transactionCount: number }) => (
               <div key={category.reason} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
                 <span className="text-sm text-gray-600">{category.reason}</span>
                 <div className="text-right">
@@ -1140,20 +1223,20 @@ function TokenEconomicsChart({
 }
 
 // Component 4: Review Analytics Chart
-function ReviewAnalyticsChart({ 
-  data, 
-  expanded, 
-  onToggleExpand, 
-  filter, 
+function ReviewAnalyticsChart({
+  data,
+  expanded,
+  onToggleExpand,
+  filter,
   onFilterChange,
-  onExport 
+  onExport
 }: {
-  data: any;
+  data: ReviewAnalyticsData;
   expanded: boolean;
   onToggleExpand: () => void;
   filter?: ChartFilter;
   onFilterChange: (filter: ChartFilter) => void;
-  onExport: (data: any) => void;
+  onExport: (data: unknown) => void;
 }) {
   const [viewType, setViewType] = useState<'distribution' | 'trends' | 'comparison' | 'helpfulness'>('distribution');
   
@@ -1441,7 +1524,7 @@ function ReviewAnalyticsChart({
           <div>
             <h5 className="font-medium text-gray-900 mb-3">Most Helpful User Reviews</h5>
             <div className="space-y-2">
-              {(data.userHelpfulnessMetrics || []).slice(0, 5).map((review: any, index: number) => (
+              {(data.userHelpfulnessMetrics || []).slice(0, 5).map((review: { id: string; helpfulCount: number; upvoteCount: number; helpfulnessRatio: number }, index: number) => (
                 <div key={review.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
@@ -1471,20 +1554,20 @@ function ReviewAnalyticsChart({
 }
 
 // Component 5: Category Trends Chart
-function CategoryTrendsChart({ 
-  data, 
-  expanded, 
-  onToggleExpand, 
-  filter, 
+function CategoryTrendsChart({
+  data,
+  expanded,
+  onToggleExpand,
+  filter,
   onFilterChange,
-  onExport 
+  onExport
 }: {
-  data: any;
+  data: CategoryTrendsData;
   expanded: boolean;
   onToggleExpand: () => void;
   filter?: ChartFilter;
   onFilterChange: (filter: ChartFilter) => void;
-  onExport: (data: any) => void;
+  onExport: (data: unknown) => void;
 }) {
   const [viewType, setViewType] = useState<'distribution' | 'growth' | 'correlations' | 'trends'>('distribution');
   
@@ -1599,7 +1682,7 @@ function CategoryTrendsChart({
       {viewType === 'distribution' && (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <Treemap
-            data={(data.categoryStats || []).slice(0, 10).map((cat: any) => ({
+            data={(data.categoryStats || []).slice(0, 10).map((cat: CategoryStat) => ({
               name: cat.name,
               size: cat.briefCount,
               views: cat.viewCount,
@@ -1609,7 +1692,8 @@ function CategoryTrendsChart({
             aspectRatio={4 / 3}
             stroke="#fff"
             fill={COLORS.primary[0]}
-            content={({ x, y, width, height, name, size }: any) => {
+            content={(props: Record<string, unknown>) => {
+              const { x, y, width, height, name, size } = props as { x: number; y: number; width: number; height: number; name: string; size: number };
               if (width < 50 || height < 30) return <g></g>;
               
               return (
@@ -1653,7 +1737,7 @@ function CategoryTrendsChart({
       
       {viewType === 'growth' && (
         <div className="space-y-3">
-          {(data.emergingCategories || []).map((category: any, index: number) => (
+          {(data.emergingCategories || []).map((category: { id: string; name: string; growthRate: number }, index: number) => (
             <div key={category.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg">
               <div className="flex items-center space-x-3">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${
@@ -1682,7 +1766,7 @@ function CategoryTrendsChart({
       {viewType === 'correlations' && (
         <div className="space-y-3">
           <h5 className="font-medium text-gray-900 mb-3">Categories That Often Appear Together</h5>
-          {(data.categoryCorrelations || []).map((correlation: any, index: number) => (
+          {(data.categoryCorrelations || []).map((correlation: { category1: string; category2: string; count: number }, index: number) => (
             <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center space-x-3">
                 <div className="flex -space-x-2">
@@ -1735,7 +1819,7 @@ function CategoryTrendsChart({
               labelFormatter={(value) => new Date(value).toLocaleDateString()}
             />
             <Legend />
-            {(data.categoryStats || []).slice(0, 5).map((category: any, index: number) => (
+            {(data.categoryStats || []).slice(0, 5).map((category: CategoryStat, index: number) => (
               <Line
                 key={category.id}
                 type="monotone"

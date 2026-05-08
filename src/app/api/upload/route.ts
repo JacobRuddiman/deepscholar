@@ -1,37 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
-import { auth } from '@/server/auth';
-import { fileUploadSchema, sanitizeText, validateRequestSize } from '@/lib/validation';
+import { fileUploadSchema, sanitizeText } from '@/lib/validation';
+import { apiSuccess, apiError, requireAuth, isApiError } from '@/lib/api-response';
 
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Authentication required' 
-      }, { status: 401 });
-    }
+    const session = await requireAuth();
+    if (isApiError(session)) return session;
 
     // Validate request size (10MB max for uploads)
     const contentLength = request.headers.get('content-length');
     if (contentLength && parseInt(contentLength) > 10 * 1024 * 1024) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Request too large. Maximum file size is 10MB.' 
-      }, { status: 413 });
+      return apiError('Request too large. Maximum file size is 10MB.', 413);
     }
 
     const data = await request.formData();
     const file: File | null = data.get('file') as unknown as File;
 
     if (!file) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No file uploaded' 
-      }, { status: 400 });
+      return apiError('No file uploaded', 400);
     }
 
     // Validate file using schema
@@ -39,9 +28,9 @@ export async function POST(request: NextRequest) {
       file,
       maxSize: 5 * 1024 * 1024, // 5MB
       allowedTypes: [
-        'image/jpeg', 
-        'image/png', 
-        'image/webp', 
+        'image/jpeg',
+        'image/png',
+        'image/webp',
         'image/gif',
         'application/pdf',
         'text/plain',
@@ -50,17 +39,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (!validationResult.success) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid file: ' + validationResult.error.errors[0]?.message 
-      }, { status: 400 });
+      return apiError('Invalid file: ' + validationResult.error.errors[0]?.message, 400);
     }
 
     // Additional security checks
     const allowedTypes = [
-      'image/jpeg', 
-      'image/png', 
-      'image/webp', 
+      'image/jpeg',
+      'image/png',
+      'image/webp',
       'image/gif',
       'application/pdf',
       'text/plain',
@@ -68,24 +54,18 @@ export async function POST(request: NextRequest) {
     ];
 
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'File type not allowed. Allowed types: images, PDF, text files.' 
-      }, { status: 400 });
+      return apiError('File type not allowed. Allowed types: images, PDF, text files.', 400);
     }
 
     // Validate file size
     if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'File size must be less than 5MB' 
-      }, { status: 400 });
+      return apiError('File size must be less than 5MB', 400);
     }
 
     // Sanitize filename
     const originalName = sanitizeText(file.name);
     const extension = originalName.split('.').pop()?.toLowerCase();
-    
+
     // Validate extension matches MIME type
     const mimeToExt: Record<string, string[]> = {
       'image/jpeg': ['jpg', 'jpeg'],
@@ -99,10 +79,7 @@ export async function POST(request: NextRequest) {
 
     const validExtensions = mimeToExt[file.type];
     if (!extension || !validExtensions?.includes(extension)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'File extension does not match file type' 
-      }, { status: 400 });
+      return apiError('File extension does not match file type', 400);
     }
 
     const bytes = await file.arrayBuffer();
@@ -111,17 +88,14 @@ export async function POST(request: NextRequest) {
     // Additional security: Check file headers for common file types
     if (file.type.startsWith('image/')) {
       const header = buffer.subarray(0, 4);
-      const isValidImage = 
+      const isValidImage =
         (header[0] === 0xFF && header[1] === 0xD8) || // JPEG
         (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4E && header[3] === 0x47) || // PNG
         (header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46) || // GIF
         (header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46); // WebP (RIFF)
 
       if (!isValidImage) {
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Invalid image file format' 
-        }, { status: 400 });
+        return apiError('Invalid image file format', 400);
       }
     }
 
@@ -139,11 +113,7 @@ export async function POST(request: NextRequest) {
     // Return the public URL
     const imageUrl = `/uploads/${filename}`;
 
-    // Log successful upload for security monitoring
-    console.log(`File uploaded successfully: ${filename} by user ${session.user.id}`);
-
-    return NextResponse.json({ 
-      success: true, 
+    return apiSuccess({
       imageUrl,
       filename,
       size: file.size,
@@ -152,23 +122,13 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Upload error:', error);
-    
+
     // Don't expose internal errors to client
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to upload file. Please try again.' 
-    }, { status: 500 });
+    return apiError('Failed to upload file. Please try again.', 500);
   }
 }
 
-// Add OPTIONS handler for CORS
+// OPTIONS handler - CORS is handled by middleware, no per-route overrides needed
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return new NextResponse(null, { status: 204 });
 }

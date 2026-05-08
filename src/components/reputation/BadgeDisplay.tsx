@@ -10,6 +10,19 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+interface UserBadge {
+  id: string;
+  earnedAt: string;
+  badge: {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    rarity: string;
+    category: string;
+  };
+}
+
 interface BadgeDisplayProps {
   userId?: string;
   limit?: number;
@@ -61,7 +74,7 @@ export function BadgeDisplay({
     <div className={cn('space-y-4', className)}>
       {/* Badge Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {displayedBadges.map((userBadge) => {
+        {displayedBadges.map((userBadge: UserBadge) => {
           const badge = userBadge.badge;
           const rarityColor = RARITY_COLORS[badge.rarity] || RARITY_COLORS.common;
 
@@ -139,7 +152,7 @@ export function CompactBadgeList({ userId, limit = 3 }: { userId?: string; limit
 
   return (
     <div className="flex items-center gap-1 flex-wrap">
-      {displayedBadges.map((userBadge) => (
+      {displayedBadges.map((userBadge: UserBadge) => (
         <TooltipProvider key={userBadge.id}>
           <Tooltip>
             <TooltipTrigger asChild>

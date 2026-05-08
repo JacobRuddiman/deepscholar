@@ -1,13 +1,13 @@
 /**
  * User Profile Export API Route
- * 
+ *
  * Handles exporting user profiles in various formats
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/server/auth';
 import { exportService } from '@/lib/export/services/ExportService';
-import { isLocalMode, getLocalSession } from '@/lib/localMode';
+import { ExportFormat } from '@/lib/export/types';
+import { apiError, requireAuth, isApiError } from '@/lib/api-response';
 
 export async function GET(
   request: NextRequest,
@@ -16,26 +16,8 @@ export async function GET(
   try {
     const resolvedParams = await params;
 
-    // Get authentication (handle local mode)
-    let session;
-    if (isLocalMode()) {
-      session = getLocalSession();
-    } else {
-      session = await auth();
-      if (!session?.user?.id) {
-        return NextResponse.json(
-          { error: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-    }
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
+    const session = await requireAuth();
+    if (isApiError(session)) return session;
 
     const userId = resolvedParams.id;
     const searchParams = request.nextUrl.searchParams;
@@ -46,16 +28,13 @@ export async function GET(
     // Validate format
     const validFormats = ['json', 'csv', 'pdf', 'html'];
     if (!validFormats.includes(format)) {
-      return NextResponse.json(
-        { error: `Invalid format. Must be one of: ${validFormats.join(', ')}` },
-        { status: 400 }
-      );
+      return apiError(`Invalid format. Must be one of: ${validFormats.join(', ')}`, 400);
     }
 
     // Create export request
     const exportRequest = {
       type: 'user_profile' as const,
-      format: format as any,
+      format: format as ExportFormat,
       id: userId,
       options: {
         includeReferences,
@@ -67,19 +46,16 @@ export async function GET(
     const result = await exportService.export(exportRequest, session.user.id);
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: 400 }
-      );
+      return apiError(result.error || 'Export failed', 400);
     }
 
     // Return the file
     const response = new NextResponse(result.data?.content);
-    
+
     // Set appropriate headers
     response.headers.set('Content-Type', result.data?.mimeType || 'application/octet-stream');
     response.headers.set('Content-Disposition', `attachment; filename="${result.filename}"`);
-    
+
     if (result.size) {
       response.headers.set('Content-Length', result.size.toString());
     }
@@ -88,9 +64,6 @@ export async function GET(
 
   } catch (error) {
     console.error('User profile export error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return apiError('Internal server error', 500);
   }
 }

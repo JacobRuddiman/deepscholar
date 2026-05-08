@@ -229,6 +229,44 @@ RESULT: ✅ PASS
 ════════════════════════════════════════════════════════════════════════════════
 ```
 
+## Platform-Specific Extractors
+
+Some platforms have dedicated structured extractors that bypass the generic selector-based pipeline:
+
+### Perplexity Structured Extractor (`perplexity.ts`)
+
+Instead of using `.textContent` (which destroys structure), the Perplexity extractor reads the DOM directly:
+
+- **Prompt**: `span.select-text` elements (supports multi-turn)
+- **Sections**: `<h2>` headings inside `[id^="markdown-content"]` split content into named sections
+- **Clean text**: Citation badge spans (`span.citation`, etc.) and superscript numbers are stripped from cloned subtrees before extracting text
+- **Field mapping**:
+  - Heading matching "Conclusion" / "Summary" / "Key Takeaways" → `abstract`
+  - Heading matching "Sources" / "References" → `references`
+  - Everything else → `response` (with markdown `##` headings preserved)
+- **Sources**: `aria-label` on citation `<a>` elements gives real source titles (e.g. "The exceptional yew trees of England") instead of domain abbreviations
+- **Conversation turns**: `span.select-text` paired with `[id^="markdown-content-N"]` for multi-turn support
+
+**Expected output improvements over generic extractor:**
+- `response` has no `forestrycommission.blog+2` citation badge noise
+- `abstract` is populated (from Conclusion/Summary section)
+- `sources` have descriptive titles from `aria-label`
+- `prompt` is populated (from `span.select-text`)
+- `references` text is populated (from Sources section)
+
+**Testing:**
+```bash
+npx tsx scripts/test-pipeline-diagnostic.ts https://www.perplexity.ai/search/<id>
+```
+
+### ChatGPT Deep Research Extractor (`chatgpt_deep_research.ts`)
+
+Handles the special `div.deep-research-result` format with concatenated domain citations.
+
+### Google Docs Extractor (`google_docs.ts`)
+
+Handles Google Docs export format (used for Gemini outputs).
+
 ## Next Steps
 
 After testing:

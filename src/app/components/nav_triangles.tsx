@@ -3,9 +3,10 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { 
-  BiUpload, 
-  BiFile, 
+import { usePathname } from "next/navigation";
+import {
+  BiUpload,
+  BiFile,
   BiUser,
   BiCog
 } from "react-icons/bi";
@@ -26,6 +27,7 @@ const clipStyles = {
 
 export default function NavTriangles() {
   const [tokens, setTokens] = useState(0);
+  const pathname = usePathname();
 
   useEffect(() => {
     const loadTokenBalance = async () => {
@@ -50,23 +52,25 @@ export default function NavTriangles() {
       {/* Left Triangle Nav - Using inline styles for immediate application */}
       <div className="fixed top-0 left-0 w-64 h-48 z-20" style={clipStyles.leftTriangle}>
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 shadow-lg">
-          <nav className="absolute top-4 left-4 flex flex-col space-y-6">
+          <nav aria-label="Main navigation" className="absolute top-4 left-4 flex flex-col space-y-6">
             <div className="flex space-x-4">
-                <Link 
+                <Link
                   href="/brief_upload"
                   className="nav-item"
                   aria-label="Upload"
+                  aria-current={pathname === '/brief_upload' ? 'page' : undefined}
                 >
                   <div className="nav-icon left-icon">
                     <BiUpload className="icon-size" />
                   </div>
                   <span className="tooltip left-tooltip">Upload</span>
                 </Link>
-                
-                <Link 
+
+                <Link
                   href="/my-briefs"
                   className="nav-item"
                   aria-label="My Briefs"
+                  aria-current={pathname === '/my-briefs' ? 'page' : undefined}
                 >
                   <div className="nav-icon left-icon">
                     <BiFile className="icon-size" />
@@ -74,10 +78,11 @@ export default function NavTriangles() {
                   <span className="tooltip left-tooltip">My Briefs</span>
                 </Link>
             </div>
-            <Link 
+            <Link
               href="/users"
               className="nav-item"
               aria-label="Users"
+              aria-current={pathname === '/users' ? 'page' : undefined}
             >
               <div className="nav-icon left-icon">
                 <FiUsers className="icon-size" />
@@ -91,24 +96,26 @@ export default function NavTriangles() {
       {/* Right Triangle Nav - Using inline styles for immediate application */}
       <div className="fixed top-0 right-0 w-64 h-48 z-20" style={clipStyles.rightTriangle}>
         <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-bl from-indigo-700 to-blue-600 shadow-lg">
-          <nav className="absolute top-4 right-4 flex flex-col space-y-6">
+          <nav aria-label="User navigation" className="absolute top-4 right-4 flex flex-col space-y-6">
             <div className="flex space-x-4">
-                <Link 
+                <Link
                   href="/profile"
                   className="nav-item"
                   aria-label="Profile"
+                  aria-current={pathname === '/profile' ? 'page' : undefined}
                 >
                   <div className="nav-icon right-icon">
                     <BiUser className="icon-size" />
                   </div>
                   <span className="tooltip right-tooltip">Profile</span>
                 </Link>
-                
+
                 {/* Tokens */}
-                <Link 
+                <Link
                   href="/tokens"
                   className="nav-item"
                   aria-label="Tokens"
+                  aria-current={pathname === '/tokens' ? 'page' : undefined}
                 >
                 <div className="nav-item">
                   <div className="nav-icon right-icon">
@@ -118,12 +125,13 @@ export default function NavTriangles() {
                 </div>
                 </Link>
             </div>
-            
+
             {/* Settings */}
-            <Link 
+            <Link
               href="/settings"
               className="nav-item"
               aria-label="Settings"
+              aria-current={pathname === '/settings' ? 'page' : undefined}
             >
               <div className="nav-icon right-icon">
                 <BiCog className="icon-size" />

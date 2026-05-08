@@ -4,7 +4,7 @@
  * Common utility functions for export operations
  */
 
-import { ExportFormat, ExportType, ExportMetadata } from './types';
+import { ExportFormat, ExportType, ExportMetadata, ExportOptions, ExportableData } from './types';
 import { logger } from '@/lib/logger';
 import { gzip } from 'zlib';
 import { promisify } from 'util';
@@ -184,26 +184,28 @@ export class ExportUtils {
   /**
    * Validate export data structure
    */
-  static validateDataStructure(data: any, type: ExportType): boolean {
+  static validateDataStructure(data: unknown, type: ExportType): boolean {
+    if (!data || typeof data !== 'object') return false;
+    const record = data as Record<string, unknown>;
+
     switch (type) {
       case 'brief':
-        return data && 
-               typeof data.title === 'string' && 
-               typeof data.content === 'string' &&
-               data.author && 
-               typeof data.author.name === 'string';
-      
+        return typeof record.title === 'string' &&
+               typeof record.content === 'string' &&
+               record.author !== null &&
+               typeof record.author === 'object' &&
+               typeof (record.author as Record<string, unknown>).name === 'string';
+
       case 'user_profile':
-        return data && 
-               typeof data.name === 'string' && 
-               data.statistics &&
-               typeof data.statistics.briefsCreated === 'number';
-      
+        return typeof record.name === 'string' &&
+               record.statistics !== null &&
+               typeof record.statistics === 'object' &&
+               typeof (record.statistics as Record<string, unknown>).briefsCreated === 'number';
+
       case 'search_results':
-        return data && 
-               typeof data.query === 'string' && 
-               Array.isArray(data.results);
-      
+        return typeof record.query === 'string' &&
+               Array.isArray(record.results);
+
       default:
         return true; // Allow other types for now
     }
@@ -212,30 +214,30 @@ export class ExportUtils {
   /**
    * Clean and prepare data for export
    */
-  static cleanDataForExport(data: any): any {
+  static cleanDataForExport(data: ExportableData): ExportableData {
     // Remove sensitive fields
     const sensitiveFields = ['password', 'token', 'secret', 'key'];
-    
-    const cleanObject = (obj: any): any => {
+
+    const cleanObject = (obj: unknown): unknown => {
       if (obj === null || typeof obj !== 'object') {
         return obj;
       }
-      
+
       if (Array.isArray(obj)) {
         return obj.map(cleanObject);
       }
-      
-      const cleaned: any = {};
-      for (const [key, value] of Object.entries(obj)) {
+
+      const cleaned: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
         if (!sensitiveFields.some(field => key.toLowerCase().includes(field))) {
           cleaned[key] = cleanObject(value);
         }
       }
-      
+
       return cleaned;
     };
-    
-    return cleanObject(data);
+
+    return cleanObject(data) as ExportableData;
   }
 
   /**
@@ -249,33 +251,45 @@ export class ExportUtils {
   /**
    * Parse export options from query parameters
    */
-  static parseExportOptions(queryParams: Record<string, string | string[]>): any {
-    const options: any = {};
-    
+  static parseExportOptions(queryParams: Record<string, string | string[]>): ExportOptions {
+    const options: ExportOptions = {};
+
     // Boolean options
-    const booleanOptions = ['includeMetadata', 'includeReferences', 'includeComments', 'compression'];
-    booleanOptions.forEach(option => {
+    const booleanOptionKeys = ['includeMetadata', 'includeReferences', 'includeComments', 'compression'] as const;
+    booleanOptionKeys.forEach(option => {
       if (queryParams[option]) {
-        options[option] = queryParams[option] === 'true';
+        (options as Record<string, unknown>)[option] = queryParams[option] === 'true';
       }
     });
-    
+
     // String options
-    const stringOptions = ['template', 'watermark', 'pageSize', 'orientation'];
-    stringOptions.forEach(option => {
-      if (queryParams[option] && typeof queryParams[option] === 'string') {
-        options[option] = queryParams[option];
-      }
-    });
-    
+    if (queryParams.template && typeof queryParams.template === 'string') {
+      options.template = queryParams.template;
+    }
+    if (queryParams.watermark && typeof queryParams.watermark === 'string') {
+      options.watermark = queryParams.watermark;
+    }
+    if (queryParams.pageSize && typeof queryParams.pageSize === 'string') {
+      options.pageSize = queryParams.pageSize as 'A4' | 'Letter' | 'Legal';
+    }
+    if (queryParams.orientation && typeof queryParams.orientation === 'string') {
+      options.orientation = queryParams.orientation as 'portrait' | 'landscape';
+    }
+
     // Styling options
     if (queryParams.theme || queryParams.fontSize || queryParams.fontFamily) {
       options.styling = {};
-      if (queryParams.theme) options.styling.theme = queryParams.theme;
-      if (queryParams.fontSize) options.styling.fontSize = parseInt(queryParams.fontSize as string);
-      if (queryParams.fontFamily) options.styling.fontFamily = queryParams.fontFamily;
+      if (queryParams.theme && typeof queryParams.theme === 'string') {
+        options.styling.theme = queryParams.theme as 'light' | 'dark' | 'academic' | 'minimal';
+      }
+      if (queryParams.fontSize && typeof queryParams.fontSize === 'string') {
+        options.styling.fontSize = parseInt(queryParams.fontSize);
+      }
+      if (queryParams.fontFamily && typeof queryParams.fontFamily === 'string') {
+        options.styling.fontFamily = queryParams.fontFamily;
+      }
     }
-    
+
     return options;
   }
 

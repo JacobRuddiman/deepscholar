@@ -2,6 +2,7 @@
 'use server';
 
 import { db } from "@/server/db";
+import { Prisma } from '@prisma/client';
 import { z } from "zod";
 
 // Define the time period schema for validation
@@ -79,24 +80,18 @@ export async function getAdminAnalytics(request: AnalyticsRequest) {
     };
     
     // Build additional filters
-    const additionalFilters: any = {};
-    
+    const additionalFilters: Prisma.BriefWhereInput = {};
+
     if (filters?.onlyPublished) {
       additionalFilters.published = true;
     }
-    
-    if (filters?.minRating) {
-      additionalFilters.averageRating = {
-        gte: filters.minRating,
-      };
-    }
-    
+
     if (filters?.excludeUsers && filters.excludeUsers.length > 0) {
       additionalFilters.userId = {
         notIn: filters.excludeUsers,
       };
     }
-    
+
     if (filters?.categories && filters.categories.length > 0) {
       additionalFilters.categories = {
         some: {
@@ -162,7 +157,7 @@ export async function getAdminAnalytics(request: AnalyticsRequest) {
  * - Brief views
  * - User retention cohorts
  */
-async function getUserEngagementAnalytics(startDate: Date, additionalFilters: any) {
+async function getUserEngagementAnalytics(startDate: Date, additionalFilters: Prisma.BriefWhereInput) {
   try {
     // Get new user registrations over time
     const userRegistrations = await db.user.groupBy({
@@ -284,7 +279,7 @@ async function getUserEngagementAnalytics(startDate: Date, additionalFilters: an
  * - Brief creation velocity
  * - Brief quality metrics (ratings)
  */
-async function getContentPerformanceAnalytics(startDate: Date, additionalFilters: any) {
+async function getContentPerformanceAnalytics(startDate: Date, additionalFilters: Prisma.BriefWhereInput) {
   try {
     // Get briefs created in the period
     const briefs = await db.brief.findMany({
@@ -432,7 +427,7 @@ async function getContentPerformanceAnalytics(startDate: Date, additionalFilters
  * - Token transaction categories
  * - Revenue projections
  */
-async function getTokenEconomicsAnalytics(startDate: Date, additionalFil: any) {
+async function getTokenEconomicsAnalytics(startDate: Date, additionalFilters: Prisma.BriefWhereInput) {
   try {
     // Get token purchases over time
     const tokenPurchases = await db.tokenPurchase.findMany({
@@ -605,7 +600,7 @@ const revenueProjection = {
  * - Review helpfulness metrics
  * - Review upvote patterns
  */
-async function getReviewAnalyticsData(startDate: Date, additionalFilters: any) {
+async function getReviewAnalyticsData(startDate: Date, additionalFilters: Prisma.BriefWhereInput) {
   try {
     // Get user reviews in the period
     const userReviews = await db.review.findMany({
@@ -779,7 +774,7 @@ async function getReviewAnalyticsData(startDate: Date, additionalFilters: any) {
  * - Emerging categories
  * - Category user preferences
  */
-async function getCategoryTrendsAnalytics(startDate: Date, additionalFilters: any) {
+async function getCategoryTrendsAnalytics(startDate: Date, additionalFilters: Prisma.BriefWhereInput) {
   try {
     // Get briefs with their categories
     const briefs = await db.brief.findMany({
@@ -911,11 +906,12 @@ async function getCategoryTrendsAnalytics(startDate: Date, additionalFilters: an
       .slice(0, 5);
     
     // Find category correlations (categories that often appear together)
-    const categoryCorrelations: Array<{ category1: string, category2: string, count: number }> = [];
-    
+    // Use a Map for O(1) lookup instead of Array.find() which was O(n) per pair
+    const correlationMap = new Map<string, number>();
+
     briefs.forEach(brief => {
       const categories = brief.categories;
-      
+
       for (let i = 0; i < categories.length; i++) {
         for (let j = i + 1; j < categories.length; j++) {
           const cat1 = categories[i]!.name;
@@ -923,25 +919,18 @@ async function getCategoryTrendsAnalytics(startDate: Date, additionalFilters: an
 
           // Ensure consistent ordering of category pairs
           const [catA, catB] = [cat1, cat2].sort() as [string, string];
-          
-          const existingCorrelation = categoryCorrelations.find(
-            c => c.category1 === catA && c.category2 === catB
-          );
-          
-          if (existingCorrelation) {
-            existingCorrelation.count++;
-          } else {
-            categoryCorrelations.push({
-              category1: catA,
-              category2: catB,
-              count: 1,
-            });
-          }
+          const key = `${catA}\0${catB}`;
+
+          correlationMap.set(key, (correlationMap.get(key) || 0) + 1);
         }
       }
     });
-    
-    const topCorrelations = [...categoryCorrelations]
+
+    const topCorrelations = Array.from(correlationMap.entries())
+      .map(([key, count]) => {
+        const [category1, category2] = key.split('\0') as [string, string];
+        return { category1, category2, count };
+      })
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
     
@@ -970,15 +959,21 @@ async function getCategoryTrendsAnalytics(startDate: Date, additionalFilters: an
 /**
  * Helper function to process time series data
  */
-function processTimeSeriesData(data: any[], dateField: string) {
+interface GroupByResult {
+  _count: { id: number };
+  [key: string]: unknown;
+}
+
+function processTimeSeriesData(data: GroupByResult[], dateField: string) {
   const processedData = data.map(item => {
-    const date = item[dateField]?.toISOString() || 'unknown';
+    const dateValue = item[dateField];
+    const date = dateValue instanceof Date ? dateValue.toISOString() : 'unknown';
     return {
       date,
       count: item._count?.id || 0,
     };
   }).filter(item => item.date !== 'unknown');
-  
+
   return processedData.sort((a, b) => a.date.localeCompare(b.date));
 }
 

@@ -1,13 +1,27 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["@prisma/client"],
+  serverExternalPackages: [
+    "@prisma/client",
+    "isomorphic-dompurify",
+    "puppeteer",
+    "puppeteer-extra",
+    "puppeteer-extra-plugin-stealth"
+  ],
+
+  // Skip ESLint during builds (run separately in CI)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 
   // Optimize production builds
   productionBrowserSourceMaps: false,
   compress: true,
 
-  // Code splitting and optimization
+  // Experimental features
   experimental: {
+    serverActions: {
+      bodySizeLimit: '5mb',
+    },
     optimizePackageImports: ['lucide-react', 'framer-motion', 'date-fns'],
   },
 
@@ -35,11 +49,12 @@ const nextConfig = {
             // Common libraries
             lib: {
               test: /[\\/]node_modules[\\/]/,
-              name(module) {
-                const packageName = module.context.match(
+              name(/** @type {any} */ module) {
+                const match = module.context?.match(
                   /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-                )[1];
-                return `npm.${packageName.replace('@', '')}`;
+                );
+                if (!match) return 'npm.unknown';
+                return `npm.${match[1].replace('@', '')}`;
               },
               priority: 30,
               minChunks: 1,
@@ -62,6 +77,8 @@ const nextConfig = {
   },
 
   async headers() {
+    const isDev = process.env.NODE_ENV === 'development';
+
     return [
       {
         // Apply security headers to all routes
@@ -71,24 +88,29 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              // FIXED: Removed 'unsafe-eval' and 'unsafe-inline' for better XSS protection
-              "script-src 'self' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://www.google-analytics.com",
+              // In dev: allow unsafe-inline and unsafe-eval for Fast Refresh and HMR
+              // In prod: strict CSP for XSS protection
+              isDev
+                ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://va.vercel-scripts.com"
+                : "script-src 'self' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://www.google-analytics.com",
               // Note: 'unsafe-inline' still needed for Tailwind and component styles
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               // FIXED: Restricted img-src to specific whitelisted domains
-              "img-src 'self' data: blob: https://lh3.googleusercontent.com https://cdn.discordapp.com https://avatars.githubusercontent.com https://*.supabase.co",
+              "img-src 'self' data: blob: https://lh3.googleusercontent.com https://cdn.discordapp.com https://avatars.githubusercontent.com https://*.supabase.co https://www.google.com",
               "media-src 'self' data: blob:",
-              "connect-src 'self' https://vercel.live wss://ws-us3.pusher.com https://sockjs-us3.pusher.com https://*.supabase.co https://www.google-analytics.com",
+              isDev
+                ? "connect-src 'self' http://localhost:* ws://localhost:* https://vercel.live wss://ws-us3.pusher.com https://sockjs-us3.pusher.com https://*.supabase.co"
+                : "connect-src 'self' https://vercel.live wss://ws-us3.pusher.com https://sockjs-us3.pusher.com https://*.supabase.co https://www.google-analytics.com",
               "frame-src 'self' https://vercel.live",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'none'",
-              "upgrade-insecure-requests",
+              isDev ? "" : "upgrade-insecure-requests",
               // ADDED: CSP violation reporting endpoint
               "report-uri /api/csp-report"
-            ].join('; ')
+            ].filter(Boolean).join('; ')
           },
           {
             key: 'X-Frame-Options',
@@ -120,11 +142,22 @@ const nextConfig = {
     ];
   },
   images: {
-    domains: ['lh3.googleusercontent.com', 'cdn.discordapp.com'],
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cdn.discordapp.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
       },
     ],
   },

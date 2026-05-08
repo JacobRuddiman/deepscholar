@@ -139,7 +139,6 @@ export default function ModelsPage() {
     if (confirm('Are you sure you want to delete this model? This will affect all associated briefs.')) {
       // In a real app, this would make an API call
       setModels(models.filter(model => model.id !== modelId));
-      console.log('Delete model:', modelId);
     }
   };
 

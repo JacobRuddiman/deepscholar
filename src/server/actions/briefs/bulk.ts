@@ -133,31 +133,56 @@ export async function bulkPublishDrafts(draftIds: string[]) {
       };
     }
 
-    // Generate slugs for drafts without them
-    const draftsToUpdate = await Promise.all(
-      drafts.map(async (draft) => {
-        if (draft.slug) return { id: draft.id, slug: draft.slug };
-
-        // Generate slug
-        const baseSlug = draft.title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '');
-
-        // Ensure unique slug
-        let slug = baseSlug;
-        let counter = 1;
-        while (await prisma.brief.findFirst({ where: { slug } })) {
-          slug = `${baseSlug}-${counter}`;
-          counter++;
-        }
-
-        return { id: draft.id, slug };
-      })
+    // Generate base slugs for all drafts that need them
+    const draftsNeedingSlugs = drafts.filter(d => !d.slug);
+    const baseSlugs = draftsNeedingSlugs.map(draft =>
+      draft.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
     );
 
+    // Fetch all existing slugs matching any of the base patterns in one query
+    const existingSlugs = new Set(
+      (await prisma.brief.findMany({
+        where: {
+          slug: {
+            in: [
+              ...baseSlugs,
+              // Also check for numbered variants up to a reasonable limit
+              ...baseSlugs.flatMap(base =>
+                Array.from({ length: 100 }, (_, i) => `${base}-${i + 1}`)
+              ),
+            ].filter(Boolean),
+          },
+        },
+        select: { slug: true },
+      })).map(b => b.slug)
+    );
+
+    // Assign unique slugs locally without additional DB queries
+    const draftsToUpdate = drafts.map(draft => {
+      if (draft.slug) return { id: draft.id, slug: draft.slug };
+
+      const baseSlug = draft.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      let slug = baseSlug;
+      let counter = 1;
+      while (existingSlugs.has(slug)) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      // Add to set so subsequent drafts don't collide with each other
+      existingSlugs.add(slug);
+
+      return { id: draft.id, slug };
+    });
+
     // Update all drafts to published
-    const results = await Promise.all(
+    const results = await prisma.$transaction(
       draftsToUpdate.map((draft) =>
         prisma.brief.update({
           where: { id: draft.id },
@@ -307,7 +332,7 @@ export async function bulkAddCategories(
     }
 
     // Add categories to all briefs
-    const results = await Promise.all(
+    const results = await prisma.$transaction(
       briefIds.map((briefId) =>
         prisma.brief.update({
           where: { id: briefId },

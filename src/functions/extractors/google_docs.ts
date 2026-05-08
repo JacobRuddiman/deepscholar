@@ -1,20 +1,20 @@
 'use server';
 
-import puppeteer from 'puppeteer';
-import { BriefData, BriefSource } from '../types';
+import { BriefData, BriefSource, ConversationTurn } from '../types';
 import { ExtractionLogger } from './logger';
 import {
   launchBrowser,
   navigateWithRetry,
-  extractSources,
   validateExtraction
 } from './base_extractor';
+import { detectConversationTurns } from './conversation_detector';
+import { extractGoogleDocId } from '@/lib/extraction/platform';
 
 /**
  * Google Docs extractor for Gemini outputs
  * Handles public Google Docs links that Gemini creates
  */
-export async function extractFromGoogleDocs(url: string): Promise<BriefData> {
+export async function extractFromGoogleDocs(url: string, debugMode: boolean = false): Promise<BriefData> {
   const logger = new ExtractionLogger('google-docs', url);
   const overallStart = Date.now();
 
@@ -27,8 +27,8 @@ export async function extractFromGoogleDocs(url: string): Promise<BriefData> {
     // Step 1: Launch browser
     browser = await launchBrowser(logger);
 
-    // Step 2: Convert to export URL for easier text extraction
-    const docId = extractDocId(url);
+    // Step 2: Resolve document ID for export/view URL generation
+    const docId = extractGoogleDocId(url);
     if (!docId) {
       throw new Error('Could not extract document ID from URL');
     }
@@ -41,17 +41,19 @@ export async function extractFromGoogleDocs(url: string): Promise<BriefData> {
 
     // Step 3: Navigate
     const navStart = Date.now();
-    page = await navigateWithRetry(browser, viewUrl, 30000, logger);
+    page = await navigateWithRetry(browser, viewUrl, 30000, logger, 3, debugMode);
     const navigationTime = Date.now() - navStart;
 
-    // Wait for content to load
+    // Wait for content to load (reduced from 3s to 1s for performance)
     logger.info('WAIT', 'Waiting for document content...');
-    await page.waitForTimeout(3000);
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Save initial state
-    const initialHtml = await page.content();
-    await logger.saveHTML(initialHtml, 'initial_page.html');
-    await logger.saveScreenshot(page, 'after_navigation.png');
+    // Save initial state (only in debug mode)
+    if (debugMode) {
+      const initialHtml = await page.content();
+      await logger.saveHTML(initialHtml, 'initial_page.html');
+      await logger.saveScreenshot(page, 'after_navigation.png');
+    }
 
     // Step 4: Extract content using Google Docs specific selectors
     logger.info('EXTRACT', 'Extracting document content...');
@@ -97,66 +99,6 @@ export async function extractFromGoogleDocs(url: string): Promise<BriefData> {
 
     logger.info('EXTRACT_CONTENT', `Extracted ${content.length} characters`);
 
-    // Try to parse sections
-    logger.info('PARSE_SECTIONS', 'Parsing content sections...');
-
-    let mainContent = content;
-    let abstract = '';
-    let references = '';
-
-    // Look for common section patterns
-    const abstractPatterns = [
-      /\n\s*(?:Conclusion|Summary|Abstract|Key Takeaways|In Conclusion)\s*\n([\s\S]+?)(?=\n\s*(?:References|Sources|Citations|$))/i,
-      /\n\s*(?:Conclusion|Summary)\s*[:]\s*([\s\S]+?)$/i
-    ];
-
-    const referencesPatterns = [
-      /\n\s*(?:References|Sources|Citations|Bibliography)\s*[:]\s*([\s\S]+?)$/i,
-      /\n\s*(?:References|Sources)\s*\n([\s\S]+?)$/i
-    ];
-
-    // Extract abstract
-    for (const pattern of abstractPatterns) {
-      const match = content.match(pattern);
-      if (match) {
-        abstract = match[1]?.trim() || match[0]?.trim() || '';
-        logger.info('PARSE_SECTIONS', `Found abstract: ${abstract.length} chars`);
-        break;
-      }
-    }
-
-    // Extract references
-    for (const pattern of referencesPatterns) {
-      const match = content.match(pattern);
-      if (match) {
-        references = match[1]?.trim() || match[0]?.trim() || '';
-        logger.info('PARSE_SECTIONS', `Found references: ${references.length} chars`);
-
-        // Remove references from main content
-        if (references) {
-          const refIndex = content.lastIndexOf(references);
-          if (refIndex > 0) {
-            mainContent = content.substring(0, refIndex).trim();
-          }
-        }
-        break;
-      }
-    }
-
-    // Remove abstract from main content if found
-    if (abstract && abstract.length > 0) {
-      const abstractIndex = mainContent.lastIndexOf(abstract);
-      if (abstractIndex > 0) {
-        mainContent = mainContent.substring(0, abstractIndex).trim();
-      }
-    }
-
-    logger.info('PARSE_SECTIONS', 'Sections parsed', {
-      mainContentLength: mainContent.length,
-      abstractLength: abstract.length,
-      referencesLength: references.length
-    });
-
     // Step 5: Extract sources from content
     const sources = extractSourcesFromText(content, logger);
 
@@ -166,7 +108,7 @@ export async function extractFromGoogleDocs(url: string): Promise<BriefData> {
     const finalHtml = await page.content();
 
     // Step 7: Validate
-    const validation = validateExtraction(title, mainContent, abstract, sources, logger);
+    const validation = await validateExtraction(title, content, '', sources, logger);
 
     const totalTime = Date.now() - overallStart;
 
@@ -175,37 +117,54 @@ export async function extractFromGoogleDocs(url: string): Promise<BriefData> {
       warnings: validation.warnings.length
     });
 
+    // Detect conversation turns
+    logger.info('CONVERSATION', 'Detecting conversation turns...');
+    let conversationTurns: ConversationTurn[] = [];
+    try {
+      conversationTurns = await detectConversationTurns(page, 'google-docs');
+      if (conversationTurns.length > 0) {
+        logger.info('CONVERSATION', `Detected ${conversationTurns.length} conversation turn(s)`);
+      }
+    } catch (error) {
+      const convMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.warn('CONVERSATION', 'Error detecting conversation turns', { error: convMessage });
+    }
+
     // Save logs
     await logger.saveLogs();
     await browser.close();
 
     return {
       title,
-      content: mainContent,
-      abstract,
+      response: content,
+      abstract: '',
       sources,
       thinking: '',
       prompt: '',
       model: 'other',
       rawHtml: finalHtml,
-      references,
+      references: '',
       confidence: validation.confidence,
-      warnings: validation.warnings
+      warnings: validation.warnings,
+      conversationTurns: conversationTurns.length > 0 ? conversationTurns : undefined
     };
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const stack = error instanceof Error ? error.stack : undefined;
     logger.error('FATAL', 'Extraction failed', {
-      error: error.message,
-      stack: error.stack
+      error: message,
+      stack
     });
 
-    if (page) {
+    if (page && debugMode) {
       try {
         await logger.saveScreenshot(page, 'error_state.png');
         const errorHtml = await page.content();
         await logger.saveHTML(errorHtml, 'error_state.html');
       } catch (e) {
-        logger.error('FATAL', 'Could not save error state', { error: e.message });
+        const eMessage = e instanceof Error ? e.message : 'Unknown error';
+        logger.error('FATAL', 'Could not save error state', { error: eMessage });
       }
     }
 
@@ -217,28 +176,6 @@ export async function extractFromGoogleDocs(url: string): Promise<BriefData> {
 
     throw error;
   }
-}
-
-/**
- * Extract document ID from Google Docs URL
- */
-function extractDocId(url: string): string | null {
-  // Match patterns like:
-  // https://docs.google.com/document/d/DOCUMENT_ID/edit
-  // https://docs.google.com/document/d/DOCUMENT_ID/view
-  const patterns = [
-    /docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/,
-    /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/
-  ];
-
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-
-  return null;
 }
 
 /**

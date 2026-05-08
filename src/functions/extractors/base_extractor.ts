@@ -5,28 +5,63 @@ import { BriefSource } from '../types';
 import { ExtractorConfig, ExtractionResult, SelectorTestResult, ValidationResult } from './extractor_types';
 import { ExtractionLogger } from './logger';
 
+// Lazy-loaded stealth puppeteer (dynamic import avoids CJS/ESM issues)
+let stealthInitDone = false;
+let stealthPuppeteer: any = null;
+
+async function getStealthPuppeteer(): Promise<any | null> {
+  if (stealthInitDone) return stealthPuppeteer;
+  stealthInitDone = true;
+  try {
+    const pExtra = await import('puppeteer-extra');
+    const stealth = await import('puppeteer-extra-plugin-stealth');
+    pExtra.default.use(stealth.default());
+    stealthPuppeteer = pExtra.default;
+    return stealthPuppeteer;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Launch browser with anti-detection measures
  */
-export async function launchBrowser(logger: ExtractionLogger): Promise<Browser> {
-  logger.info('BROWSER_LAUNCH', 'Launching headless browser...');
+export async function launchBrowser(logger: ExtractionLogger, headless: boolean = true): Promise<Browser> {
+  logger.info('BROWSER_LAUNCH', `Launching ${headless ? 'headless' : 'visible'} browser with stealth mode...`);
 
   try {
-    const browser = await puppeteer.launch({
-      headless: 'new' as any,
+    const launchOptions = {
+      headless: headless ? ('new' as any) : false,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-blink-features=AutomationControlled',
         '--disable-features=VizDisplayCompositor',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      ]
-    });
+        '--window-size=1920,1080',
+        '--start-maximized'
+      ],
+      defaultViewport: {
+        width: 1920,
+        height: 1080
+      }
+    };
+
+    let browser: Browser;
+
+    const stealth = await getStealthPuppeteer();
+    if (stealth) {
+      logger.info('BROWSER_LAUNCH', 'Using puppeteer-extra with stealth plugin');
+      browser = await stealth.launch(launchOptions);
+    } else {
+      logger.warn('BROWSER_LAUNCH', 'Stealth plugin not available, using regular puppeteer');
+      browser = await puppeteer.launch(launchOptions);
+    }
 
     logger.info('BROWSER_LAUNCH', 'Browser launched successfully');
     return browser;
   } catch (error) {
-    logger.error('BROWSER_LAUNCH', 'Failed to launch browser', { error: error.message });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('BROWSER_LAUNCH', 'Failed to launch browser', { error: message });
     throw error;
   }
 }
@@ -39,19 +74,59 @@ export async function navigateWithRetry(
   url: string,
   timeout: number,
   logger: ExtractionLogger,
-  maxRetries: number = 3
+  maxRetries: number = 3,
+  debugMode: boolean = false
 ): Promise<Page> {
   logger.info('NAVIGATION', `Navigating to ${url}`, { timeout, maxRetries });
 
   const page = await browser.newPage();
 
-  // Set extra headers
+  // More realistic headers
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'en-US,en;q=0.9',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1'
   });
 
-  logger.debug('NAVIGATION', 'Headers set', {
+  // Override navigator properties to appear more human
+  await page.evaluateOnNewDocument(() => {
+    // Remove webdriver flag
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => false,
+    });
+
+    // Add realistic plugins
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3, 4, 5],
+    });
+
+    // Add realistic languages
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en'],
+    });
+
+    // Spoof chrome runtime
+    (window as any).chrome = {
+      runtime: {},
+    };
+
+    // Override permissions
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters: any) =>
+      parameters.name === 'notifications'
+        ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+        : originalQuery(parameters);
+  });
+
+  logger.debug('NAVIGATION', 'Headers and overrides set', {
     userAgent: await page.evaluate(() => navigator.userAgent)
   });
 
@@ -63,12 +138,16 @@ export async function navigateWithRetry(
 
       const navStart = Date.now();
       await page.goto(url, {
-        waitUntil: 'networkidle0',
+        waitUntil: 'domcontentloaded',  // Don't wait for network idle (ChatGPT has ongoing activity)
         timeout
       });
       const navTime = Date.now() - navStart;
 
       logger.info('NAVIGATION', `Page loaded successfully in ${navTime}ms`);
+
+      // Simulate human-like behavior: random small mouse movements
+      await page.mouse.move(100 + Math.random() * 50, 100 + Math.random() * 50);
+      await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500));
 
       // Get page info
       const title = await page.title();
@@ -76,15 +155,17 @@ export async function navigateWithRetry(
 
       logger.debug('NAVIGATION', 'Page info', { title, url: urlAfterNav });
 
-      // Take screenshot
-      await logger.saveScreenshot(page, 'after_navigation.png');
+      // Take screenshot (only in debug mode)
+      if (debugMode) {
+        await logger.saveScreenshot(page, 'after_navigation.png');
+      }
 
       return page;
 
     } catch (error) {
-      lastError = error;
+      lastError = error instanceof Error ? error : new Error('Unknown error');
       logger.warn('NAVIGATION', `Attempt ${attempt} failed`, {
-        error: error.message,
+        error: lastError.message,
         willRetry: attempt < maxRetries
       });
 
@@ -106,7 +187,8 @@ export async function navigateWithRetry(
 export async function closeModals(
   page: Page,
   selectors: string[],
-  logger: ExtractionLogger
+  logger: ExtractionLogger,
+  debugMode: boolean = false
 ): Promise<number> {
   logger.info('MODAL_CLOSE', `Attempting to close modals...`, { selectors });
 
@@ -124,20 +206,22 @@ export async function closeModals(
             await element.click();
             closedCount++;
             logger.info('MODAL_CLOSE', `Clicked element: ${selector}`);
-            await page.waitForTimeout(1000);
+            await new Promise(resolve => setTimeout(resolve, 1000));
           } catch (e) {
-            logger.debug('MODAL_CLOSE', `Could not click element: ${selector}`, { error: e.message });
+            const message = e instanceof Error ? e.message : 'Unknown error';
+            logger.debug('MODAL_CLOSE', `Could not click element: ${selector}`, { error: message });
           }
         }
       }
     } catch (error) {
-      logger.debug('MODAL_CLOSE', `Error with selector: ${selector}`, { error: error.message });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.debug('MODAL_CLOSE', `Error with selector: ${selector}`, { error: message });
     }
   }
 
   logger.info('MODAL_CLOSE', `Closed ${closedCount} modals`);
 
-  if (closedCount > 0) {
+  if (closedCount > 0 && debugMode) {
     await logger.saveScreenshot(page, 'after_modal_close.png');
   }
 
@@ -161,7 +245,23 @@ export async function waitForContent(
     try {
       logger.debug('WAIT_CONTENT', `Testing selector: ${selector}`);
 
+      // First wait for the selector to exist
       await page.waitForSelector(selector, { timeout: timeout });
+
+      // For container selectors like #thread, wait for actual content to load
+      if (selector === '#thread' || selector.startsWith('#')) {
+        logger.debug('WAIT_CONTENT', `Waiting for ${selector} to have content...`);
+        await page.waitForFunction(
+          (sel) => {
+            const el = document.querySelector(sel);
+            const text = el?.textContent || '';
+            // Wait for at least 100 characters of content
+            return text.trim().length > 100;
+          },
+          { timeout: timeout },
+          selector
+        );
+      }
 
       const count = await page.$$eval(selector, els => els.length);
       const textPreview = await page.$eval(selector, el =>
@@ -241,7 +341,8 @@ export async function testContentSelectors(
         selector,
         found: false
       });
-      logger.debug('TEST_SELECTORS', `✗ ${selector} - error`, { error: error.message });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.debug('TEST_SELECTORS', `✗ ${selector} - error`, { error: message });
     }
   }
 
@@ -263,20 +364,26 @@ export async function extractContent(
 
   for (const selector of selectors) {
     try {
-      const element = await page.$(selector);
+      const elements = await page.$$(selector);
 
-      if (element) {
-        const content = await page.$eval(selector, el => el.textContent || '');
+      if (elements && elements.length > 0) {
+        // Extract content from ALL matching elements and combine
+        const contents = await page.$$eval(selector, els =>
+          els.map(el => el.textContent || '').filter(text => text.trim().length > 0)
+        );
 
-        if (content && content.length > 50) {
-          logger.info('EXTRACT_CONTENT', `✓ Extracted ${content.length} chars using: ${selector}`);
-          return { content: content.trim(), selectorUsed: selector };
+        const combinedContent = contents.join('\n\n');
+
+        if (combinedContent && combinedContent.length > 50) {
+          logger.info('EXTRACT_CONTENT', `✓ Extracted ${combinedContent.length} chars from ${contents.length} elements using: ${selector}`);
+          return { content: combinedContent.trim(), selectorUsed: selector };
         } else {
-          logger.debug('EXTRACT_CONTENT', `Content too short from: ${selector}`, { length: content.length });
+          logger.debug('EXTRACT_CONTENT', `Content too short from: ${selector}`, { length: combinedContent.length });
         }
       }
     } catch (error) {
-      logger.debug('EXTRACT_CONTENT', `Failed with selector: ${selector}`, { error: error.message });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.debug('EXTRACT_CONTENT', `Failed with selector: ${selector}`, { error: message });
     }
   }
 
@@ -342,7 +449,8 @@ export async function extractSources(
     return sources;
 
   } catch (error) {
-    logger.error('EXTRACT_SOURCES', 'Failed to extract sources', { error: error.message });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('EXTRACT_SOURCES', 'Failed to extract sources', { error: message });
     return [];
   }
 }
@@ -350,13 +458,13 @@ export async function extractSources(
 /**
  * Validate extraction results
  */
-export function validateExtraction(
+export async function validateExtraction(
   title: string,
   content: string,
   abstract: string,
   sources: BriefSource[],
   logger: ExtractionLogger
-): ValidationResult {
+): Promise<ValidationResult> {
   logger.info('VALIDATION', 'Validating extraction quality...');
 
   const issues = {

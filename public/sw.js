@@ -13,10 +13,19 @@ const PRECACHE_ASSETS = [
   '/manifest.json',
 ];
 
-// Routes to cache with network-first strategy
+// Routes to cache with network-first strategy (excludes sensitive routes)
 const NETWORK_FIRST_ROUTES = [
   '/api/',
   '/dashboard',
+];
+
+// SECURITY: Never cache auth-related or sensitive API routes
+const NO_CACHE_ROUTES = [
+  '/api/auth/',
+  '/api/admin/',
+  '/api/settings/',
+  '/api/export/',
+  '/api/cron/',
 ];
 
 // Routes to cache with cache-first strategy
@@ -26,8 +35,8 @@ const CACHE_FIRST_ROUTES = [
   '/_next/static/',
 ];
 
-// Maximum cache age (7 days)
-const MAX_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
+// Maximum cache age (1 hour for API routes, 7 days for static assets)
+const MAX_CACHE_AGE = 60 * 60 * 1000;
 
 /**
  * Install event - precache essential assets
@@ -79,6 +88,11 @@ self.addEventListener('fetch', (event) => {
 
   // Skip chrome extensions and other protocols
   if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
+  // SECURITY: Skip caching entirely for auth/sensitive routes
+  if (NO_CACHE_ROUTES.some((route) => url.pathname.startsWith(route))) {
     return;
   }
 
@@ -247,8 +261,15 @@ self.addEventListener('notificationclick', (event) => {
 
 /**
  * Message event - handle messages from clients
+ * SECURITY: Validate message source before processing
  */
 self.addEventListener('message', (event) => {
+  // SECURITY: Only accept messages from same-origin clients
+  if (!event.source || (event.origin && event.origin !== self.location.origin)) {
+    console.warn('[SW] Rejected message from untrusted origin:', event.origin);
+    return;
+  }
+
   console.log('[SW] Message event:', event.data);
 
   if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -256,9 +277,23 @@ self.addEventListener('message', (event) => {
   }
 
   if (event.data && event.data.type === 'CACHE_URLS') {
+    // SECURITY: Validate URLs are same-origin before caching
+    const urls = event.data.urls;
+    if (!Array.isArray(urls) || urls.length > 50) {
+      console.warn('[SW] Rejected CACHE_URLS: invalid or too many URLs');
+      return;
+    }
+    const safeUrls = urls.filter((url) => {
+      try {
+        const parsed = new URL(url, self.location.origin);
+        return parsed.origin === self.location.origin;
+      } catch {
+        return false;
+      }
+    });
     event.waitUntil(
       caches.open(CACHE_NAME).then((cache) => {
-        return cache.addAll(event.data.urls);
+        return cache.addAll(safeUrls);
       })
     );
   }

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/server/auth';
+import { apiSuccess, apiError, requireAuth, isApiError } from '@/lib/api-response';
 
 /**
  * API endpoint for submitting content reports
@@ -9,44 +9,24 @@ import { auth } from '@/server/auth';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const session = await requireAuth();
+    if (isApiError(session)) return session;
 
     const body = await request.json();
     const { contentType, contentId, reason, details } = body;
 
     // Validate input
     if (!contentType || !contentId || !reason) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return apiError('Missing required fields', 400);
     }
 
     // Validate content type
     const validTypes = ['brief', 'review', 'comment', 'user'];
     if (!validTypes.includes(contentType)) {
-      return NextResponse.json(
-        { error: 'Invalid content type' },
-        { status: 400 }
-      );
+      return apiError('Invalid content type', 400);
     }
 
     // TODO: Create a Report model in Prisma schema
-    // For now, just log the report
-    console.log('[Moderation] Report submitted:', {
-      userId: session.user.id,
-      contentType,
-      contentId,
-      reason,
-      details,
-      timestamp: new Date().toISOString(),
-    });
 
     // In a real implementation, you would:
     // 1. Create a report record in the database
@@ -66,16 +46,10 @@ export async function POST(request: NextRequest) {
     //   },
     // });
 
-    return NextResponse.json(
-      { success: true, message: 'Report submitted successfully' },
-      { status: 200 }
-    );
+    return apiSuccess({ message: 'Report submitted successfully' });
 
   } catch (error) {
     console.error('[Moderation] Failed to submit report:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return apiError('Internal server error', 500);
   }
 }

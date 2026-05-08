@@ -1,42 +1,33 @@
 /**
  * Export Reset API Route
- * 
+ *
  * Resets daily export count for local mode
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/server/auth';
+import { NextRequest } from 'next/server';
 import { exportService } from '@/lib/export/services/ExportService';
 import { isLocalMode, getLocalSession } from '@/lib/localMode';
+import { apiSuccess, apiError } from '@/lib/api-response';
 
 export async function POST(request: NextRequest) {
   try {
     // Only allow in local mode
     if (!isLocalMode()) {
-      return NextResponse.json(
-        { error: 'Not available in production mode' },
-        { status: 403 }
-      );
+      return apiError('Not available in production mode', 403);
     }
 
     // Get authentication
     const session = getLocalSession();
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      return apiError('Authentication required', 401, 'UNAUTHENTICATED');
     }
 
     await exportService.resetDailyExports(session.user.id);
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ reset: true });
 
   } catch (error) {
     console.error('Export reset error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return apiError('Internal server error', 500);
   }
 }

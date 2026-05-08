@@ -9,7 +9,7 @@ export interface KnowledgeNode {
   size: number;
   color: string;
   metadata: {
-    [key: string]: any;
+    [key: string]: string | number | boolean | Date | null | undefined;
   };
 }
 
@@ -59,7 +59,7 @@ function generateNodeColor(type: string, intensity: number = 1): string {
 }
 
 // Calculate node size based on connections and importance
-function calculateNodeSize(type: string, connections: number, metadata: any): number {
+function calculateNodeSize(type: string, connections: number, metadata: { viewCount?: number; briefCount?: number; reviewCount?: number; upvoteCount?: number }): number {
   const baseSize = {
     brief: 15,
     author: 20,
@@ -85,11 +85,16 @@ function calculateNodeSize(type: string, connections: number, metadata: any): nu
 }
 
 // Calculate similarity between briefs based on shared categories and sources
-function calculateBriefSimilarity(brief1: any, brief2: any): number {
-  const categories1 = new Set(brief1.categories.map((c: any) => c.name));
-  const categories2 = new Set(brief2.categories.map((c: any) => c.name));
-  const sources1 = new Set(brief1.sources.map((s: any) => s.url));
-  const sources2 = new Set(brief2.sources.map((s: any) => s.url));
+interface BriefWithRelations {
+  categories: Array<{ id: string; name: string }>;
+  sources: Array<{ id: string; title: string; url: string }>;
+}
+
+function calculateBriefSimilarity(brief1: BriefWithRelations, brief2: BriefWithRelations): number {
+  const categories1 = new Set(brief1.categories.map((c) => c.name));
+  const categories2 = new Set(brief2.categories.map((c) => c.name));
+  const sources1 = new Set(brief1.sources.map((s) => s.url));
+  const sources2 = new Set(brief2.sources.map((s) => s.url));
 
   const sharedCategories = [...categories1].filter(c => categories2.has(c)).length;
   const sharedSources = [...sources1].filter(s => sources2.has(s)).length;
@@ -117,8 +122,6 @@ export async function getKnowledgeGraph(options: {
       maxNodes = 200,
       minConnections = 1,
     } = options;
-
-    console.log('Fetching knowledge graph data with options:', options);
 
     // Fetch all published briefs with related data
     const briefs = await prisma.brief.findMany({
@@ -206,7 +209,13 @@ export async function getKnowledgeGraph(options: {
 
     // Create author nodes and connections
     if (includeAuthors) {
-      const authorMap = new Map<string, any>();
+      const authorMap = new Map<string, {
+        id: string;
+        name: string | null;
+        image: string | null;
+        _count: { briefs: number; reviews: number };
+        briefIds: string[];
+      }>();
       
       briefs.forEach(brief => {
         if (!authorMap.has(brief.author.id)) {
@@ -254,7 +263,11 @@ export async function getKnowledgeGraph(options: {
     }
 
     // Create category nodes and connections
-    const categoryMap = new Map<string, any>();
+    const categoryMap = new Map<string, {
+      id: string;
+      name: string;
+      briefIds: string[];
+    }>();
     
     briefs.forEach(brief => {
       brief.categories.forEach(category => {
@@ -301,7 +314,12 @@ export async function getKnowledgeGraph(options: {
 
     // Create source nodes and connections
     if (includeSources) {
-      const sourceMap = new Map<string, any>();
+      const sourceMap = new Map<string, {
+        id: string;
+        title: string;
+        url: string;
+        briefIds: string[];
+      }>();
       
       briefs.forEach(brief => {
         brief.sources.forEach(source => {
@@ -349,7 +367,12 @@ export async function getKnowledgeGraph(options: {
 
     // Create model nodes and connections
     if (includeModels) {
-      const modelMap = new Map<string, any>();
+      const modelMap = new Map<string, {
+        id: string;
+        name: string;
+        provider: string;
+        briefIds: string[];
+      }>();
       
       briefs.forEach(brief => {
         if (!modelMap.has(brief.model.id)) {
@@ -396,12 +419,15 @@ export async function getKnowledgeGraph(options: {
     // Create similarity connections between briefs
     for (let i = 0; i < briefs.length; i++) {
       for (let j = i + 1; j < briefs.length; j++) {
-        const similarity = calculateBriefSimilarity(briefs[i], briefs[j]);
+        const briefA = briefs[i];
+        const briefB = briefs[j];
+        if (!briefA || !briefB) continue;
+        const similarity = calculateBriefSimilarity(briefA, briefB);
         
         if (similarity > 0.3) { // Only connect if similarity is above threshold
           connections.push({
-            source: `brief-${briefs[i]!.id}`,
-            target: `brief-${briefs[j]!.id}`,
+            source: `brief-${briefA.id}`,
+            target: `brief-${briefB.id}`,
             type: 'similar',
             strength: similarity,
             label: `${Math.round(similarity * 100)}% similar`,
@@ -418,8 +444,6 @@ export async function getKnowledgeGraph(options: {
       totalSources: includeSources ? new Set(briefs.flatMap(b => b.sources.map(s => s.id))).size : 0,
       totalConnections: connections.length,
     };
-
-    console.log(`Generated knowledge graph with ${nodes.length} nodes and ${connections.length} connections`);
 
     return {
       success: true,

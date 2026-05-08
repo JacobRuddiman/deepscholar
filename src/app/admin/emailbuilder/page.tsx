@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Send, Users, User, X, Mail, Eye, Image as ImageIcon, 
+import {
+  Send, Users, User, X, Mail, Eye, Image as ImageIcon,
   GripVertical, Minimize2, Maximize2, Edit2, Search,
   Calendar, Clock, ChevronDown, ChevronUp, UserPlus,
   CheckSquare, Square, Filter, UserCheck
@@ -12,6 +12,7 @@ import { useSearchParams } from 'next/navigation';
 import { showAdminAlert, createLog, AdminAlertContainer, type AlertType, type AlertLog } from '@/app/components/admin/AdminAlert';
 import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
 import MobileEmailBuilderPage from '@/app/components/admin/MobileEmailBuilderPage';
+import { FileDropzone } from '@/components/ui/FileDropzone';
 
 type User = {
   id: string;
@@ -63,10 +64,6 @@ const UserSelectionModal = React.memo(({
   showAdminAlert: (type: AlertType, title: string, message: string, logs?: AlertLog[], autoClose?: boolean, duration?: number) => void;
   createLog: (message: string, data?: any) => AlertLog;
 }) => {
-  console.log('[DEBUG] UserSelectionModal render - showUserModal:', showUserModal);
-  console.log('[DEBUG] UserSelectionModal render - users length:', users?.length);
-  console.log('[DEBUG] UserSelectionModal render - emailTags length:', emailTags?.length);
-
   // Add defensive check for users
   const safeUsers = users || [];
   
@@ -94,8 +91,7 @@ const UserSelectionModal = React.memo(({
     if (!user.email) return;
     
     const isSelected = selectedEmails.has(user.email);
-    console.log('[DEBUG] Toggling user:', user.email, 'Selected:', isSelected);
-    
+
     if (isSelected) {
       const tagToRemove = safeEmailTags.find(t => t.value === user.email);
       if (tagToRemove) {
@@ -134,11 +130,8 @@ const UserSelectionModal = React.memo(({
   }, [filteredModalUsers, selectedEmails, addTag, createLog, showAdminAlert]);
 
   if (!showUserModal) {
-    console.log('[DEBUG] UserSelectionModal not showing - showUserModal is false');
     return null;
   }
-
-  console.log('[DEBUG] UserSelectionModal rendering modal');
 
   return (
     <AnimatePresence>
@@ -147,10 +140,7 @@ const UserSelectionModal = React.memo(({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-        onClick={() => {
-          console.log('[DEBUG] Modal backdrop clicked - closing modal');
-          setShowUserModal(false);
-        }}
+        onClick={() => setShowUserModal(false)}
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
@@ -163,10 +153,7 @@ const UserSelectionModal = React.memo(({
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold">Select Recipients</h2>
               <button
-                onClick={() => {
-                  console.log('[DEBUG] Modal close button clicked');
-                  setShowUserModal(false);
-                }}
+                onClick={() => setShowUserModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="w-6 h-6" />
@@ -295,7 +282,7 @@ const UserSelectionModal = React.memo(({
 
 UserSelectionModal.displayName = 'UserSelectionModal';
 
-export default function EmailBuilderPage() {
+function EmailBuilderPage() {
   const searchParams = useSearchParams();
   const { isMobile } = useDeviceDetection();
   const [header, setHeader] = useState('');
@@ -404,20 +391,16 @@ Unsubscribe: https://deepscholar.com/unsubscribe
   }, [searchParams, users]);
 
   const addTag = useCallback((tag: EmailTag) => {
-    console.log('[DEBUG] Adding tag:', tag);
     setEmailTags(prev => {
       // Don't add duplicates
       if (prev.some(t => t.value === tag.value)) {
-        console.log('[DEBUG] Tag already exists:', tag.value);
         return prev;
       }
-      console.log('[DEBUG] Tag added successfully:', tag.value);
       return [...prev, tag];
     });
   }, []);
 
   const removeTag = useCallback((id: string) => {
-    console.log('[DEBUG] Removing tag with id:', id);
     setEmailTags(prev => prev.filter(tag => tag.id !== id));
   }, []);
 
@@ -464,7 +447,6 @@ Unsubscribe: https://deepscholar.com/unsubscribe
   };
 
   const handleUserSelect = useCallback((user: User) => {
-    console.log('[DEBUG] Selecting user:', user);
     if (user.email) {
       addTag({
         id: user.id,
@@ -768,7 +750,6 @@ Unsubscribe: https://deepscholar.com/unsubscribe
     scheduledFor?: string;
   }) => {
     // Mock implementation - in real app would call API
-    console.log('Sending email:', data);
     showAdminAlert('success', 'Email Sent', `Email sent to ${data.recipients.length} recipients`, [
       createLog('Email sent successfully', data)
     ]);
@@ -776,7 +757,6 @@ Unsubscribe: https://deepscholar.com/unsubscribe
 
   const handleMobileUploadImage = (file: File) => {
     // Mock implementation - in real app would upload to server
-    console.log('Uploading image:', file.name);
     showAdminAlert('success', 'Image Uploaded', `${file.name} uploaded successfully`, [
       createLog('Image uploaded', { fileName: file.name, size: file.size })
     ]);
@@ -944,10 +924,7 @@ Unsubscribe: https://deepscholar.com/unsubscribe
               <button
   onClick={(e) => {
     e.stopPropagation();
-    console.log('[DEBUG] Manage Recipients button clicked');
-    console.log('[DEBUG] Current showUserModal state:', showUserModal);
     setShowUserModal(true);
-    console.log('[DEBUG] setShowUserModal(true) called');
   }}
   className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm font-medium"
 >
@@ -1072,24 +1049,15 @@ Unsubscribe: https://deepscholar.com/unsubscribe
               </div>
               
               <div className="flex flex-col h-full">
-                <input
-                  ref={fileInputRef}
-                  type="file"
+                <FileDropzone
+                  onFileSelect={handleImageUpload}
                   accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleImageUpload(file);
-                  }}
-                  className="hidden"
+                  maxSize={5 * 1024 * 1024}
+                  label="Drop image or click"
+                  isUploading={uploadingImage}
+                  compact
+                  className="mb-3"
                 />
-                
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingImage}
-                  className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors disabled:opacity-50 mb-3"
-                >
-                  {uploadingImage ? 'Uploading...' : 'Upload Image'}
-                </button>
                 
                 <div className="flex-1 overflow-y-auto space-y-2">
                   {images.map((image, idx) => (
@@ -1349,3 +1317,13 @@ Unsubscribe: https://deepscholar.com/unsubscribe
     </>
   );
 }
+
+function EmailBuilderPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen animate-pulse" />}>
+      <EmailBuilderPage />
+    </Suspense>
+  );
+}
+
+export default EmailBuilderPageWrapper;

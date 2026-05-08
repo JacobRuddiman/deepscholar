@@ -163,7 +163,6 @@ export default function AIReviewsPage() {
     if (confirm('Are you sure you want to delete this AI review?')) {
       // In a real app, this would make an API call
       setAIReviews(aiReviews.filter(review => review.id !== reviewId));
-      console.log('Delete AI review:', reviewId);
     }
   };
 

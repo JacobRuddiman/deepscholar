@@ -16,17 +16,21 @@ export async function calculateRecommendationScore(userId: string, briefId: stri
         console.error('[Recommendations] Error fetching userRecommendation:', err);
         throw err;
       }),
-      prisma.brief.findUnique({ 
+      prisma.brief.findUnique({
         where: { id: briefId },
         include: {
           categories: true,
-          reviews: true,
-          upvotes: true,
+          reviews: {
+            select: { rating: true }
+          },
           author: {
             select: { id: true, name: true }
           },
           model: {
             select: { name: true, provider: true }
+          },
+          _count: {
+            select: { upvotes: true }
           }
         }
       })
@@ -124,12 +128,12 @@ export async function calculateRecommendationScore(userId: string, briefId: stri
 
     // 4. Popularity (15% weight) - Enhanced
     const viewScore = Math.min(10, (brief.viewCount || 0) / 100); // Max 10 points for views
-    const upvoteScore = Math.min(5, (brief.upvotes?.length || 0)); // Max 5 points for upvotes
+    const upvoteScore = Math.min(5, brief._count.upvotes); // Max 5 points for upvotes
     const popularityScore = viewScore + upvoteScore;
     score += popularityScore;
     
     if (popularityScore > 5) {
-      reasons.push(`Popular content: ${brief.viewCount || 0} views, ${brief.upvotes?.length || 0} upvotes`);
+      reasons.push(`Popular content: ${brief.viewCount || 0} views, ${brief._count.upvotes} upvotes`);
     }
 
     // 5. Recency (5% weight) - Reduced weight
@@ -172,10 +176,7 @@ export async function calculateRecommendationScore(userId: string, briefId: stri
 // Get personalized recommendations for a user
 export async function getPersonalizedRecommendations(userId: string, limit: number = 10): Promise<RecommendationScore[]> {
   try {
-    console.log('[Recommendations] Getting recommendations for user:', userId, 'with limit:', limit);
-
     // Get all briefs
-    console.log('[Recommendations] Fetching all briefs from database...');
     const allBriefs = await prisma.brief.findMany({
       include: {
         categories: true,
@@ -186,31 +187,19 @@ export async function getPersonalizedRecommendations(userId: string, limit: numb
         }
       }
     });
-    console.log('[Recommendations] Fetched', allBriefs.length, 'briefs');
 
     // Calculate scores for all briefs
-    console.log('[Recommendations] Calculating scores for all briefs...');
     const scores = await Promise.all(
       allBriefs.map(brief => calculateRecommendationScore(userId, brief.id))
     );
-    console.log('[Recommendations] Calculated scores for', scores.length, 'briefs');
 
     // Filter out null scores and sort by score descending
     const validScores = scores.filter(score => score !== null) as RecommendationScore[];
-    console.log('[Recommendations] Valid scores:', validScores.length);
     validScores.sort((a, b) => b.score - a.score);
 
-    const result = validScores.slice(0, limit);
-    console.log('[Recommendations] Returning top', result.length, 'recommendations');
-    return result;
+    return validScores.slice(0, limit);
   } catch (error) {
-    console.error('[Recommendations] Failed to get personalized recommendations:', {
-      error,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      userId,
-      limit
-    });
+    console.error('[Recommendations] Failed to get personalized recommendations:', String(error));
     return [];
   }
 }

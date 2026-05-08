@@ -15,8 +15,6 @@ export async function getTopContributors({
   search?: string;
 } = {}) {
   try {
-    console.log('Fetching top contributors with filters:', { page, limit, sortBy, search });
-    
     const whereClause = {
       ...(search && {
         name: {
@@ -114,8 +112,6 @@ export async function getTopContributors({
     const paginatedUsers = sortedUsers.slice(startIndex, startIndex + limit);
     const total = sortedUsers.length;
     const totalPages = Math.ceil(total / limit);
-
-    console.log(`Found ${paginatedUsers.length} contributors out of ${total} total`);
 
     return {
       success: true,

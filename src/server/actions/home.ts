@@ -3,6 +3,10 @@
 import { db } from "@/server/db";
 import type { Brief, Category, Source, BriefUpvote, Review, ResearchAIModel, User } from "@prisma/client";
 
+type ActionResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
 // Define the Brief type with all relations
 type BriefWithRelations = Brief & {
   categories: Category[];
@@ -12,11 +16,6 @@ type BriefWithRelations = Brief & {
   model: ResearchAIModel;
   author: Pick<User, 'id' | 'name' | 'image'>;
 };
-
-// Define return types
-type ActionResult<T> = 
-  | { success: true; data: T }
-  | { success: false; error: string };
 
 // Get popular briefs for home page
 export async function getPopularBriefs(limit = 8): Promise<ActionResult<BriefWithRelations[]>> {

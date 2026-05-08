@@ -62,16 +62,17 @@ export function createBriefCache<T extends (id: string) => Promise<any>>(
   fn: T,
   revalidate: number = CACHE_DURATIONS.BRIEF
 ): T {
-  return ((...args: any[]) => {
+  return ((...args: Parameters<T>) => {
     const id = args[0] as string;
-    return unstable_cache(
+    const cached = unstable_cache(
       fn,
       ['brief', id],
       {
         tags: [CACHE_TAGS.BRIEFS, CACHE_TAGS.BRIEF(id)],
         revalidate,
       }
-    )(...args);
+    );
+    return (cached as any)(...args);
   }) as T;
 }
 
@@ -82,18 +83,19 @@ export function createBriefListCache<T extends (...args: any[]) => Promise<any>>
   fn: T,
   revalidate: number = CACHE_DURATIONS.BRIEF_LIST
 ): T {
-  return ((...args: any[]) => {
+  return ((...args: Parameters<T>) => {
     // Create cache key from arguments
     const cacheKey = ['brief-list', JSON.stringify(args)];
 
-    return unstable_cache(
+    const cached = unstable_cache(
       fn,
       cacheKey,
       {
         tags: [CACHE_TAGS.BRIEFS],
         revalidate,
       }
-    )(...args);
+    );
+    return (cached as any)(...args);
   }) as T;
 }
 
@@ -104,16 +106,17 @@ export function createUserCache<T extends (id: string) => Promise<any>>(
   fn: T,
   revalidate: number = CACHE_DURATIONS.USER
 ): T {
-  return ((...args: any[]) => {
+  return ((...args: Parameters<T>) => {
     const id = args[0] as string;
-    return unstable_cache(
+    const cached = unstable_cache(
       fn,
       ['user', id],
       {
         tags: [CACHE_TAGS.USERS, CACHE_TAGS.USER(id)],
         revalidate,
       }
-    )(...args);
+    );
+    return (cached as any)(...args);
   }) as T;
 }
 
@@ -124,17 +127,18 @@ export function createSearchCache<T extends (...args: any[]) => Promise<any>>(
   fn: T,
   revalidate: number = CACHE_DURATIONS.SEARCH_RESULTS
 ): T {
-  return ((...args: any[]) => {
+  return ((...args: Parameters<T>) => {
     const cacheKey = ['search', JSON.stringify(args)];
 
-    return unstable_cache(
+    const cached = unstable_cache(
       fn,
       cacheKey,
       {
         tags: [CACHE_TAGS.SEARCH],
         revalidate,
       }
-    )(...args);
+    );
+    return (cached as any)(...args);
   }) as T;
 }
 
@@ -239,34 +243,3 @@ export async function cachedFetch(
   });
 }
 
-/**
- * Development utilities for cache debugging
- */
-export const cacheDebug = {
-  /**
-   * Log cache hits/misses (development only)
-   */
-  log: (key: string, hit: boolean) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Cache ${hit ? 'HIT' : 'MISS'}] ${key}`);
-    }
-  },
-
-  /**
-   * Measure cache performance
-   */
-  measure: async <T>(
-    key: string,
-    fn: () => Promise<T>
-  ): Promise<{ data: T; duration: number }> => {
-    const start = performance.now();
-    const data = await fn();
-    const duration = performance.now() - start;
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Cache] ${key} took ${duration.toFixed(2)}ms`);
-    }
-
-    return { data, duration };
-  },
-};

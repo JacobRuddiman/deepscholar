@@ -15,6 +15,32 @@ import {
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { EmptyStates } from '@/components/empty-states/EmptyState';
+
+/** User info in leaderboard entries */
+interface LeaderboardUser {
+  id: string;
+  name: string | null;
+  image: string | null;
+}
+
+/** Reputation data for a leaderboard entry */
+interface LeaderboardReputation {
+  rank: string;
+  level: number;
+  points: number;
+  [key: string]: unknown;
+}
+
+/** Leaderboard entry shape (covers both all-time and time-filtered results) */
+interface LeaderboardEntry {
+  userId: string;
+  user: LeaderboardUser | null;
+  points: number;
+  rank?: string;
+  level?: number;
+  reputation?: LeaderboardReputation | null;
+}
 
 interface LeaderboardProps {
   limit?: number;
@@ -47,7 +73,7 @@ export function Leaderboard({ limit = 10, className }: LeaderboardProps) {
 
       <CardContent>
         {/* Timeframe Tabs */}
-        <Tabs value={timeframe} onValueChange={(v) => setTimeframe(v as any)}>
+        <Tabs value={timeframe} onValueChange={(v: string) => setTimeframe(v as 'all' | 'month' | 'week')}>
           <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="all">All Time</TabsTrigger>
             <TabsTrigger value="month">This Month</TabsTrigger>
@@ -60,30 +86,22 @@ export function Leaderboard({ limit = 10, className }: LeaderboardProps) {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : !leaders || leaders.length === 0 ? (
-              <div className="text-center py-8">
-                <Award className="h-12 w-12 mx-auto text-muted-foreground/30 mb-2" />
-                <p className="text-sm text-muted-foreground">No data available</p>
-              </div>
+              <EmptyStates.NoLeaderboardData />
             ) : (
               <div className="space-y-2">
-                {leaders.map((leader, index) => {
+                {leaders.map((leader: LeaderboardEntry, index: number) => {
+                  const entry = leader as LeaderboardEntry;
                   const position = index + 1;
-                  const user =
-                    timeframe === 'all'
-                      ? (leader as any).user
-                      : (leader as any).user;
+                  const user = entry.user;
                   const reputation =
                     timeframe === 'all'
-                      ? leader
-                      : (leader as any).reputation;
-                  const points =
-                    timeframe === 'all'
-                      ? (leader as any).points
-                      : (leader as any).points;
+                      ? entry
+                      : entry.reputation;
+                  const points = entry.points;
 
                   return (
                     <Link
-                      key={timeframe === 'all' ? (leader as any).userId : (leader as any).userId}
+                      key={entry.userId}
                       href={`/profile/${user?.id}`}
                       className={cn(
                         'flex items-center gap-3 p-3 rounded-lg border transition-colors hover:bg-accent',
@@ -163,13 +181,14 @@ export function MiniLeaderboard({ limit = 5 }: { limit?: number }) {
 
   return (
     <div className="space-y-2">
-      {leaders.slice(0, limit).map((leader, index) => {
+      {leaders.slice(0, limit).map((leader: LeaderboardEntry, index: number) => {
+        const entry = leader as LeaderboardEntry;
         const position = index + 1;
-        const user = (leader as any).user;
+        const user = entry.user;
 
         return (
           <Link
-            key={(leader as any).userId}
+            key={entry.userId}
             href={`/profile/${user?.id}`}
             className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors"
           >
@@ -184,7 +203,7 @@ export function MiniLeaderboard({ limit = 5 }: { limit?: number }) {
             </Avatar>
             <p className="text-xs flex-1 truncate">{user?.name || 'Anonymous'}</p>
             <span className="text-xs font-medium text-muted-foreground">
-              {(leader as any).points?.toLocaleString()}
+              {entry.points?.toLocaleString()}
             </span>
           </Link>
         );

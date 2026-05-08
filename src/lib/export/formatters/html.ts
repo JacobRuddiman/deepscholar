@@ -1,11 +1,11 @@
 /**
  * HTML Formatter
- * 
+ *
  * Converts data structures to HTML format
  */
 
 import { Formatter } from './index';
-import { BriefExportData, UserProfileExportData, SearchResultsExportData } from '../types';
+import { BriefExportData, UserProfileExportData, SearchResultsExportData, ExportableData, ExportOptions } from '../types';
 
 export class HtmlFormatter implements Formatter {
   getMimeType(): string {
@@ -16,12 +16,12 @@ export class HtmlFormatter implements Formatter {
     return '.html';
   }
 
-  async format(data: any, options?: any): Promise<string> {
+  async format(data: ExportableData, options?: ExportOptions): Promise<string> {
     const theme = options?.styling?.theme || 'light';
-    const title = options?.metadata?.title || 'DeepScholar Export';
-    
+    const title = 'DeepScholar Export';
+
     let content = '';
-    
+
     if (this.isBriefData(data)) {
       content = this.formatBrief(data, options);
     } else if (this.isUserProfileData(data)) {
@@ -29,25 +29,25 @@ export class HtmlFormatter implements Formatter {
     } else if (this.isSearchResultsData(data)) {
       content = this.formatSearchResults(data, options);
     } else {
-      content = this.formatGeneric(data, options);
+      content = this.formatGeneric(data);
     }
 
     return this.wrapInHtml(content, title, theme);
   }
 
-  private isBriefData(data: any): data is BriefExportData {
-    return data && typeof data.title === 'string' && typeof data.content === 'string';
+  private isBriefData(data: unknown): data is BriefExportData {
+    return data !== null && typeof data === 'object' && 'title' in data && typeof (data as Record<string, unknown>).title === 'string' && 'content' in data && typeof (data as Record<string, unknown>).content === 'string';
   }
 
-  private isUserProfileData(data: any): data is UserProfileExportData {
-    return data && typeof data.name === 'string' && data.statistics;
+  private isUserProfileData(data: unknown): data is UserProfileExportData {
+    return data !== null && typeof data === 'object' && 'name' in data && typeof (data as Record<string, unknown>).name === 'string' && 'statistics' in data;
   }
 
-  private isSearchResultsData(data: any): data is SearchResultsExportData {
-    return data && typeof data.query === 'string' && Array.isArray(data.results);
+  private isSearchResultsData(data: unknown): data is SearchResultsExportData {
+    return data !== null && typeof data === 'object' && 'query' in data && typeof (data as Record<string, unknown>).query === 'string' && 'results' in data && Array.isArray((data as Record<string, unknown>).results);
   }
 
-  private formatBrief(data: BriefExportData, options?: any): string {
+  private formatBrief(data: BriefExportData, options?: ExportOptions): string {
     let html = `<h1>${this.escapeHtml(data.title)}</h1>`;
     
     // Metadata section
@@ -95,7 +95,7 @@ export class HtmlFormatter implements Formatter {
     }
   }
 
-  private formatUserProfile(data: UserProfileExportData, options?: any): string {
+  private formatUserProfile(data: UserProfileExportData, _options?: ExportOptions): string {
     let html = `<h1>User Profile: ${this.escapeHtml(data.name)}</h1>`;
     
     if (data.bio) {
@@ -115,7 +115,7 @@ export class HtmlFormatter implements Formatter {
     return html;
   }
 
-  private formatSearchResults(data: SearchResultsExportData, options?: any): string {
+  private formatSearchResults(data: SearchResultsExportData, _options?: ExportOptions): string {
     let html = `<h1>Search Results: "${this.escapeHtml(data.query)}"</h1>`;
     
     html += '<div class="search-metadata">';
@@ -138,7 +138,7 @@ export class HtmlFormatter implements Formatter {
     return html;
   }
 
-  private formatGeneric(data: any, options?: any): string {
+  private formatGeneric(data: ExportableData): string {
     return `<h1>Data Export</h1><pre><code>${this.escapeHtml(JSON.stringify(data, null, 2))}</code></pre>`;
   }
 

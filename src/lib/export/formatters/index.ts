@@ -1,8 +1,10 @@
 /**
  * Export Formatters - Main Entry Point
- * 
+ *
  * Handles conversion of data into various export formats
  */
+
+import { ExportableData, ExportOptions } from '../types';
 
 export * from './markdown';
 export * from './html';
@@ -12,7 +14,7 @@ export * from './txt';
 
 // Base formatter interface
 export interface Formatter {
-  format(data: any, options?: any): Promise<string>;
+  format(data: ExportableData, options?: ExportOptions): Promise<string>;
   getMimeType(): string;
   getFileExtension(): string;
 }

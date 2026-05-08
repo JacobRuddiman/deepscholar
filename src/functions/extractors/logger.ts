@@ -80,7 +80,8 @@ export class ExtractionLogger {
       await page.screenshot({ path: screenshotPath, fullPage: true });
       this.info('SCREENSHOT', `Saved screenshot: ${filename}`, { path: screenshotPath });
     } catch (error) {
-      this.warn('SCREENSHOT', `Failed to save screenshot: ${filename}`, { error: error.message });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.warn('SCREENSHOT', `Failed to save screenshot: ${filename}`, { error: message });
     }
   }
 
@@ -90,7 +91,20 @@ export class ExtractionLogger {
       fs.writeFileSync(htmlPath, html, 'utf-8');
       this.info('HTML_SAVE', `Saved HTML: ${filename}`, { path: htmlPath, size: html.length });
     } catch (error) {
-      this.warn('HTML_SAVE', `Failed to save HTML: ${filename}`, { error: error.message });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.warn('HTML_SAVE', `Failed to save HTML: ${filename}`, { error: message });
+    }
+  }
+
+  async saveJSON(data: unknown, filename: string) {
+    try {
+      const jsonPath = path.join(this.logDir, `${this.sessionId}_${filename}`);
+      const content = JSON.stringify(data, null, 2);
+      fs.writeFileSync(jsonPath, content, 'utf-8');
+      this.info('JSON_SAVE', `Saved JSON: ${filename}`, { path: jsonPath, size: content.length });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.warn('JSON_SAVE', `Failed to save JSON: ${filename}`, { error: message });
     }
   }
 

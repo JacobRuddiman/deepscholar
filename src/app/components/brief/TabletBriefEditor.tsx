@@ -20,14 +20,25 @@ import {
   ChevronUp
 } from "lucide-react";
 
-import type { BriefData } from '@/functions/types';
-import { extractBriefFromUrl } from '../extract_brief';
+import type { BriefData, BriefSource } from '@/functions/types';
+import { extractBriefFromUrl } from '@/lib/extraction/client';
 import ErrorPopup from '../error_popup';
 import { markdownComponents, determineTheme, themeColors, urlSchema } from '../brief_editor_utils';
 
+/** Extended BriefData that may include DB fields when editing an existing brief */
+interface InitialBriefData extends Omit<BriefData, 'model'> {
+  content?: string;
+  versionNumber?: number;
+  changeLog?: string;
+  createdAt?: Date;
+  isDraft?: boolean;
+  categories?: Array<{ id: string; name: string }>;
+  model?: string | { name?: string } | BriefData['model'];
+}
+
 interface TabletBriefEditorProps {
   onSubmit?: (briefData: BriefData) => void;
-  initialData?: BriefData;
+  initialData?: InitialBriefData;
   briefId?: string;
   isOwner?: boolean;
 }
@@ -59,23 +70,24 @@ export default function TabletBriefEditor({ onSubmit, initialData, briefId, isOw
   // Load initial data
   useEffect(() => {
     if (initialData) {
+      const modelValue = initialData.model;
       const transformedData: BriefData = {
         title: initialData.title || '',
-        content: (initialData as any).response || initialData.content || '',
+        response: initialData.response || initialData.content || '',
         abstract: initialData.abstract || '',
         thinking: initialData.thinking || '',
-        model: typeof (initialData as any).model === 'object' 
-          ? ((initialData as any).model?.name as "openai" | "perplexity" | "anthropic" | "other") || 'other'
-          : (initialData.model as "openai" | "perplexity" | "anthropic" | "other") || 'other',
-        sources: (initialData as any).sources || [],
-        references: (initialData as any).references || '',
-        rawHtml: (initialData as any).rawHtml
+        model: (typeof modelValue === 'object' && modelValue !== null
+          ? ((modelValue as { name?: string }).name || 'other')
+          : (String(modelValue) || 'other')).toLowerCase() as "openai" | "perplexity" | "anthropic" | "other",
+        sources: initialData.sources || [],
+        references: initialData.references || '',
+        rawHtml: initialData.rawHtml
       };
 
       setBriefData(transformedData);
       setEditingTitle(transformedData.title);
       setEditingAbstract(transformedData.abstract);
-      setEditingContent(transformedData.content);
+      setEditingContent(transformedData.response);
       setTheme(determineTheme(transformedData));
     }
   }, [initialData]);
@@ -111,7 +123,7 @@ export default function TabletBriefEditor({ onSubmit, initialData, briefId, isOw
       setBriefData(data);
       setEditingTitle(data.title);
       setEditingAbstract(data.abstract);
-      setEditingContent(data.content);
+      setEditingContent(data.response);
       setTheme(determineTheme(data));
       
     } catch (error) {
@@ -127,7 +139,7 @@ export default function TabletBriefEditor({ onSubmit, initialData, briefId, isOw
         ...briefData,
         title: editingTitle,
         abstract: editingAbstract,
-        content: editingContent
+        response: editingContent
       };
       setBriefData(updatedData);
       setHasUnsavedChanges(false);
@@ -140,7 +152,7 @@ export default function TabletBriefEditor({ onSubmit, initialData, briefId, isOw
         ...briefData,
         title: editingTitle,
         abstract: editingAbstract,
-        content: editingContent
+        response: editingContent
       };
       onSubmit(finalData);
     }

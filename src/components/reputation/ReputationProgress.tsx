@@ -37,7 +37,7 @@ export function ReputationProgress({
 
   // Find current and next rank
   const currentRankIndex = RANKS.findIndex((r) => r.level === reputation.level);
-  const currentRank = RANKS[currentRankIndex];
+  const currentRank = RANKS[currentRankIndex]!;
   const nextRank = RANKS[currentRankIndex + 1];
 
   // Calculate progress
@@ -152,7 +152,7 @@ export function CompactReputationProgress({ userId }: { userId?: string }) {
   if (!reputation) return null;
 
   const currentRankIndex = RANKS.findIndex((r) => r.level === reputation.level);
-  const currentRank = RANKS[currentRankIndex];
+  const currentRank = RANKS[currentRankIndex]!;
   const nextRank = RANKS[currentRankIndex + 1];
 
   if (!nextRank) {

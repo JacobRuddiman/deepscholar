@@ -1,12 +1,15 @@
 'use server';
 
 import { db } from "@/server/db";
+import { Prisma } from '@prisma/client';
 import { auth } from '@/server/auth';
-import { LOCAL_USER } from '@/lib/localMode';
+import { LOCAL_USER, isLocalAuth } from '@/lib/localMode';
 
 // Get dashboard statistics
 export async function getAdminStats() {
   try {
+    await getAdminUserId(); // Verify admin access
+
     const [
       totalUsers,
       totalBriefs,
@@ -75,7 +78,7 @@ export async function getAdminStats() {
     console.error('Error fetching admin stats:', error);
     return {
       success: false,
-      error: 'Failed to fetch admin statistics'
+      error: error instanceof Error && error.message.includes('admin') ? error.message : 'Failed to fetch admin statistics'
     };
   }
 }
@@ -89,6 +92,8 @@ export async function getAdminUsers(params: {
   sortBy?: 'name' | 'email' | 'created' | 'briefs' | 'reviews' | 'tokens';
 }) {
   try {
+    await getAdminUserId(); // Verify admin access
+
     const {
       page = 1,
       limit = 10,
@@ -97,7 +102,7 @@ export async function getAdminUsers(params: {
       sortBy = 'name'
     } = params;
 
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
 
     // Search filter
     if (search) {
@@ -115,7 +120,7 @@ export async function getAdminUsers(params: {
     }
 
     // Sort configuration
-    let orderBy: any;
+    let orderBy: Prisma.UserOrderByWithRelationInput;
     switch (sortBy) {
       case 'name':
         orderBy = { name: 'asc' };
@@ -173,7 +178,7 @@ export async function getAdminUsers(params: {
     console.error('Error fetching admin users:', error);
     return {
       success: false,
-      error: 'Failed to fetch users'
+      error: error instanceof Error && (error.message.includes('admin') || error.message.includes('authenticated')) ? error.message : 'Failed to fetch users'
     };
   }
 }
@@ -187,6 +192,8 @@ export async function getAdminBriefs(params: {
   sortBy?: 'title' | 'author' | 'created' | 'views' | 'rating';
 }) {
   try {
+    await getAdminUserId(); // Verify admin access
+
     const {
       page = 1,
       limit = 10,
@@ -195,7 +202,7 @@ export async function getAdminBriefs(params: {
       sortBy = 'created'
     } = params;
 
-    const where: any = {};
+    const where: Prisma.BriefWhereInput = {};
 
     // Search filter
     if (search) {
@@ -214,7 +221,7 @@ export async function getAdminBriefs(params: {
     }
 
     // Sort configuration
-    let orderBy: any;
+    let orderBy: Prisma.BriefOrderByWithRelationInput;
     switch (sortBy) {
       case 'title':
         orderBy = { title: 'asc' };
@@ -293,7 +300,7 @@ export async function getAdminBriefs(params: {
     console.error('Error fetching admin briefs:', error);
     return {
       success: false,
-      error: 'Failed to fetch briefs'
+      error: error instanceof Error && (error.message.includes('admin') || error.message.includes('authenticated')) ? error.message : 'Failed to fetch briefs'
     };
   }
 }
@@ -307,6 +314,8 @@ export async function getAdminAIReviews(params: {
   sortBy?: 'created' | 'rating' | 'model' | 'brief';
 }) {
   try {
+    await getAdminUserId(); // Verify admin access
+
     const {
       page = 1,
       limit = 10,
@@ -315,7 +324,7 @@ export async function getAdminAIReviews(params: {
       sortBy = 'created'
     } = params;
 
-    const where: any = {};
+    const where: Prisma.AIReviewWhereInput = {};
 
     // Search filter
     if (search) {
@@ -333,7 +342,7 @@ export async function getAdminAIReviews(params: {
     }
 
     // Sort configuration
-    let orderBy: any;
+    let orderBy: Prisma.AIReviewOrderByWithRelationInput;
     switch (sortBy) {
       case 'rating':
         orderBy = { rating: 'desc' };
@@ -388,7 +397,7 @@ export async function getAdminAIReviews(params: {
     console.error('Error fetching admin AI reviews:', error);
     return {
       success: false,
-      error: 'Failed to fetch AI reviews'
+      error: error instanceof Error && (error.message.includes('admin') || error.message.includes('authenticated')) ? error.message : 'Failed to fetch AI reviews'
     };
   }
 }
@@ -396,8 +405,6 @@ export async function getAdminAIReviews(params: {
 
 // Helper function to get admin user ID with LOCAL_AUTH mode support
 async function getAdminUserId() {
-  const { isLocalAuth } = await import('@/lib/localMode');
-
   if (isLocalAuth()) {
     return LOCAL_USER.id; // Assume local user is admin
   } else {
@@ -435,13 +442,10 @@ export async function getAdminReviews({
   sortBy?: string;
 } = {}) {
   try {
-    console.log('Starting getAdminReviews');
-    
     await getAdminUserId(); // Verify admin access
-    console.log('Admin access verified');
 
     // Build where clause based on filters
-    const whereClause: any = {};
+    const whereClause: Prisma.ReviewWhereInput = {};
 
     if (search) {
       whereClause.OR = [
@@ -482,7 +486,7 @@ export async function getAdminReviews({
     }
 
     // Build orderBy clause
-    let orderBy: any = { createdAt: 'desc' };
+    let orderBy: Prisma.ReviewOrderByWithRelationInput = { createdAt: 'desc' };
     if (sortBy === 'rating') {
       orderBy = { rating: 'desc' };
     } else if (sortBy === 'author') {
@@ -491,7 +495,6 @@ export async function getAdminReviews({
       orderBy = { brief: { title: 'asc' } };
     }
 
-    console.log('Querying database for reviews');
     const reviews = await db.review.findMany({
       where: whereClause,
       include: {
@@ -532,8 +535,6 @@ export async function getAdminReviews({
       where: whereClause,
     });
 
-    console.log(`Found ${reviews.length} reviews`);
-
     return {
       success: true,
       data: {
@@ -570,30 +571,8 @@ export async function getAdminModels({
   sortBy?: string;
 } = {}) {
   try {
-    console.log('Starting getAdminModels');
-    
-    // Check if user is admin
-    const session = await auth();
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Not authenticated',
-      };
-    }
+    await getAdminUserId(); // Verify admin access
 
-    const user = await db.user.findUnique({
-      where: { id: session.user.id },
-      select: { isAdmin: true },
-    });
-
-    if (!user?.isAdmin) {
-      return {
-        success: false,
-        error: 'Not authorized',
-      };
-    }
-
-    console.log('Querying database for models');
     const models = await db.researchAIModel.findMany({
       include: {
         _count: {
@@ -613,8 +592,6 @@ export async function getAdminModels({
         createdAt: 'desc',
       },
     });
-
-    console.log(`Found ${models.length} models`);
 
     return {
       success: true,
@@ -674,6 +651,8 @@ const recommendationProgress = new Map<string, number>();
 
 export async function getRecommendationProgress(userIds: string[]) {
   try {
+    await getAdminUserId(); // Verify admin access
+
     const progress: Record<string, number> = {};
     
     for (const userId of userIds) {
@@ -688,7 +667,7 @@ export async function getRecommendationProgress(userIds: string[]) {
     console.error('Error getting recommendation progress:', error);
     return {
       success: false,
-      error: 'Failed to get progress'
+      error: error instanceof Error && (error.message.includes('admin') || error.message.includes('authenticated')) ? error.message : 'Failed to get progress'
     };
   }
 }
@@ -795,7 +774,7 @@ export async function refreshUserRecommendations(userId?: string) {
 // Update user recommendation data
 export async function updateUserRecommendation(
   recommendationId: string,
-  updates: Partial<any>
+  updates: Prisma.UserRecommendationUpdateInput
 ) {
   try {
     await getAdminUserId(); // Verify admin access

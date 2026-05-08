@@ -12,6 +12,24 @@ import {
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 
+/** Draft data input matching the server action parameter type */
+type DraftInput = Parameters<typeof createDraft>[0];
+
+/** Draft update input matching the server action parameter type */
+type DraftUpdateInput = Parameters<typeof updateDraft>[1];
+
+/** Cached draft data shape for optimistic updates */
+interface CachedDraft {
+  id: string;
+  title?: string;
+  abstract?: string | null;
+  prompt?: string;
+  response?: string;
+  thinking?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
 /**
  * React Query mutations for draft operations
  */
@@ -24,9 +42,9 @@ export function useCreateDraft() {
   const router = useRouter();
 
   return useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: DraftInput) => {
       const result = await createDraft(data);
-      if (!result.success) {
+      if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to create draft');
       }
       return result.data;
@@ -48,7 +66,7 @@ export function useUpdateDraft(draftId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (updates: any) => {
+    mutationFn: async (updates: DraftUpdateInput) => {
       const result = await updateDraft(draftId, updates);
       if (!result.success) {
         throw new Error(result.error || 'Failed to update draft');
@@ -63,7 +81,7 @@ export function useUpdateDraft(draftId: string) {
       const previousDraft = queryClient.getQueryData(['draft', draftId]);
 
       // Optimistically update the cache
-      queryClient.setQueryData(['draft', draftId], (old: any) => {
+      queryClient.setQueryData(['draft', draftId], (old: CachedDraft | undefined) => {
         if (!old) return old;
         return {
           ...old,
@@ -95,7 +113,7 @@ export function useAutoSaveDraft(draftId: string) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: async (updates: any) => {
+    mutationFn: async (updates: DraftUpdateInput) => {
       const result = await autoSaveDraft(draftId, updates);
       if (!result.success) {
         throw new Error(result.error || 'Failed to auto-save draft');
@@ -107,7 +125,7 @@ export function useAutoSaveDraft(draftId: string) {
       await queryClient.cancelQueries({ queryKey: ['draft', draftId] });
       const previousDraft = queryClient.getQueryData(['draft', draftId]);
 
-      queryClient.setQueryData(['draft', draftId], (old: any) => {
+      queryClient.setQueryData(['draft', draftId], (old: CachedDraft | undefined) => {
         if (!old) return old;
         return { ...old, ...updates };
       });
@@ -129,7 +147,7 @@ export function useAutoSaveDraft(draftId: string) {
   const debouncedAutoSave = useCallback(
     (() => {
       let timeoutId: NodeJS.Timeout;
-      return (updates: any) => {
+      return (updates: DraftUpdateInput) => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
           mutation.mutate(updates);
@@ -156,7 +174,7 @@ export function usePublishDraft() {
   return useMutation({
     mutationFn: async (draftId: string) => {
       const result = await publishDraft(draftId);
-      if (!result.success) {
+      if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to publish draft');
       }
       return result.data;
@@ -212,7 +230,7 @@ export function useDuplicateAsDraft() {
   return useMutation({
     mutationFn: async (briefId: string) => {
       const result = await duplicateAsDraft(briefId);
-      if (!result.success) {
+      if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to duplicate brief');
       }
       return result.data;

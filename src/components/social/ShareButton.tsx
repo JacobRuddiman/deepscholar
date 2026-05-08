@@ -41,9 +41,8 @@ export function ShareButton({ url, title, description, variant = 'button' }: Sha
   const handleNativeShare = async () => {
     try {
       await navigator.share(shareData);
-    } catch (error) {
+    } catch {
       // User cancelled or error occurred
-      console.log('Share cancelled or failed:', error);
     }
   };
 
@@ -52,7 +51,7 @@ export function ShareButton({ url, title, description, variant = 'button' }: Sha
     facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
     linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
     reddit: `https://reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`,
-    email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${description}\n\n${url}`)}`,
+    email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${description || ''}\n\n${url}`)}`,
   };
 
   const copyToClipboard = async () => {
@@ -136,7 +135,7 @@ function ShareMenu({
   copied,
   onClose,
 }: {
-  shareUrls: Record<string, string>;
+  shareUrls: { twitter: string; facebook: string; linkedin: string; reddit: string; email: string };
   onShare: (url: string) => void;
   onCopy: () => void;
   copied: boolean;

@@ -3,6 +3,31 @@ import { toggleBriefUpvote, toggleBriefSave, addBriefReview, deleteBriefReview }
 import { createBrief, deleteBrief } from '@/server/actions/briefs/core-operations';
 import { createBriefVersion } from '@/server/actions/briefs/versions';
 
+/** Cached brief data shape used in optimistic updates */
+interface CachedBriefDetail {
+  upvotes?: Array<{ userId: string; briefId: string }>;
+  userHasUpvoted?: boolean;
+  userHasSaved?: boolean;
+  currentUserId?: string;
+  _count?: { upvotes?: number; [key: string]: number | undefined };
+  [key: string]: unknown;
+}
+
+/** Cached briefs list response shape */
+interface CachedBriefsList {
+  data?: {
+    briefs?: Array<{
+      id: string;
+      userHasUpvoted?: boolean;
+      userHasSaved?: boolean;
+      _count?: { upvotes?: number; [key: string]: number | undefined };
+      [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 /**
  * Hook for upvoting/unupvoting a brief with optimistic updates
  */
@@ -29,7 +54,7 @@ export function useUpvoteBrief() {
       const previousBriefs = queryClient.getQueriesData({ queryKey: ['briefs'] });
 
       // Optimistically update the individual brief
-      queryClient.setQueryData(['brief', briefId], (old: any) => {
+      queryClient.setQueryData(['brief', briefId], (old: CachedBriefDetail | undefined) => {
         if (!old) return old;
         const currentUpvoteCount = old.upvotes?.length || 0;
         const userHasUpvoted = old.userHasUpvoted || false;
@@ -37,8 +62,8 @@ export function useUpvoteBrief() {
         return {
           ...old,
           upvotes: userHasUpvoted
-            ? old.upvotes?.filter((u: any) => u.userId !== old.currentUserId) || []
-            : [...(old.upvotes || []), { userId: old.currentUserId, briefId }],
+            ? old.upvotes?.filter((u) => u.userId !== old.currentUserId) || []
+            : [...(old.upvotes || []), { userId: old.currentUserId || '', briefId }],
           userHasUpvoted: !userHasUpvoted,
           _count: {
             ...old._count,
@@ -48,13 +73,13 @@ export function useUpvoteBrief() {
       });
 
       // Optimistically update briefs in list views
-      queryClient.setQueriesData({ queryKey: ['briefs'] }, (old: any) => {
+      queryClient.setQueriesData({ queryKey: ['briefs'] }, (old: CachedBriefsList | undefined) => {
         if (!old?.data?.briefs) return old;
         return {
           ...old,
           data: {
             ...old.data,
-            briefs: old.data.briefs.map((brief: any) => {
+            briefs: old.data.briefs.map((brief) => {
               if (brief.id !== briefId) return brief;
               const currentUpvoteCount = brief._count?.upvotes || 0;
               const userHasUpvoted = brief.userHasUpvoted || false;
@@ -117,7 +142,7 @@ export function useSaveBrief() {
       const previousBriefs = queryClient.getQueriesData({ queryKey: ['briefs'] });
 
       // Optimistically update the brief
-      queryClient.setQueryData(['brief', briefId], (old: any) => {
+      queryClient.setQueryData(['brief', briefId], (old: CachedBriefDetail | undefined) => {
         if (!old) return old;
         return {
           ...old,
@@ -126,13 +151,13 @@ export function useSaveBrief() {
       });
 
       // Optimistically update briefs in list views
-      queryClient.setQueriesData({ queryKey: ['briefs'] }, (old: any) => {
+      queryClient.setQueriesData({ queryKey: ['briefs'] }, (old: CachedBriefsList | undefined) => {
         if (!old?.data?.briefs) return old;
         return {
           ...old,
           data: {
             ...old.data,
-            briefs: old.data.briefs.map((brief: any) => {
+            briefs: old.data.briefs.map((brief) => {
               if (brief.id !== briefId) return brief;
               return {
                 ...brief,

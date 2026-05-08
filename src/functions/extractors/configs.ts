@@ -8,7 +8,6 @@ export const CHATGPT_CONFIG: ExtractorConfig = {
     'div.markdown',
     '.prose',
     '[data-message-author-role="assistant"]',
-    '.min-h-[20px]',
     'article'
   ],
 
@@ -49,16 +48,26 @@ export const PERPLEXITY_CONFIG: ExtractorConfig = {
   platformName: 'perplexity',
 
   contentSelectors: [
+    '[id^="markdown-content"]',  // PRIMARY - Main markdown content container (WORKING)
+    '#markdown-content',         // Specific ID variant
+    '[id*="markdown-content"]',  // Contains variant
     '[data-testid="copilot_answer"]',
-    '.prose',
+    '[data-testid="answer"]',
+    '[data-testid="response"]',
     '.answer-content',
     '.md\\:prose',
+    '.prose.prose-invert',       // Perplexity dark mode variant
     '[class*="answer"]',
     '[class*="response"]',
+    '[class*="markdown"]',
     '.markdown-content',
     '.content-wrapper',
     '[data-testid="thread-content"]',
-    '.thread-content'
+    '.thread-content',
+    'main article',              // Semantic HTML
+    'main [role="main"]',
+    'article',                   // Generic article
+    '.prose'                     // Fallback - catches individual elements
   ],
 
   abstractPatterns: [
@@ -87,9 +96,14 @@ export const PERPLEXITY_CONFIG: ExtractorConfig = {
   ],
 
   waitForSelectors: [
+    '[id^="markdown-content"]',
+    '#markdown-content',
+    '[id*="markdown-content"]',
     '[data-testid="copilot_answer"]',
+    '[data-testid="answer"]',
+    '.answer-content',
     '.prose',
-    '.answer-content'
+    'article'
   ],
 
   navigationTimeout: 30000,

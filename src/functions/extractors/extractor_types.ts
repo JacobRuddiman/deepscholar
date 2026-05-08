@@ -24,6 +24,10 @@ export interface ExtractorConfig {
   // Platform-specific flags
   requiresCloudflareBypass?: boolean;
   requiresAuth?: boolean;
+
+  // Performance flags
+  debugMode?: boolean; // Enable screenshots, HTML saves, and verbose logging
+  headless?: boolean;  // Launch browser in headless mode (default: true)
 }
 
 export interface SelectorTestResult {

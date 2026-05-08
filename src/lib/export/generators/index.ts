@@ -1,15 +1,17 @@
 /**
  * Export Generators - Main Entry Point
- * 
+ *
  * Handles generation of export files including PDF, DOCX, and other binary formats
  */
+
+import { ExportableData, ExportOptions } from '../types';
 
 export * from './pdf';
 export * from './docx';
 
 // Base generator interface
 export interface Generator {
-  generate(data: any, options?: any): Promise<Buffer>;
+  generate(data: ExportableData, options?: ExportOptions): Promise<Buffer>;
   getMimeType(): string;
   getFileExtension(): string;
 }

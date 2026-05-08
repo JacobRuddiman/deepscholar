@@ -30,11 +30,11 @@ export default function AdminLayout({
       return;
     }
 
-    // In production, you could add admin role check here
-    // if (!localMode && session?.user && !session.user.isAdmin) {
-    //   router.push('/');
-    //   return;
-    // }
+    // Redirect non-admin users away from admin pages
+    if (!localMode && session?.user && !(session.user as { isAdmin?: boolean }).isAdmin) {
+      router.push('/');
+      return;
+    }
   }, [status, session, router]);
 
   // In local mode, always render

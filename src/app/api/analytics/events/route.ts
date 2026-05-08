@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiSuccess, apiError } from '@/lib/api-response';
 
 /**
  * API endpoint to track custom user events
@@ -18,15 +19,7 @@ export async function POST(request: NextRequest) {
 
     // Validate event
     if (!event.event || !event.timestamp) {
-      return NextResponse.json(
-        { error: 'Invalid event data' },
-        { status: 400 }
-      );
-    }
-
-    // Log in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Analytics Event]', event);
+      return apiError('Invalid event data', 400);
     }
 
     // In production, store or forward to analytics service
@@ -36,10 +29,10 @@ export async function POST(request: NextRequest) {
     // - Segment
     // - Custom database
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ received: true });
   } catch (error) {
     console.error('[Analytics API] Error processing event:', error);
-    return NextResponse.json({ success: true }, { status: 200 });
+    return apiSuccess({ received: true });
   }
 }
 

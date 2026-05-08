@@ -171,7 +171,6 @@ export default function BriefsPage() {
     if (confirm('Are you sure you want to delete this brief?')) {
       // In a real app, this would make an API call
       setBriefs(briefs.filter(brief => brief.id !== briefId));
-      console.log('Delete brief:', briefId);
     }
   };
 

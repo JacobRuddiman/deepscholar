@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { apiSuccess } from '@/lib/api-response';
 
 /**
  * Detailed health check endpoint
@@ -11,7 +11,29 @@ import { prisma } from '@/lib/prisma';
 export async function GET() {
   const startTime = Date.now();
 
-  const health: any = {
+  interface MemoryMetric {
+    bytes: number;
+    mb: number;
+  }
+
+  interface HealthCheckResult {
+    status: 'healthy' | 'degraded';
+    timestamp: string;
+    uptime: number;
+    environment: string | undefined;
+    nodeVersion: string;
+    platform: string;
+    arch: string;
+    checks: Record<string, unknown>;
+    metrics: {
+      memory?: { rss: MemoryMetric; heapTotal: MemoryMetric; heapUsed: MemoryMetric; external: MemoryMetric; arrayBuffers: MemoryMetric };
+      cpu?: { user: number; system: number };
+      [key: string]: unknown;
+    };
+    responseTime: number;
+  }
+
+  const health: HealthCheckResult = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
@@ -52,7 +74,7 @@ export async function GET() {
       status: 'unhealthy',
       error: error instanceof Error ? error.message : 'Unknown error',
     };
-    console.error('[Health Check] Database check failed:', error);
+    console.error('[Health Check] Database check failed:', String(error));
   }
 
   // Memory metrics
@@ -104,5 +126,5 @@ export async function GET() {
 
   const statusCode = health.status === 'healthy' ? 200 : 503;
 
-  return NextResponse.json(health, { status: statusCode });
+  return apiSuccess(health, statusCode);
 }

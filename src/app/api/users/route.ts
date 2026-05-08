@@ -1,39 +1,20 @@
 /**
  * Users API Route
- * 
+ *
  * Handles fetching users with various filters
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/server/auth';
+import { NextRequest } from 'next/server';
 import { db } from '@/server/db';
-import { isLocalMode, getLocalSession } from '@/lib/localMode';
+import { apiSuccess, apiError, requireAuth, isApiError } from '@/lib/api-response';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get authentication (handle local mode)
-    let session;
-    if (isLocalMode()) {
-      session = getLocalSession();
-    } else {
-      session = await auth();
-      if (!session?.user?.id) {
-        return NextResponse.json(
-          { error: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-    }
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
+    const session = await requireAuth();
+    if (isApiError(session)) return session;
 
     const searchParams = request.nextUrl.searchParams;
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
 
     const users = await db.user.findMany({
       select: {
@@ -72,17 +53,13 @@ export async function GET(request: NextRequest) {
       },
     }));
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       users: transformedUsers,
       total: transformedUsers.length,
     });
 
   } catch (error) {
-    console.error('Users API error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Users API error:', String(error));
+    return apiError('Internal server error', 500);
   }
 }

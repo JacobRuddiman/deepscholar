@@ -7,11 +7,14 @@ import { motion } from 'framer-motion';
 import { toggleBriefUpvote, toggleBriefSave, addBriefReview, deleteBriefReview } from '@/server/actions/briefs';
 import { deleteBrief } from '@/server/actions/briefs/core-operations';
 import ErrorPopup from '@/app/components/error_popup';
+import ReadingProgressBar from '@/components/ui/ReadingProgressBar';
+import TableOfContents from '@/components/briefs/TableOfContents';
 import { getBriefBySlug } from '@/server/actions/briefs/core-operations';
 import HelpfulButton from '@/app/components/helpful_button';
 import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
-import { calculateAverageRating, calculateReadTime, formatBriefDate } from '@/lib/brief-utils';
+import { calculateAverageRating, calculateReadTime, formatBriefDate, linkifyHtml, linkifyText } from '@/lib/brief-utils';
 import { LOCAL_USER } from '@/lib/localMode';
+import { useMemo } from 'react';
 import {
   ThumbsUp,
   MessageSquare,
@@ -324,11 +327,21 @@ export default function BriefPage() {
 
   const averageRating = calculateAverageRating(brief.reviews) ?? null;
 
+  // Linkify URLs in response and abstract
+  const linkedResponse = useMemo(() => {
+    return brief.response ? linkifyHtml(brief.response) : '';
+  }, [brief.response]);
+
+  const linkedAbstract = useMemo(() => {
+    return brief.abstract ? linkifyText(brief.abstract) : null;
+  }, [brief.abstract]);
+
   // Mobile Layout
   if (isMobile) {
     return (
       <>
         <style>{referenceStyles}</style>
+        <ReadingProgressBar />
         <div className="min-h-screen bg-gray-50">
         {/* Mobile Header */}
         <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-14 z-20">
@@ -487,7 +500,10 @@ export default function BriefPage() {
               </button>
               {expandedSections.abstract &&  (
                 <div className="px-4 pb-4">
-                  <p className="text-gray-700">{brief.abstract}</p>
+                  <div
+                    className="text-gray-700"
+                    dangerouslySetInnerHTML={{ __html: linkedAbstract ?? '' }}
+                  />
                 </div>
               )}
             </div>
@@ -504,9 +520,9 @@ export default function BriefPage() {
             </button>
             {expandedSections.content && (
               <div className="px-4 pb-4">
-                <div 
+                <div
                   className="prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: brief.response }}
+                  dangerouslySetInnerHTML={{ __html: linkedResponse }}
                 />
               </div>
             )}
@@ -787,6 +803,7 @@ export default function BriefPage() {
   return (
     <>
       <style>{referenceStyles}</style>
+      <ReadingProgressBar />
       <div className={`container mx-auto px-4 py-8 ${isTablet ? 'max-w-4xl' : 'max-w-4xl'}`}>
       {/* Keep existing desktop layout but add responsive classes */}
       <ErrorPopup
@@ -806,9 +823,12 @@ export default function BriefPage() {
         <div className={`flex ${isTablet ? 'flex-col space-y-4' : 'justify-between items-start'} mb-4`}>
           <div className="flex-1">
             <h1 className={`${isTablet ? 'text-2xl' : 'text-3xl'} font-bold mb-4`}>{brief.title}</h1>
-            
+
             {brief.abstract && (
-              <p className={`${isTablet ? 'text-base' : 'text-lg'} text-gray-600 mb-4`}>{brief.abstract}</p>
+              <div
+                className={`${isTablet ? 'text-base' : 'text-lg'} text-gray-600 mb-4`}
+                dangerouslySetInnerHTML={{ __html: linkedAbstract ?? '' }}
+              />
             )}
 
             <div className={`flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-4`}>
@@ -932,9 +952,14 @@ export default function BriefPage() {
         className="mb-8"
       >
         <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div 
-            className={`prose ${isTablet ? 'prose-sm' : 'prose-lg'} max-w-none`}
-            dangerouslySetInnerHTML={{ __html: brief.response }}
+          <TableOfContents
+            htmlContent={linkedResponse}
+            contentSelector=".prose"
+            defaultCollapsed={false}
+          />
+          <div
+            className={`prose ${isTablet ? 'prose-sm' : 'prose-lg'} max-w-none mt-4`}
+            dangerouslySetInnerHTML={{ __html: linkedResponse }}
           />
         </div>
       </motion.div>

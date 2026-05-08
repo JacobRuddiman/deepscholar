@@ -16,7 +16,7 @@ export interface ErrorContext {
   componentStack?: string;
   url?: string;
   userAgent?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ErrorSeverity {
@@ -124,7 +124,7 @@ class ErrorMonitoringService {
   /**
    * Add breadcrumb (trail of events leading to an error)
    */
-  addBreadcrumb(message: string, category: string = 'default', data?: Record<string, any>) {
+  addBreadcrumb(message: string, category: string = 'default', data?: Record<string, unknown>) {
     try {
       // Example for Sentry:
       // Sentry.addBreadcrumb({
@@ -144,20 +144,13 @@ class ErrorMonitoringService {
    * Send error to external monitoring service (placeholder)
    */
   private sendToExternalService(error: Error, severity: ErrorSeverity['level'], context?: ErrorContext) {
-    // TODO: Implement integration with your chosen error monitoring service
+    // PLACEHOLDER: Intentionally a no-op until an external service (e.g. Sentry, LogRocket)
+    // is configured. When ready, replace the log below with the service SDK call.
     //
     // Example for Sentry:
-    // Sentry.captureException(error, {
-    //   level: severity,
-    //   extra: context,
-    // });
-    //
-    // Example for LogRocket:
-    // LogRocket.captureException(error, {
-    //   tags: context,
-    // });
+    // Sentry.captureException(error, { level: severity, extra: context });
 
-    // For now, just structure the data
+    // Structure the data for local logging
     const errorData = {
       name: error.name,
       message: error.message,
@@ -176,13 +169,11 @@ class ErrorMonitoringService {
    * Send message to external monitoring service (placeholder)
    */
   private sendMessageToExternalService(message: string, severity: ErrorSeverity['level'], context?: ErrorContext) {
-    // TODO: Implement integration with your chosen error monitoring service
+    // PLACEHOLDER: Intentionally a no-op until an external service (e.g. Sentry)
+    // is configured. When ready, replace the log below with the service SDK call.
     //
     // Example for Sentry:
-    // Sentry.captureMessage(message, {
-    //   level: severity,
-    //   extra: context,
-    // });
+    // Sentry.captureMessage(message, { level: severity, extra: context });
 
     const messageData = {
       message,

@@ -1,14 +1,11 @@
 // app/api/admin/scheduled-emails/route.ts
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/server/auth';
+import { apiSuccess, apiError, requireAdmin, isApiError } from '@/lib/api-response';
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user || !session.user.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireAdmin();
+    if (isApiError(session)) return session;
 
     const scheduledEmails = await prisma.scheduledEmail.findMany({
       where: {
@@ -30,25 +27,23 @@ export async function GET() {
       }
     });
 
-    return NextResponse.json({ scheduledEmails });
+    return apiSuccess({ scheduledEmails });
   } catch (error) {
-    console.error('Failed to fetch scheduled emails:', error);
-    return NextResponse.json({ error: 'Failed to fetch scheduled emails' }, { status: 500 });
+    console.error('Failed to fetch scheduled emails:', String(error));
+    return apiError('Failed to fetch scheduled emails', 500);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user || !session.user.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireAdmin();
+    if (isApiError(session)) return session;
 
     const { subject, body, footer, recipients, scheduledFor } = await request.json();
 
     // Validate inputs
     if (!subject || !body || !recipients || !scheduledFor) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return apiError('Missing required fields', 400);
     }
 
     // Create scheduled email
@@ -63,29 +58,24 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      scheduledEmail 
-    });
+    return apiSuccess({ scheduledEmail });
   } catch (error) {
-    console.error('Failed to schedule email:', error);
-    return NextResponse.json({ error: 'Failed to schedule email' }, { status: 500 });
+    console.error('Failed to schedule email:', String(error));
+    return apiError('Failed to schedule email', 500);
   }
 }
 
 // Cancel scheduled email
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user || !session.user.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireAdmin();
+    if (isApiError(session)) return session;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing email ID' }, { status: 400 });
+      return apiError('Missing email ID', 400);
     }
 
     await prisma.scheduledEmail.update({
@@ -93,9 +83,9 @@ export async function DELETE(request: Request) {
       data: { status: 'cancelled' }
     });
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ cancelled: true });
   } catch (error) {
-    console.error('Failed to cancel scheduled email:', error);
-    return NextResponse.json({ error: 'Failed to cancel email' }, { status: 500 });
+    console.error('Failed to cancel scheduled email:', String(error));
+    return apiError('Failed to cancel email', 500);
   }
 }

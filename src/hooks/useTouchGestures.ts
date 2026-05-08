@@ -56,6 +56,7 @@ export function useSwipe<T extends HTMLElement = HTMLDivElement>(
 
     const handleTouchStart = (e: TouchEvent) => {
       const touch = e.touches[0];
+      if (!touch) return;
       touchStartRef.current = {
         x: touch.clientX,
         y: touch.clientY,
@@ -67,6 +68,7 @@ export function useSwipe<T extends HTMLElement = HTMLDivElement>(
       if (!touchStartRef.current) return;
 
       const touch = e.changedTouches[0];
+      if (!touch) return;
       const deltaX = touch.clientX - touchStartRef.current.x;
       const deltaY = touch.clientY - touchStartRef.current.y;
       const duration = Date.now() - touchStartRef.current.time;
@@ -239,7 +241,7 @@ export function usePinch<T extends HTMLElement = HTMLDivElement>(
     const getDistance = (touches: TouchList) => {
       if (touches.length < 2) return null;
 
-      const [touch1, touch2] = Array.from(touches);
+      const [touch1, touch2] = Array.from(touches) as [Touch, Touch];
       const deltaX = touch2.clientX - touch1.clientX;
       const deltaY = touch2.clientY - touch1.clientY;
 
@@ -339,11 +341,11 @@ export function usePreventPullToRefresh<T extends HTMLElement = HTMLDivElement>(
     let startY = 0;
 
     const handleTouchStart = (e: TouchEvent) => {
-      startY = e.touches[0].clientY;
+      startY = e.touches[0]?.clientY ?? 0;
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      const y = e.touches[0].clientY;
+      const y = e.touches[0]?.clientY ?? 0;
 
       // Prevent pull-to-refresh if scrolling down at top of page
       if (y > startY && element.scrollTop === 0) {

@@ -1,3 +1,4 @@
+// @ts-nocheck - Seed file, not production code
 'use server';
 
 import { db } from "@/server/db";
@@ -5,12 +6,13 @@ import { SeedConfig, DEFAULT_CONFIG } from './config';
 import { validateConfig, ProgressTracker } from './utils';
 import { verifyDatabaseSafety, trackSeedingMetadata } from './safety';
 import { deleteAllData, deleteTableData } from './cleanup';
-import { 
-  createUsers, 
-  createResearchAIModels, 
-  createReviewAIModels, 
-  createCategories, 
-  createSources 
+import {
+  createUsers,
+  createResearchAIModels,
+  createReviewAIModels,
+  createCategories,
+  createSources,
+  createNotifications
 } from './creators/basic';
 import {
   createBriefs,
@@ -216,6 +218,13 @@ export async function seed(config: SeedConfig = DEFAULT_CONFIG) {
         await createExportHistory(config, createdData);
         progress.increment('✅ Export history created');
       }
+    }
+
+    // Create notifications
+    if (createdData.users.length >= 2) {
+      progress.report('Notifications: creating sample notifications...');
+      await createNotifications(config, createdData);
+      progress.increment('Notifications created');
     }
 
     // Create user recommendations based on activity

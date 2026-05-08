@@ -49,7 +49,7 @@ setInterval(() => {
  */
 function defaultKeyGenerator(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0].trim() : request.ip || 'unknown';
+  const ip = forwarded ? (forwarded.split(',')[0] ?? '').trim() : (request as NextRequest & { ip?: string }).ip || 'unknown';
   return `ratelimit:${ip}`;
 }
 
@@ -240,7 +240,7 @@ export function slidingWindowRateLimit(config: RateLimitConfig) {
     timestamps = timestamps.filter((timestamp) => timestamp > windowStart);
 
     if (timestamps.length >= limit) {
-      const oldestTimestamp = timestamps[0];
+      const oldestTimestamp = timestamps[0]!;
       const retryAfter = Math.ceil((oldestTimestamp + window - now) / 1000);
 
       return NextResponse.json(

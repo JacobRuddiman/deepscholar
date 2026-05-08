@@ -1,5 +1,6 @@
 import { extractWithLogging } from './src/functions/extractors/unified_extractor';
 import { getConfigForPlatform } from './src/functions/extractors/configs';
+import { detectPlatform } from './src/lib/extraction/platform';
 
 interface TestCase {
   url: string;
@@ -27,8 +28,8 @@ async function testExtractor(testCase: TestCase) {
     console.log('='.repeat(100));
 
     console.log(`\n📋 TITLE: ${result.title}`);
-    console.log(`\n📄 CONTENT: ${result.content.length} characters`);
-    console.log(`Preview: ${result.content.substring(0, 200)}...`);
+    console.log(`\n📄 RESPONSE: ${result.response.length} characters`);
+    console.log(`Preview: ${result.response.substring(0, 200)}...`);
 
     console.log(`\n📝 ABSTRACT: ${result.abstract?.length || 0} characters`);
     if (result.abstract) {
@@ -87,8 +88,8 @@ async function testExtractor(testCase: TestCase) {
       console.log(`  ✓ Title matches expectation`);
     }
 
-    if (testCase.expectedMinContentLength && result.content.length < testCase.expectedMinContentLength) {
-      console.log(`  ✗ Content too short (expected >= ${testCase.expectedMinContentLength}, got ${result.content.length})`);
+    if (testCase.expectedMinContentLength && result.response.length < testCase.expectedMinContentLength) {
+      console.log(`  ✗ Content too short (expected >= ${testCase.expectedMinContentLength}, got ${result.response.length})`);
       passed = false;
     } else if (testCase.expectedMinContentLength) {
       console.log(`  ✓ Content length meets expectation`);
@@ -108,13 +109,15 @@ async function testExtractor(testCase: TestCase) {
     return { testCase, result, passed };
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const stack = error instanceof Error ? error.stack : undefined;
     console.log('\n' + '='.repeat(100));
     console.log('ERROR OCCURRED');
     console.log('='.repeat(100));
-    console.log(`\n❌ ${error.message}`);
-    if (error.stack) {
+    console.log(`\n❌ ${message}`);
+    if (stack) {
       console.log(`\nStack trace:`);
-      console.log(error.stack);
+      console.log(stack);
     }
     console.log(`\n${'='.repeat(100)}`);
     console.log(`RESULT: ❌ FAIL`);
@@ -210,19 +213,8 @@ const testCases: TestCase[] = args.map(arg => {
     url = parts.slice(1).join(':');
   } else {
     // Auto-detect platform
-    const lowerUrl = arg.toLowerCase();
-    if (lowerUrl.includes('chat.openai.com') || lowerUrl.includes('chatgpt.com')) {
-      platform = 'chatgpt';
-    } else if (lowerUrl.includes('perplexity.ai')) {
-      platform = 'perplexity';
-    } else if (lowerUrl.includes('claude.ai') || lowerUrl.includes('anthropic.com')) {
-      platform = 'anthropic';
-    } else if (lowerUrl.includes('docs.google.com') || lowerUrl.includes('drive.google.com/file')) {
-      platform = 'google-docs';
-    } else if (lowerUrl.includes('google.com')) {
-      platform = 'google';
+      platform = detectPlatform(arg);
     }
-  }
 
   return { url, platform };
 });

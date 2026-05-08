@@ -396,7 +396,7 @@ export async function getUserDrafts() {
       data: drafts,
     };
   } catch (error) {
-    console.error('[Drafts] Failed to fetch drafts:', error);
+    console.error('[Drafts] Failed to fetch drafts:', String(error));
     return {
       success: false,
       error: 'Failed to fetch drafts',

@@ -123,7 +123,6 @@ function SearchBar({
   const handleSearch = async () => {
     if (!filters.query.trim()) return;
 
-    console.log('SearchBar: Starting search with filters:', filters);
     setIsLoading(true);
     saveRecentSearch(filters.query);
 

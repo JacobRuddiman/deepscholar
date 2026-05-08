@@ -21,6 +21,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { sanitizeHtml } from '@/lib/validation';
 
 interface MobileBriefDetailProps {
   brief: any; // Use your Brief type
@@ -181,7 +182,7 @@ export default function MobileBriefDetail({
             <div className="px-4 pb-4">
               <div 
                 className="prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: brief.response }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(brief.response ?? '') }}
               />
             </div>
           )}

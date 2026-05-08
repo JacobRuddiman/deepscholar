@@ -7,11 +7,39 @@ import { prisma } from '@/lib/prisma';
  * Server actions for exporting content
  */
 
+/** Shape of brief data fetched from Prisma for export */
+interface BriefForExport {
+  id: string;
+  title: string;
+  slug: string | null;
+  abstract: string | null;
+  prompt: string;
+  response: string;
+  thinking: string | null;
+  accuracy: number | null;
+  readTime: number | null;
+  createdAt: Date;
+  author: { name: string | null; email?: string | null };
+  model: { name: string; provider: string };
+  categories: Array<{ name: string }>;
+  sources: Array<{ id: string; title: string; url: string; createdAt: Date; updatedAt: Date }>;
+  reviews: Array<{
+    rating: number;
+    content: string;
+    author: { name: string | null };
+  }>;
+}
+
 /**
  * Generate Markdown export of a brief
  */
 export async function exportBriefAsMarkdown(briefId: string) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: 'Authentication required' };
+    }
+
     const brief = await prisma.brief.findUnique({
       where: { id: briefId },
       include: {
@@ -52,6 +80,11 @@ export async function exportBriefAsMarkdown(briefId: string) {
       };
     }
 
+    // SECURITY: Only allow export of published briefs or user's own briefs
+    if (!brief.published && brief.userId !== session.user.id) {
+      return { success: false, error: 'Not authorized to export this brief' };
+    }
+
     // Generate markdown content
     const markdown = generateMarkdown(brief);
 
@@ -74,7 +107,7 @@ export async function exportBriefAsMarkdown(briefId: string) {
 /**
  * Generate markdown string from brief data
  */
-function generateMarkdown(brief: any): string {
+function generateMarkdown(brief: BriefForExport): string {
   const lines: string[] = [];
 
   // Title
@@ -86,7 +119,7 @@ function generateMarkdown(brief: any): string {
   lines.push(`**AI Model:** ${brief.model.name} (${brief.model.provider})`);
 
   if (brief.categories && brief.categories.length > 0) {
-    lines.push(`**Categories:** ${brief.categories.map((c: any) => c.name).join(', ')}`);
+    lines.push(`**Categories:** ${brief.categories.map((c) => c.name).join(', ')}`);
   }
 
   if (brief.accuracy) {
@@ -126,14 +159,8 @@ function generateMarkdown(brief: any): string {
   // Sources
   if (brief.sources && brief.sources.length > 0) {
     lines.push(`## Sources\n`);
-    brief.sources.forEach((source: any, index: number) => {
+    brief.sources.forEach((source, index: number) => {
       lines.push(`${index + 1}. [${source.title || 'Source'}](${source.url})`);
-      if (source.authors) {
-        lines.push(`   - Authors: ${source.authors}`);
-      }
-      if (source.year) {
-        lines.push(`   - Year: ${source.year}`);
-      }
     });
     lines.push('');
   }
@@ -141,7 +168,7 @@ function generateMarkdown(brief: any): string {
   // Reviews
   if (brief.reviews && brief.reviews.length > 0) {
     lines.push(`## Reviews (${brief.reviews.length})\n`);
-    brief.reviews.forEach((review: any) => {
+    brief.reviews.forEach((review) => {
       lines.push(`### ${review.author.name || 'Anonymous'} - ${review.rating}/5`);
       lines.push(`${review.content}\n`);
     });
@@ -160,6 +187,11 @@ function generateMarkdown(brief: any): string {
  */
 export async function exportBriefAsHTML(briefId: string) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: 'Authentication required' };
+    }
+
     const brief = await prisma.brief.findUnique({
       where: { id: briefId },
       include: {
@@ -199,6 +231,11 @@ export async function exportBriefAsHTML(briefId: string) {
       };
     }
 
+    // SECURITY: Only allow export of published briefs or user's own briefs
+    if (!brief.published && brief.userId !== session.user.id) {
+      return { success: false, error: 'Not authorized to export this brief' };
+    }
+
     const html = generateHTML(brief);
 
     return {
@@ -220,7 +257,7 @@ export async function exportBriefAsHTML(briefId: string) {
 /**
  * Generate HTML string for PDF printing
  */
-function generateHTML(brief: any): string {
+function generateHTML(brief: BriefForExport): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -314,7 +351,7 @@ function generateHTML(brief: any): string {
     <p><strong>Author:</strong> ${brief.author.name || 'Anonymous'}</p>
     <p><strong>Created:</strong> ${new Date(brief.createdAt).toLocaleDateString()}</p>
     <p><strong>AI Model:</strong> ${brief.model.name} (${brief.model.provider})</p>
-    ${brief.categories && brief.categories.length > 0 ? `<p><strong>Categories:</strong> ${brief.categories.map((c: any) => c.name).join(', ')}</p>` : ''}
+    ${brief.categories && brief.categories.length > 0 ? `<p><strong>Categories:</strong> ${brief.categories.map((c) => c.name).join(', ')}</p>` : ''}
     ${brief.accuracy ? `<p><strong>Accuracy:</strong> ${brief.accuracy.toFixed(1)}/5.0</p>` : ''}
     ${brief.readTime ? `<p><strong>Read Time:</strong> ${brief.readTime} minutes</p>` : ''}
   </div>
@@ -339,11 +376,9 @@ function generateHTML(brief: any): string {
   <h2>Sources</h2>
   <div class="sources">
     <ol>
-      ${brief.sources.map((source: any) => `
+      ${brief.sources.map((source) => `
         <li>
           <a href="${source.url}">${source.title || 'Source'}</a>
-          ${source.authors ? `<br><small>Authors: ${source.authors}</small>` : ''}
-          ${source.year ? `<br><small>Year: ${source.year}</small>` : ''}
         </li>
       `).join('')}
     </ol>
@@ -352,7 +387,7 @@ function generateHTML(brief: any): string {
 
   ${brief.reviews && brief.reviews.length > 0 ? `
   <h2>Reviews (${brief.reviews.length})</h2>
-  ${brief.reviews.map((review: any) => `
+  ${brief.reviews.map((review) => `
     <div class="review">
       <h3>${review.author.name || 'Anonymous'} - ${review.rating}/5</h3>
       <p>${review.content}</p>
@@ -372,7 +407,7 @@ function generateHTML(brief: any): string {
 /**
  * Track export for analytics
  */
-async function trackExport(briefId: string, format: string) {
+async function trackExport(briefId: string, format: string, filename: string) {
   try {
     const session = await auth();
     if (!session?.user?.id) return;
@@ -382,7 +417,8 @@ async function trackExport(briefId: string, format: string) {
         userId: session.user.id,
         exportType: 'brief',
         exportFormat: format,
-        briefId,
+        targetId: briefId,
+        filename,
       },
     });
   } catch (error) {

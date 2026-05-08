@@ -1,9 +1,9 @@
 import React from "react";
 import type { BriefData } from '@/functions/types';
+import { extractBriefFromUrl } from '@/lib/extraction/client';
 import { useDeviceDetection } from '../hooks/useDeviceDetection';
 import MobileBriefUploadEditor from './MobileBriefUploadEditor';
 import DesktopBriefUploadEditor from './DesktopBriefUploadEditor';
-import { extractBriefFromUrl } from './extract_brief';
 
 // Helper function to fetch brief from URL
 async function fetchBriefFromUrl(url: string): Promise<BriefData> {

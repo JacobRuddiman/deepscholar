@@ -275,12 +275,11 @@ export default function UsersPage() {
 
       if (response.ok) {
         // Update local state
-        setUsers(users.map(user => 
-          user.id === editingUser.id 
+        setUsers(users.map(user =>
+          user.id === editingUser.id
             ? { ...user, ...updatedUser }
             : user
         ));
-        console.log('User updated successfully');
       } else {
         console.error('Failed to update user');
         alert('Failed to update user. Please try again.');

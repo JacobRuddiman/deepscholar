@@ -24,11 +24,12 @@ NEXTAUTH_URL="https://yourdomain.com"
 # OAuth Providers (optional)
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
-GITHUB_ID="your-github-id"
-GITHUB_SECRET="your-github-secret"
+DISCORD_CLIENT_ID="your-discord-client-id"
+DISCORD_CLIENT_SECRET="your-discord-client-secret"
 
 # Local Mode (development only)
-LOCAL_MODE="false"  # Set to "true" to bypass authentication
+NEXT_PUBLIC_LOCAL_AUTH="false"  # Set to "true" to bypass authentication
+NEXT_PUBLIC_LOCAL_MODE="false"  # Set to "true" for local development mode
 ```
 
 ## Deployment Options

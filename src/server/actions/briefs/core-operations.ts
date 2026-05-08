@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { validateInput, createBriefSchema, sanitizeHtml, sanitizeText } from '@/lib/validation';
 import { getUserId } from './utils';
 import { LOCAL_USER } from '@/lib/localMode';
+import { scanContent } from '@/lib/moderation/content-scanner';
+import type { BriefSource, ConversationTurn } from '@/functions/types';
 
 // Types for brief operations
 type CreateBriefInput = {
@@ -16,6 +18,10 @@ type CreateBriefInput = {
   thinking?: string;
   categoryIds?: string[];
   sourceIds?: string[];
+  sources?: BriefSource[];
+  referencesText?: string;
+  conversationTurns?: ConversationTurn[];
+  selectedTurnIndex?: number;
   modelId: string;
   slug?: string;
 };
@@ -93,6 +99,35 @@ export async function createBrief(briefData: CreateBriefInput) {
       };
     }
 
+    // Content moderation scan
+    const textToScan = [briefData.title, briefData.abstract, briefData.response]
+      .filter(Boolean)
+      .join('\n\n');
+
+    try {
+      const scanResult = await scanContent(textToScan);
+
+      if (scanResult.tier === 'block') {
+        const flaggedCategories = scanResult.flags.map(f => f.category).join(', ');
+        console.error('[Briefs] Content blocked by moderation:', flaggedCategories);
+        return {
+          success: false,
+          error: 'Content flagged for policy violation. Please review and revise your submission.',
+        };
+      }
+
+      if (scanResult.tier === 'caution' || scanResult.tier === 'review') {
+        console.warn('[Briefs] Content flagged for review:', JSON.stringify({
+          tier: scanResult.tier,
+          flags: scanResult.flags,
+          userId,
+        }));
+      }
+    } catch (scanError) {
+      // Don't block submission if the scanner itself fails
+      console.error('[Briefs] Content scan failed (allowing submission):', String(scanError));
+    }
+
     try {
       // Create the brief with minimal required fields first
       const brief = await prisma.brief.create({
@@ -112,6 +147,11 @@ export async function createBrief(briefData: CreateBriefInput) {
           ...(briefData.abstract ? { abstract: sanitizeText(briefData.abstract) } : {}),
           ...(briefData.thinking ? { thinking: sanitizeText(briefData.thinking) } : {}),
           ...(briefData.slug ? { slug: sanitizeText(briefData.slug) } : {}),
+          ...(briefData.referencesText ? { referencesText: briefData.referencesText } : {}),
+          ...(briefData.conversationTurns && briefData.conversationTurns.length > 0
+            ? { conversationTurns: JSON.parse(JSON.stringify(briefData.conversationTurns)) }
+            : {}),
+          ...(briefData.selectedTurnIndex != null ? { selectedTurnIndex: briefData.selectedTurnIndex } : {}),
         },
         include: {
           categories: true,
@@ -148,6 +188,81 @@ export async function createBrief(briefData: CreateBriefInput) {
             },
           },
         });
+      }
+
+      // Resolve BriefSource[] objects to Source records, then connect
+      if (briefData.sources && briefData.sources.length > 0) {
+        const resolvedSourceIds: string[] = [];
+        for (const src of briefData.sources) {
+          if (!src.url) continue;
+          try {
+            let existing = await prisma.source.findFirst({
+              where: { url: src.url },
+            });
+            if (!existing) {
+              existing = await prisma.source.create({
+                data: {
+                  title: src.title || src.url,
+                  url: src.url,
+                },
+              });
+            }
+            resolvedSourceIds.push(existing.id);
+          } catch (sourceError) {
+            console.warn('[Briefs] Failed to resolve source:', src.url, String(sourceError));
+          }
+        }
+        if (resolvedSourceIds.length > 0) {
+          await prisma.brief.update({
+            where: { id: brief.id },
+            data: {
+              sources: {
+                connect: resolvedSourceIds.map((id) => ({ id })),
+              },
+            },
+          });
+        }
+      }
+
+      // Auto-tag if no categories were provided by the user
+      if (!briefData.categoryIds || briefData.categoryIds.length === 0) {
+        try {
+          const { autoTagBrief } = await import('@/lib/auto-tagger');
+          const sourceUrls = (briefData.sources ?? [])
+            .map(s => s.url)
+            .filter((u): u is string => Boolean(u));
+
+          const tagResult = autoTagBrief({
+            title: briefData.title,
+            abstract: briefData.abstract ?? '',
+            response: briefData.response,
+            prompt: briefData.prompt,
+            sourceUrls,
+            htmlContent: briefData.response,
+          });
+
+          if (tagResult.categories.length > 0) {
+            // Look up Category records by name
+            const categoryRecords = await prisma.category.findMany({
+              where: { name: { in: tagResult.categories } },
+              select: { id: true },
+            });
+
+            if (categoryRecords.length > 0) {
+              await prisma.brief.update({
+                where: { id: brief.id },
+                data: {
+                  categories: {
+                    connect: categoryRecords.map(c => ({ id: c.id })),
+                  },
+                },
+              });
+            }
+          }
+        } catch (tagError) {
+          // Never block brief creation if auto-tagging fails
+          console.warn('[Briefs] Auto-tagging failed (non-blocking):', String(tagError));
+        }
       }
 
       revalidatePath('/my-briefs');

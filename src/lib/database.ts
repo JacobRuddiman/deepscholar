@@ -1,9 +1,10 @@
+import { Prisma } from '@prisma/client';
 import { db } from '@/server/db';
 import { isLocalMode } from './localMode';
 
 // Database transaction wrapper with proper error handling
 export async function withTransaction<T>(
-  operation: (tx: any) => Promise<T>
+  operation: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<{ success: boolean; data?: T; error?: string }> {
   try {
     const result = await db.$transaction(async (tx) => {
@@ -102,7 +103,6 @@ export async function checkDatabaseHealth(): Promise<{
 export async function cleanupDatabase(): Promise<void> {
   try {
     await db.$disconnect();
-    console.log('Database connection closed gracefully');
   } catch (error) {
     console.error('Error closing database connection:', error);
   }
@@ -126,8 +126,6 @@ export function monitorQuery<T>(
         
         if (duration > 1000) {
           console.warn(`Slow query detected: ${queryName} took ${duration}ms`);
-        } else if (duration > 500) {
-          console.log(`Query ${queryName} took ${duration}ms`);
         }
         
         resolve(result);
@@ -207,8 +205,6 @@ export const localModeOptimizations = {
       await tx.category.deleteMany();
       await tx.researchAIModel.deleteMany();
       await tx.source.deleteMany();
-      
-      console.log('All test data cleared');
     });
   },
 };

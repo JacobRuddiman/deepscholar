@@ -38,5 +38,5 @@
     "**/*.js",
     ".next/types/**/*.ts"
 , "src/app/components/test_db_conn.mjs"  ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "public", "scripts", "test_extractors.ts", "test-export.cjs", "test-export.js", "e2e"]
 }

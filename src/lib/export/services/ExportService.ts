@@ -4,14 +4,20 @@
  * Coordinates all export operations including data fetching, formatting, and generation
  */
 
-import { 
-  ExportRequest, 
-  ExportResponse, 
-  ExportFormat, 
-  ExportType, 
+import {
+  ExportRequest,
+  ExportResponse,
+  ExportFormat,
+  ExportType,
+  ExportOptions,
+  ExportData,
+  ExportableData,
+  ExportGenerationResult,
+  ExportHistoryRecord,
+  ExportUsageStats,
   BriefExportData,
   UserProfileExportData,
-  SearchResultsExportData 
+  SearchResultsExportData
 } from '../types';
 import { ExportValidator, ExportRateLimiter } from '../validators';
 import { ExportUtils } from '../utils';
@@ -33,8 +39,8 @@ import { docxGenerator } from '../generators/docx';
 export class ExportService {
   private static instance: ExportService;
   private initialized = false;
-  private mockExportHistory: any[] = [];
-  private mockUsageStats: any = {
+  private mockExportHistory: ExportHistoryRecord[] = [];
+  private mockUsageStats: ExportUsageStats = {
     today: 0,
     thisMonth: 0,
     total: 0,
@@ -78,18 +84,11 @@ export class ExportService {
   async export(request: ExportRequest, userId: string): Promise<ExportResponse> {
     const startTime = Date.now();
     
-    console.log('🔧 ExportService.export called');
-    console.log('📋 Request:', request);
-    console.log('👤 User ID:', userId);
-    
     try {
       // Validate request
-      console.log('✅ Validating request...');
       const validation = ExportValidator.validateRequest(request);
-      console.log('📊 Validation result:', validation);
       
       if (!validation.isValid) {
-        console.log('❌ Validation failed:', validation.errors);
         return {
           success: false,
           error: `Validation failed: ${validation.errors.join(', ')}`,
@@ -98,12 +97,9 @@ export class ExportService {
       }
 
       // Check rate limiting
-      console.log('🚦 Checking rate limiting...');
       const remainingRequests = await this.getRemainingRequests(userId);
-      console.log('📊 Remaining requests:', remainingRequests);
       
       if (remainingRequests <= 0) {
-        console.log('❌ Rate limit exceeded');
         return {
           success: false,
           error: 'Rate limit exceeded. Please try again tomorrow.',
@@ -112,12 +108,9 @@ export class ExportService {
       }
 
       // Fetch data
-      console.log('📥 Fetching data...');
       const data = await this.fetchData(request.type, request.id);
-      console.log('📊 Data fetched:', data ? 'Success' : 'Failed');
       
       if (!data) {
-        console.log('❌ No data found');
         return {
           success: false,
           error: 'Data not found or access denied',
@@ -126,12 +119,9 @@ export class ExportService {
       }
 
       // Validate data structure
-      console.log('🔍 Validating data structure...');
       const isValidStructure = ExportUtils.validateDataStructure(data, request.type);
-      console.log('📊 Data structure valid:', isValidStructure);
       
       if (!isValidStructure) {
-        console.log('❌ Invalid data structure');
         return {
           success: false,
           error: 'Invalid data structure for export type',
@@ -140,26 +130,16 @@ export class ExportService {
       }
 
       // Clean data
-      console.log('🧹 Cleaning data...');
       const cleanedData = ExportUtils.cleanDataForExport(data);
-      console.log('📊 Data cleaned successfully');
 
       // Generate export
-      console.log('🏭 Generating export...');
       const result = await this.generateExport(request.format, cleanedData, request.options);
-      console.log('📊 Export generated:', {
-        filename: result.filename,
-        size: result.size
-      });
-      
+
       // Record export in database
-      console.log('💾 Recording export...');
       await this.recordExport(userId, request, result);
 
       // Log activity
       const processingTime = Date.now() - startTime;
-      console.log('📊 Processing time:', processingTime + 'ms');
-      
       ExportUtils.logExportActivity(
         userId,
         request.type,
@@ -169,7 +149,6 @@ export class ExportService {
         processingTime
       );
 
-      console.log('✅ Export completed successfully');
       return {
         success: true,
         data: result.data,
@@ -206,17 +185,12 @@ export class ExportService {
    */
   private async generateExport(
     format: ExportFormat,
-    data: any,
-    options?: any
-  ): Promise<{
-    data: any;
-    filename: string;
-    size: number;
-    downloadUrl?: string;
-  }> {
+    data: ExportableData,
+    options?: ExportOptions
+  ): Promise<ExportGenerationResult> {
     // Check if format requires binary generation (PDF, DOCX)
     const binaryFormats: ExportFormat[] = ['pdf', 'docx'];
-    
+
     if (binaryFormats.includes(format)) {
       return this.generateBinaryExport(format, data, options);
     } else {
@@ -229,48 +203,26 @@ export class ExportService {
    */
   private async generateTextExport(
     format: ExportFormat,
-    data: any,
-    options?: any
-  ): Promise<{
-    data: any;
-    filename: string;
-    size: number;
-    downloadUrl?: string;
-  }> {
-    console.log('📝 Generating text export for format:', format);
-    
+    data: ExportableData,
+    options?: ExportOptions
+  ): Promise<ExportGenerationResult> {
     const formatter = FormatterRegistry.get(format);
-    console.log('🔧 Formatter found:', !!formatter);
-    
     if (!formatter) {
-      console.log('❌ No formatter found for format:', format);
       throw new Error(`No formatter found for format: ${format}`);
     }
 
-    console.log('🎨 Calling formatter.format...');
     const content = await formatter.format(data, options);
-    console.log('📊 Content generated, length:', content.length);
-    
     const mimeType = formatter.getMimeType();
-    console.log('📋 MIME type:', mimeType);
-    
+
     // Generate filename
-    const title = data.title || data.name || data.query;
-    console.log('📄 Title for filename:', title);
-    
+    const title = this.extractTitle(data);
     const filename = ExportUtils.generateFilename('brief', format, title);
-    console.log('📁 Generated filename:', filename);
-    
+
     // Calculate size
     const size = Buffer.byteLength(content, 'utf-8');
-    console.log('📊 File size:', size, 'bytes');
-    
+
     // Validate file size
-    const isValidSize = ExportValidator.validateFileSize(size);
-    console.log('✅ File size valid:', isValidSize);
-    
-    if (!isValidSize) {
-      console.log('❌ File size exceeds limit');
+    if (!ExportValidator.validateFileSize(size)) {
       throw new Error('Generated file exceeds maximum size limit');
     }
 
@@ -285,7 +237,6 @@ export class ExportService {
       downloadUrl: ExportUtils.generateDownloadUrl(filename)
     };
     
-    console.log('✅ Text export generated successfully');
     return result;
   }
 
@@ -294,14 +245,9 @@ export class ExportService {
    */
   private async generateBinaryExport(
     format: ExportFormat,
-    data: any,
-    options?: any
-  ): Promise<{
-    data: any;
-    filename: string;
-    size: number;
-    downloadUrl?: string;
-  }> {
+    data: ExportableData,
+    options?: ExportOptions
+  ): Promise<ExportGenerationResult> {
     const generator = GeneratorRegistry.get(format);
     if (!generator) {
       throw new Error(`No generator found for format: ${format}`);
@@ -311,7 +257,7 @@ export class ExportService {
     const mimeType = generator.getMimeType();
     
     // Generate filename
-    const title = data.title || data.name || data.query;
+    const title = this.extractTitle(data);
     const filename = ExportUtils.generateFilename('brief', format, title);
     
     // Calculate size
@@ -335,9 +281,19 @@ export class ExportService {
   }
 
   /**
+   * Extract a title string from exportable data for filename generation
+   */
+  private extractTitle(data: ExportableData): string {
+    if ('title' in data && data.title) return data.title;
+    if ('name' in data && data.name) return data.name;
+    if ('query' in data && data.query) return data.query;
+    return 'export';
+  }
+
+  /**
    * Fetch data based on type and ID from database
    */
-  private async fetchData(type: ExportType, id: string): Promise<any> {
+  private async fetchData(type: ExportType, id: string): Promise<ExportableData | null> {
     switch (type) {
       case 'brief':
         return this.fetchBriefData(id);
@@ -595,10 +551,8 @@ export class ExportService {
   /**
    * Record export in database
    */
-  private async recordExport(userId: string, request: ExportRequest, result: any): Promise<void> {
+  private async recordExport(userId: string, request: ExportRequest, result: ExportGenerationResult): Promise<void> {
     try {
-      console.log('💾 Recording export to database...');
-      
       // Record in ExportHistory table
       const exportHistory = await db.exportHistory.create({
         data: {
@@ -612,8 +566,6 @@ export class ExportService {
           options: request.options ? JSON.stringify(request.options) : null
         }
       });
-      
-      console.log('📝 Export history recorded:', exportHistory.id);
       
       // Update or create ExportUsage for today
       const today = new Date();
@@ -633,7 +585,6 @@ export class ExportService {
           where: { id: existingUsage.id },
           data: { count: existingUsage.count + 1 }
         });
-        console.log('📊 Updated daily usage count:', existingUsage.count + 1);
       } else {
         await db.exportUsage.create({
           data: {
@@ -642,10 +593,7 @@ export class ExportService {
             count: 1
           }
         });
-        console.log('📊 Created new daily usage record');
       }
-      
-      console.log('✅ Export successfully recorded in database');
     } catch (error) {
       console.error('💥 Error recording export to database:', error);
       // Don't throw error here as export was successful
@@ -681,9 +629,7 @@ export class ExportService {
       });
 
       const used = todayUsage?.count || 0;
-      const remaining = Math.max(0, 10 - used);
-      console.log('📊 Daily usage check:', { used, remaining });
-      return remaining;
+      return Math.max(0, 10 - used);
     } catch (error) {
       console.error('Error getting remaining requests:', error);
       return 10; // Default to full allowance on error
@@ -693,16 +639,15 @@ export class ExportService {
   /**
    * Get user's export history
    */
-  async getExportHistory(userId: string, limit: number = 10): Promise<any[]> {
+  async getExportHistory(userId: string, limit: number = 10): Promise<ExportHistoryRecord[]> {
     try {
-      console.log('📚 Fetching export history from database...');
       const history = await db.exportHistory.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: limit
       });
 
-      const formattedHistory = history.map((record: any) => ({
+      const formattedHistory: ExportHistoryRecord[] = history.map((record) => ({
         id: record.id,
         type: record.exportType,
         format: record.exportFormat,
@@ -714,7 +659,6 @@ export class ExportService {
         options: record.options ? JSON.parse(record.options) : undefined
       }));
 
-      console.log('📚 Export history fetched:', formattedHistory.length, 'records');
       return formattedHistory;
     } catch (error) {
       console.error('Error getting export history:', error);
@@ -725,10 +669,8 @@ export class ExportService {
   /**
    * Get export usage statistics
    */
-  async getExportStats(userId: string): Promise<any> {
+  async getExportStats(userId: string): Promise<ExportUsageStats> {
     try {
-      console.log('📊 Calculating export stats from database...');
-      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -771,7 +713,6 @@ export class ExportService {
         remaining
       };
 
-      console.log('📊 Export stats calculated:', stats);
       return stats;
     } catch (error) {
       console.error('Error getting export stats:', error);
@@ -790,8 +731,6 @@ export class ExportService {
    */
   async resetDailyExports(userId: string): Promise<void> {
     try {
-      console.log('🔄 Resetting daily export limit for user:', userId);
-      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -803,7 +742,6 @@ export class ExportService {
         }
       });
       
-      console.log('✅ Daily export limit reset successfully - usage count cleared');
     } catch (error) {
       console.error('💥 Error resetting daily exports:', error);
       throw error;

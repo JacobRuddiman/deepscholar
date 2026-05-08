@@ -30,6 +30,10 @@ interface EmptyStateProps {
     href?: string;
     onClick?: () => void;
   };
+  /**
+   * Compact mode for inline-table or card contexts (smaller padding/text)
+   */
+  compact?: boolean;
 }
 
 /**
@@ -42,20 +46,21 @@ export function EmptyState({
   description,
   action,
   secondaryAction,
+  compact = false,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+    <div className={`flex flex-col items-center justify-center text-center ${compact ? 'py-6 px-3' : 'py-12 px-4'}`}>
       {icon && (
-        <div className="mb-4 text-6xl" aria-hidden="true">
+        <div className={`${compact ? 'mb-2 text-4xl' : 'mb-4 text-6xl'}`} aria-hidden="true">
           {icon}
         </div>
       )}
 
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+      <h2 className={`font-bold text-gray-900 dark:text-gray-100 mb-1 ${compact ? 'text-lg' : 'text-2xl mb-2'}`}>
         {title}
       </h2>
 
-      <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md">
+      <p className={`text-gray-600 dark:text-gray-400 max-w-md ${compact ? 'text-xs mb-3' : 'text-base mb-6'}`}>
         {description}
       </p>
 
@@ -65,14 +70,14 @@ export function EmptyState({
             action.href ? (
               <Link
                 href={action.href}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors"
+                className={`bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors ${compact ? 'px-4 py-1.5 text-sm' : 'px-6 py-2'}`}
               >
                 {action.label}
               </Link>
             ) : (
               <button
                 onClick={action.onClick}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors"
+                className={`bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors ${compact ? 'px-4 py-1.5 text-sm' : 'px-6 py-2'}`}
               >
                 {action.label}
               </button>
@@ -83,14 +88,14 @@ export function EmptyState({
             secondaryAction.href ? (
               <Link
                 href={secondaryAction.href}
-                className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 px-6 py-2 rounded-md font-medium transition-colors"
+                className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md font-medium transition-colors ${compact ? 'px-4 py-1.5 text-sm' : 'px-6 py-2'}`}
               >
                 {secondaryAction.label}
               </Link>
             ) : (
               <button
                 onClick={secondaryAction.onClick}
-                className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 px-6 py-2 rounded-md font-medium transition-colors"
+                className={`bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md font-medium transition-colors ${compact ? 'px-4 py-1.5 text-sm' : 'px-6 py-2'}`}
               >
                 {secondaryAction.label}
               </button>
@@ -193,7 +198,7 @@ export const EmptyStates = {
     />
   ),
 
-  Error: (message?: string) => (
+  Error: ({ message }: { message?: string } = {}) => (
     <EmptyState
       icon="⚠️"
       title="Something went wrong"
@@ -202,6 +207,63 @@ export const EmptyStates = {
         label: "Retry",
         onClick: () => window.location.reload(),
       }}
+    />
+  ),
+
+  NoDrafts: () => (
+    <EmptyState
+      icon="📝"
+      title="No drafts yet"
+      description="Get started by creating a draft. Your work will be saved automatically."
+      action={{
+        label: "Create Draft",
+        href: "/brief_upload",
+      }}
+    />
+  ),
+
+  NoLeaderboardData: () => (
+    <EmptyState
+      icon="🏆"
+      title="No leaderboard data"
+      description="No one has earned points yet. Be the first to contribute!"
+      compact
+    />
+  ),
+
+  NoHistory: () => (
+    <EmptyState
+      icon="📊"
+      title="No history yet"
+      description="Start contributing to earn reputation points!"
+      compact
+    />
+  ),
+
+  NoSpamReports: () => (
+    <EmptyState
+      icon="🛡️"
+      title="No spam reports"
+      description="No spam reports to review. The community is clean!"
+      compact
+    />
+  ),
+
+  NoSecurityEvents: () => (
+    <EmptyState
+      icon="🔐"
+      title="No security events"
+      description="No security events found for the selected filters."
+      compact
+    />
+  ),
+
+  NoAnalyticsData: ({ message }: { message?: string } = {}) => (
+    <EmptyState
+      icon="📈"
+      title="Not enough data"
+      description={message || "Not enough data available. Try expanding the time period or wait for more activity."}
+      compact
     />
   ),
 };

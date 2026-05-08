@@ -1,27 +1,28 @@
 // app/api/admin/email-footer/route.ts
-import { NextResponse } from 'next/server';
-
 import { prisma } from '@/lib/prisma';
+import { apiSuccess, apiError, requireAdmin, isApiError } from '@/lib/api-response';
 
 export async function GET() {
   try {
-    
+    const session = await requireAdmin();
+    if (isApiError(session)) return session;
 
     const footer = await prisma.emailFooter.findFirst({
       where: { isActive: true },
       orderBy: { createdAt: 'desc' }
     });
 
-    return NextResponse.json({ content: footer?.content || '' });
+    return apiSuccess({ content: footer?.content || '' });
   } catch (error) {
-    console.error('Failed to fetch footer:', error);
-    return NextResponse.json({ error: 'Failed to fetch footer' }, { status: 500 });
+    console.error('Failed to fetch footer:', String(error));
+    return apiError('Failed to fetch footer', 500);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    
+    const session = await requireAdmin();
+    if (isApiError(session)) return session;
 
     const { content } = await request.json();
 
@@ -39,9 +40,9 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json({ success: true, footer });
+    return apiSuccess({ footer });
   } catch (error) {
-    console.error('Failed to save footer:', error);
-    return NextResponse.json({ error: 'Failed to save footer' }, { status: 500 });
+    console.error('Failed to save footer:', String(error));
+    return apiError('Failed to save footer', 500);
   }
 }

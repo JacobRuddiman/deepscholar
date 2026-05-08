@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { apiSuccess, apiError } from '@/lib/api-response';
 
 /**
  * CSP Violation Report Endpoint
@@ -25,18 +26,18 @@ export async function POST(request: NextRequest) {
     // 2. Send to external monitoring service (Sentry, LogRocket, etc.)
     // 3. Alert on critical violations
 
-    return NextResponse.json({ received: true }, { status: 200 });
+    return apiSuccess({ received: true });
   } catch (error) {
     console.error('[CSP Report] Failed to process violation report:', error);
-    return NextResponse.json({ error: 'Invalid report' }, { status: 400 });
+    return apiError('Invalid report', 400);
   }
 }
 
 // Allow GET requests for health checks
 export async function GET() {
-  return NextResponse.json({
+  return apiSuccess({
     endpoint: 'csp-report',
     status: 'active',
-    description: 'CSP violation reporting endpoint'
+    description: 'CSP violation reporting endpoint',
   });
 }

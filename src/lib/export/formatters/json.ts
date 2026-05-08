@@ -1,10 +1,11 @@
 /**
  * JSON Formatter
- * 
+ *
  * Converts data structures to JSON format
  */
 
 import { Formatter } from './index';
+import { ExportableData, ExportOptions } from '../types';
 
 export class JsonFormatter implements Formatter {
   getMimeType(): string {
@@ -15,8 +16,8 @@ export class JsonFormatter implements Formatter {
     return '.json';
   }
 
-  async format(data: any, options?: any): Promise<string> {
-    const indent = options?.pretty ? 2 : 0;
+  async format(data: ExportableData, options?: ExportOptions): Promise<string> {
+    const indent = options?.template === 'pretty' ? 2 : 2; // Always pretty print for readability
     return JSON.stringify(data, null, indent);
   }
 }

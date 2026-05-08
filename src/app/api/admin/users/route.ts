@@ -1,10 +1,13 @@
 //admin/api/users/route.ts
 
-import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/server/db';
+import { apiSuccess, apiError, requireAdmin, isApiError } from '@/lib/api-response';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
+    const session = await requireAdmin();
+    if (isApiError(session)) return session;
+
     const users = await db.user.findMany({
       select: {
         id: true,
@@ -19,15 +22,9 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      users: users,
-    });
+    return apiSuccess({ users });
   } catch (error) {
-    console.error('Error fetching users:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch users' },
-      { status: 500 }
-    );
+    console.error('Error fetching users:', String(error));
+    return apiError('Failed to fetch users', 500);
   }
 }

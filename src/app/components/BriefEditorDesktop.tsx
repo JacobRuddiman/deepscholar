@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 
 import HtmlInspector from './html_inspector';
-import type { BriefData } from '@/functions/types';
-import { extractBriefFromUrl } from './extract_brief';
+import type { BriefData, BriefSource } from '@/functions/types';
+import { extractBriefFromUrl } from '@/lib/extraction/client';
 import ErrorPopup from './error_popup';
 import BriefVersionSelector from './BriefVersionSelector';
 import TooltipWrapper from './TooltipWrapper';
@@ -43,6 +43,7 @@ import {
   sectionVariants,
   urlCardVariants
 } from './brief_editor_utils';
+import { escapeHtml } from '@/lib/validation';
 
 const customStyles = `
   @keyframes flashGradient {
@@ -95,9 +96,20 @@ interface BriefVersion {
   draftNumber?: number;
 }
 
+/** Extended BriefData that may include DB fields when editing an existing brief */
+interface InitialBriefData extends Omit<BriefData, 'model'> {
+  content?: string;
+  versionNumber?: number;
+  changeLog?: string;
+  createdAt?: Date;
+  isDraft?: boolean;
+  categories?: Array<{ id: string; name: string }>;
+  model?: string | { name?: string } | BriefData['model'];
+}
+
 interface BriefEditorProps {
   onSubmit?: (briefData: BriefData) => void;
-  initialData?: BriefData;
+  initialData?: InitialBriefData;
   briefId?: string;
   isOwner?: boolean;
   inputMode?: 'url' | 'content';
@@ -189,7 +201,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     try {
       const result = await createBriefReference(briefId, url, highlightedText);
       if (result.success && result.data) {
-        setBriefReferences(prev => [result.data as any, ...prev]);
+        setBriefReferences(prev => [result.data as BriefReference, ...prev]);
         setSuccessMessage('Reference added successfully!');
         setTimeout(() => setSuccessMessage(null), 3000);
       } else {
@@ -223,7 +235,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     const currentContent = textarea.value; // Use textarea value directly
 
     // Format the reference with special markdown syntax
-    const referenceText = `<span class="reference-highlight">"${quote}"</span> <a href="${sourceUrl}" class="reference-source" target="_blank" rel="noopener noreferrer">[${sourceTitle}]</a>`;
+    // SECURITY: Escape all user-supplied text to prevent XSS injection
+    const referenceText = `<span class="reference-highlight">"${escapeHtml(quote)}"</span> <a href="${escapeHtml(sourceUrl)}" class="reference-source" target="_blank" rel="noopener noreferrer">[${escapeHtml(sourceTitle)}]</a>`;
 
     // Insert at cursor position
     const newContent =
@@ -237,7 +250,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     // Update the brief data
     setBriefData(prev => prev ? {
       ...prev,
-      content: newContent
+      response: newContent
     } : null);
 
     // Show success message
@@ -261,7 +274,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         try {
           const result = await getBriefReferences(briefId);
           if (result.success && result.data) {
-            setBriefReferences(result.data as any);
+            setBriefReferences(result.data as BriefReference[]);
           }
         } catch (error) {
           console.error('Error loading references:', error);
@@ -282,23 +295,24 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
   useEffect(() => {
     if (initialData) {
       // Transform the data to match BriefData interface
+      const modelValue = initialData.model;
       const transformedData: BriefData = {
         title: initialData.title || '',
-        content: (initialData as any).response || initialData.content || '',
+        response: initialData.response || initialData.content || '',
         abstract: initialData.abstract || '',
         thinking: initialData.thinking || '',
-        model: (typeof (initialData as any).model === 'object'
-          ? ((initialData as any).model?.name || 'other')
-          : (initialData.model || 'other')).toLowerCase() as "openai" | "perplexity" | "anthropic" | "other",
-        sources: (initialData as any).sources || [],
-        references: (initialData as any).references || '',
-        rawHtml: (initialData as any).rawHtml
+        model: (typeof modelValue === 'object' && modelValue !== null
+          ? ((modelValue as { name?: string }).name || 'other')
+          : (String(modelValue) || 'other')).toLowerCase() as "openai" | "perplexity" | "anthropic" | "other",
+        sources: initialData.sources || [],
+        references: initialData.references || '',
+        rawHtml: initialData.rawHtml
       };
 
       setBriefData(transformedData);
       setOriginalBriefData(transformedData);
       setOriginalAbstract(transformedData.abstract || "");
-      setOriginalContent(transformedData.content || "");
+      setOriginalContent(transformedData.response || "");
       setShowTitleSection(true);
       setShowAbstractSection(true);
       setShowContentSection(true);
@@ -306,15 +320,15 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
       setShowReferencesSection(true);
       setShowMetadataSection(true);
       setTheme(determineTheme(transformedData));
-      
+
       // Set current version if we have briefId
       if (briefId) {
         setCurrentVersion({
           id: briefId,
-          versionNumber: (initialData as any).versionNumber || 1,
-          changeLog: (initialData as any).changeLog,
-          createdAt: (initialData as any).createdAt || new Date(),
-          isDraft: (initialData as any).isDraft || false,
+          versionNumber: initialData.versionNumber || 1,
+          changeLog: initialData.changeLog,
+          createdAt: initialData.createdAt || new Date(),
+          isDraft: initialData.isDraft || false,
         });
       }
     }
@@ -323,12 +337,12 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
   // Track changes to detect unsaved edits
   useEffect(() => {
     if (originalBriefData && briefData) {
-      const hasChanges = 
+      const hasChanges =
         briefData.title !== originalBriefData.title ||
         briefData.abstract !== originalBriefData.abstract ||
-        briefData.content !== originalBriefData.content ||
+        briefData.response !== originalBriefData.response ||
         briefData.thinking !== originalBriefData.thinking;
-      
+
       setHasUnsavedChanges(hasChanges);
     }
   }, [briefData, originalBriefData]);
@@ -339,7 +353,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     try {
       const result = await getBriefVersions(briefId);
       if (result.success && result.data) {
-        setVersions(result.data as any);
+        setVersions(result.data as BriefVersion[]);
       }
     } catch (error) {
       console.error('Error loading versions:', error);
@@ -348,24 +362,16 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
 
   const handleVersionChange = async (versionId: string) => {
     try {
-      console.log('[BriefEditor] Switching to version:', versionId);
-
       // Load the specific version data
       const result = await getBriefById(versionId);
       if (result.success && result.data) {
         const versionData = result.data;
 
-        console.log('[BriefEditor] Loaded version data:', {
-          title: versionData.title,
-          contentLength: versionData.response?.length,
-          abstractLength: versionData.abstract?.length
-        });
-
         // Convert to BriefData format
         const briefDataFromVersion: BriefData = {
           title: versionData.title,
           abstract: versionData.abstract || '',
-          content: versionData.response,
+          response: versionData.response,
           thinking: versionData.thinking || '',
           model: (versionData.model?.name || 'other').toLowerCase() as "openai" | "perplexity" | "anthropic" | "other",
           sources: versionData.sources || [],
@@ -386,19 +392,16 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         setBriefData(briefDataFromVersion);
         setOriginalBriefData(briefDataFromVersion);
         setOriginalAbstract(briefDataFromVersion.abstract || "");
-        setOriginalContent(briefDataFromVersion.content || "");
+        setOriginalContent(briefDataFromVersion.response || "");
 
         // Update current version
         const version = versions.find(v => v.id === versionId);
         if (version) {
-          console.log('[BriefEditor] Setting current version to:', version);
           setCurrentVersion(version);
         }
 
         // Reset unsaved changes
         setHasUnsavedChanges(false);
-
-        console.log('[BriefEditor] Version switch complete');
       }
     } catch (error) {
       console.error('[BriefEditor] Error loading version:', error);
@@ -410,8 +413,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
 
     try {
       // Extract category and source IDs from the brief data
-      const categoryIds = (briefData as any).categories?.map((c: any) => c.id).filter(Boolean) || [];
-      const sourceIds = briefData.sources?.map((s: any) => s.id).filter(Boolean) || [];
+      const categoryIds = (briefData as unknown as InitialBriefData).categories?.map((c) => c.id).filter((id): id is string => Boolean(id)) || [];
+      const sourceIds = briefData.sources?.map((s) => (s as BriefSource & { id?: string }).id).filter((id): id is string => Boolean(id)) || [];
 
       const result = await createBriefVersion(
         briefId,
@@ -419,7 +422,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           title: briefData.title,
           abstract: briefData.abstract,
           prompt: '',
-          response: briefData.content || '',
+          response: briefData.response || '',
           thinking: briefData.thinking,
           categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
           sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
@@ -432,8 +435,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         await loadVersions();
         setCurrentVersion({
           id: result.data.id,
-          versionNumber: (result.data as any).versionNumber,
-          changeLog: (result.data as any).changeLog,
+          versionNumber: (result.data as unknown as BriefVersion).versionNumber,
+          changeLog: (result.data as unknown as BriefVersion).changeLog,
           createdAt: result.data.createdAt,
           isDraft: false,
         });
@@ -460,8 +463,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
 
     try {
       // Extract category and source IDs from the brief data
-      const categoryIds = (briefData as any).categories?.map((c: any) => c.id).filter(Boolean) || [];
-      const sourceIds = briefData.sources?.map((s: any) => s.id).filter(Boolean) || [];
+      const categoryIds = (briefData as unknown as InitialBriefData).categories?.map((c) => c.id).filter((id): id is string => Boolean(id)) || [];
+      const sourceIds = briefData.sources?.map((s) => (s as BriefSource & { id?: string }).id).filter((id): id is string => Boolean(id)) || [];
 
       const result = await saveBriefDraft(
         currentVersion.id, // Use the current version ID, not the original briefId
@@ -469,7 +472,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           title: briefData.title,
           abstract: briefData.abstract,
           prompt: '',
-          response: briefData.content || '',
+          response: briefData.response || '',
           thinking: briefData.thinking,
           categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
           sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
@@ -483,10 +486,10 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
         // Get the updated versions list to calculate draft number correctly
         const updatedVersionsResult = await getBriefVersions(briefId!);
         if (updatedVersionsResult.success && updatedVersionsResult.data) {
-          const updatedVersions = updatedVersionsResult.data as any[];
+          const updatedVersions = updatedVersionsResult.data as BriefVersion[];
 
           // Calculate the correct draft number for this version
-          const versionNumber = (result.data as any).versionNumber;
+          const versionNumber = (result.data as unknown as BriefVersion).versionNumber;
           const draftsForThisVersion = updatedVersions.filter(v =>
             v.versionNumber === versionNumber && v.isDraft
           );
@@ -496,7 +499,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           setCurrentVersion({
             id: result.data.id,
             versionNumber: versionNumber,
-            changeLog: (result.data as any).changeLog,
+            changeLog: (result.data as unknown as BriefVersion).changeLog,
             createdAt: result.data.createdAt,
             isDraft: true,
             draftNumber: draftNumber,
@@ -526,8 +529,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
 
     try {
       // Extract category and source IDs from the brief data
-      const categoryIds = (briefData as any).categories?.map((c: any) => c.id).filter(Boolean) || [];
-      const sourceIds = briefData.sources?.map((s: any) => s.id).filter(Boolean) || [];
+      const categoryIds = (briefData as unknown as InitialBriefData).categories?.map((c) => c.id).filter((id): id is string => Boolean(id)) || [];
+      const sourceIds = briefData.sources?.map((s) => (s as BriefSource & { id?: string }).id).filter((id): id is string => Boolean(id)) || [];
 
       const result = await updateBriefVersion(
         currentVersion.id,
@@ -535,7 +538,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           title: briefData.title,
           abstract: briefData.abstract,
           prompt: '',
-          response: briefData.content || '',
+          response: briefData.response || '',
           thinking: briefData.thinking,
           categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
           sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
@@ -572,8 +575,8 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
 
     try {
       // Extract category and source IDs from the brief data
-      const categoryIds = (briefData as any).categories?.map((c: any) => c.id).filter(Boolean) || [];
-      const sourceIds = briefData.sources?.map((s: any) => s.id).filter(Boolean) || [];
+      const categoryIds = (briefData as unknown as InitialBriefData).categories?.map((c) => c.id).filter((id): id is string => Boolean(id)) || [];
+      const sourceIds = briefData.sources?.map((s) => (s as BriefSource & { id?: string }).id).filter((id): id is string => Boolean(id)) || [];
 
       const result = await pushDraftToVersion(
         currentVersion.id,
@@ -581,7 +584,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
           title: briefData.title,
           abstract: briefData.abstract,
           prompt: '',
-          response: briefData.content || '',
+          response: briefData.response || '',
           thinking: briefData.thinking,
           categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
           sourceIds: sourceIds.length > 0 ? sourceIds : undefined,
@@ -682,7 +685,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
       
       // Store original data for diffing
       setOriginalAbstract(data.abstract || "");
-      setOriginalContent(data.content || "");
+      setOriginalContent(data.response || "");
       
       // Reveal sections sequentially with delays
       setShowTitleSection(true);
@@ -762,7 +765,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
     if (briefData) {
       setBriefData({
         ...briefData,
-        content: newContent
+        response: newContent
       });
       // Update diff with the theme's highlight color
       setContentDiff(createDiffMarkup(
@@ -1271,13 +1274,13 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
                       <div>
                         <textarea
                           ref={contentTextareaRef}
-                          defaultValue={briefData?.content ?? ""}
+                          defaultValue={briefData?.response ?? ""}
                           className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[300px]"
                           onBlur={(e) => handleContentEdit(e.target.value)}
                           autoFocus
                         />
                         <div className="flex justify-between mt-1 text-xs text-gray-500">
-                          <span>{briefData?.content?.length ?? 0} characters</span>
+                          <span>{briefData?.response?.length ?? 0} characters</span>
                           <button 
                             onClick={() => setIsContentEditing(false)}
                             className="text-blue-600 hover:underline"
@@ -1296,7 +1299,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
                             rehypePlugins={[rehypeSanitize, rehypeRaw]}
                             components={markdownComponents}
                           >
-                            {briefData?.content ?? "No content available"}
+                            {briefData?.response ?? "No content available"}
                           </ReactMarkdown>
                         )}
                       </div>
@@ -1455,7 +1458,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Word Count:</span>
-                    <p className="mt-1">{briefData?.content?.split(' ').length ?? 0} words</p>
+                    <p className="mt-1">{briefData?.response?.split(' ').length ?? 0} words</p>
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Sources:</span>
@@ -1536,7 +1539,7 @@ export default function BriefEditor({ onSubmit, initialData, briefId, isOwner = 
             title: source.title,
             domain: new URL(source.url).hostname
           })) || []}
-          briefContent={briefData?.content || ''}
+          briefContent={briefData?.response || ''}
           briefAbstract={briefData?.abstract || ''}
         />
       </div>

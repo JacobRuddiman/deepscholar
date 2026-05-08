@@ -1,6 +1,10 @@
 import { db } from '@/server/db';
+import { Prisma } from '@prisma/client';
 
-
+/** Safely cast a value to Prisma JSON input. Prisma JSON fields accept any serializable value. */
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
+}
 
 // Common words to exclude from title analysis
 const COMMON_WORDS = new Set([
@@ -193,12 +197,12 @@ export class RecommendationService {
         where: { userId },
         create: {
           userId,
-          topCreatedCategories: createdCategories.slice(0, 10) as any,
-          topInteractedCategories: interactedCategories.slice(0, 10) as any,
-          topCombinedCategories: combinedCategories.slice(0, 10) as any,
-          topCreatedTitleWords: createdTitleWords.slice(0, 20) as any,
-          topInteractedTitleWords: interactedTitleWords.slice(0, 20) as any,
-          topCombinedTitleWords: combinedTitleWords.slice(0, 20) as any,
+          topCreatedCategories: toJsonValue(createdCategories.slice(0, 10)),
+          topInteractedCategories: toJsonValue(interactedCategories.slice(0, 10)),
+          topCombinedCategories: toJsonValue(combinedCategories.slice(0, 10)),
+          topCreatedTitleWords: toJsonValue(createdTitleWords.slice(0, 20)),
+          topInteractedTitleWords: toJsonValue(interactedTitleWords.slice(0, 20)),
+          topCombinedTitleWords: toJsonValue(combinedTitleWords.slice(0, 20)),
           totalBriefsCreated,
           totalReviews,
           totalUpvotes,
@@ -208,19 +212,19 @@ export class RecommendationService {
           totalUpvotesReceived,
           searchKeywords: [],
           lastSearchQueries: [],
-          topInteractedUsers: userInteractions.slice(0, 10) as any,
-          topCitationDomains: citationDomains.slice(0, 10) as any,
+          topInteractedUsers: toJsonValue(userInteractions.slice(0, 10)),
+          topCitationDomains: toJsonValue(citationDomains.slice(0, 10)),
           engagementScore,
           contentQualityScore,
           lastCalculated: new Date()
         },
         update: {
-          topCreatedCategories: createdCategories.slice(0, 10) as any,
-          topInteractedCategories: interactedCategories.slice(0, 10) as any,
-          topCombinedCategories: combinedCategories.slice(0, 10) as any,
-          topCreatedTitleWords: createdTitleWords.slice(0, 20) as any,
-          topInteractedTitleWords: interactedTitleWords.slice(0, 20) as any,
-          topCombinedTitleWords: combinedTitleWords.slice(0, 20) as any,
+          topCreatedCategories: toJsonValue(createdCategories.slice(0, 10)),
+          topInteractedCategories: toJsonValue(interactedCategories.slice(0, 10)),
+          topCombinedCategories: toJsonValue(combinedCategories.slice(0, 10)),
+          topCreatedTitleWords: toJsonValue(createdTitleWords.slice(0, 20)),
+          topInteractedTitleWords: toJsonValue(interactedTitleWords.slice(0, 20)),
+          topCombinedTitleWords: toJsonValue(combinedTitleWords.slice(0, 20)),
           totalBriefsCreated,
           totalReviews,
           totalUpvotes,
@@ -228,8 +232,8 @@ export class RecommendationService {
           totalViews,
           totalReviewsReceived,
           totalUpvotesReceived,
-          topInteractedUsers: userInteractions.slice(0, 10) as any,
-          topCitationDomains: citationDomains.slice(0, 10) as any,
+          topInteractedUsers: toJsonValue(userInteractions.slice(0, 10)),
+          topCitationDomains: toJsonValue(citationDomains.slice(0, 10)),
           engagementScore,
           contentQualityScore,
           lastCalculated: new Date()

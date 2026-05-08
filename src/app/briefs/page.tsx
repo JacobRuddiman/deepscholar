@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import BriefCard from '../components/brief_card';
 import { Filter, SortAsc, SortDesc, Search, X, ChevronDown, Grid, List, Download } from 'lucide-react';
@@ -419,4 +419,12 @@ const ExploreBriefsPage = () => {
   );
 };
 
-export default ExploreBriefsPage;
+function BriefsPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen animate-pulse" />}>
+      <ExploreBriefsPage />
+    </Suspense>
+  );
+}
+
+export default BriefsPageWrapper;

@@ -23,7 +23,7 @@ model EmailSend {
   recipients String
   sentBy     String
   sentAt     DateTime @default(now())
-  sentByUser User     @relation(fields: [sentBy], references: [id])
+  sentByUser User     @relation(fields: [sentBy], references: [id], onDelete: Cascade)
 }
 
 model ScheduledEmail {
@@ -39,7 +39,7 @@ model ScheduledEmail {
   errorMessage String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  sentByUser   User      @relation(fields: [sentBy], references: [id])
+  sentByUser   User      @relation(fields: [sentBy], references: [id], onDelete: Cascade)
 
   @@index([scheduledFor])
   @@index([status])
@@ -107,6 +107,10 @@ model User {
   tokenTransactions        TokenTransaction[]
   recommendation           UserRecommendation?
   tokenBalance             UserToken?
+  notifications            Notification[]
+  notificationPreference   NotificationPreference?
+  mentionedIn              Mention[]  @relation("MentionedUser")
+  mentionsMade             Mention[]  @relation("Mentioner")
   isSeedData Boolean @default(false)
 }
 
@@ -212,10 +216,13 @@ model Brief {
   parentBriefId     String?
   versionNumber     Int                @default(1)
   changeLog         String?
+  referencesText    String?
+  conversationTurns Json?
+  selectedTurnIndex Int?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   aiReviews         AIReview[]
-  parentBrief       Brief?             @relation("BriefVersions", fields: [parentBriefId], references: [id])
+  parentBrief       Brief?             @relation("BriefVersions", fields: [parentBriefId], references: [id], onDelete: SetNull)
   versions          Brief[]            @relation("BriefVersions")
   author            User               @relation(fields: [userId], references: [id])
   model             ResearchAIModel    @relation(fields: [modelId], references: [id])
@@ -247,8 +254,8 @@ model Review {
   userId       String
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
-  author       User            @relation(fields: [userId], references: [id])
-  brief        Brief           @relation(fields: [briefId], references: [id])
+  author       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brief        Brief           @relation(fields: [briefId], references: [id], onDelete: Cascade)
   helpfulMarks ReviewHelpful[]
   upvotes      ReviewUpvote[]
 }
@@ -263,7 +270,7 @@ model AIReview {
   helpfulCount Int           @default(0)
   createdAt    DateTime      @default(now())
   model        ReviewAIModel @relation(fields: [modelId], references: [id])
-  brief        Brief         @relation(fields: [briefId], references: [id])
+  brief        Brief         @relation(fields: [briefId], references: [id], onDelete: Cascade)
 }
 
 model BriefUpvote {
@@ -271,8 +278,8 @@ model BriefUpvote {
   briefId   String
   userId    String
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  brief     Brief    @relation(fields: [briefId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brief     Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
 
   @@unique([briefId, userId])
 }
@@ -282,8 +289,8 @@ model ReviewUpvote {
   reviewId  String
   userId    String
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  review    Review   @relation(fields: [reviewId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 
   @@unique([reviewId, userId])
 }
@@ -293,8 +300,8 @@ model SavedBrief {
   userId    String
   briefId   String
   createdAt DateTime @default(now())
-  brief     Brief    @relation(fields: [briefId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  brief     Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, briefId])
 }
@@ -304,8 +311,8 @@ model BriefView {
   userId    String
   briefId   String
   createdAt DateTime @default(now())
-  brief     Brief    @relation(fields: [briefId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  brief     Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, briefId])
 }
@@ -315,7 +322,7 @@ model UserToken {
   userId    String   @unique
   balance   Int      @default(0)
   updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model TokenTransaction {
@@ -327,8 +334,8 @@ model TokenTransaction {
   reviewId   String?
   purchaseId String?
   createdAt  DateTime @default(now())
-  brief      Brief?   @relation(fields: [briefId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  brief      Brief?   @relation(fields: [briefId], references: [id], onDelete: SetNull)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model TokenPurchase {
@@ -342,7 +349,7 @@ model TokenPurchase {
   status        String   @default("pending")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id])
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ReviewHelpful {
@@ -350,7 +357,7 @@ model ReviewHelpful {
   reviewId  String
   userId    String
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 
   @@unique([reviewId, userId])
@@ -370,7 +377,7 @@ model ExportHistory {
   downloadCount Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id])
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
@@ -383,7 +390,7 @@ model ExportUsage {
   count     Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
   @@index([userId])
@@ -398,4 +405,58 @@ model SeedingMetadata {
   config          String   // JSON string of seed config
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  actionUrl String?
+  relatedId String?
+  read      Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+model NotificationPreference {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  inAppFollow          Boolean  @default(true)
+  inAppReview          Boolean  @default(true)
+  inAppUpvote          Boolean  @default(true)
+  inAppPublish         Boolean  @default(true)
+  inAppMention         Boolean  @default(true)
+  emailNewFollow       Boolean  @default(true)
+  emailNewReview       Boolean  @default(true)
+  emailNewUpvote       Boolean  @default(true)
+  emailBriefPublished  Boolean  @default(true)
+  emailMention         Boolean  @default(true)
+  emailDigest          Boolean  @default(true)
+  emailDigestFrequency String   @default("weekly")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Mention {
+  id              String   @id @default(cuid())
+  mentionedUserId String
+  mentionerId     String
+  contentType     String
+  contentId       String
+  content         String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  mentionedUser   User     @relation("MentionedUser", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  mentioner       User     @relation("Mentioner", fields: [mentionerId], references: [id], onDelete: Cascade)
+
+  @@index([mentionedUserId, createdAt])
+  @@index([mentionerId])
 }

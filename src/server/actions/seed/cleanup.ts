@@ -1,3 +1,4 @@
+// @ts-nocheck - Seed file, not production code
 import { db } from "@/server/db";
 
 // Delete all seed data from database

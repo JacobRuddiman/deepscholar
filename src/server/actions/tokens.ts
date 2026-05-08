@@ -32,7 +32,7 @@ export async function getUserTokenBalance() {
       balance: userToken?.balance ?? 0,
     };
   } catch (error) {
-    console.error('[Tokens] Failed to fetch user token balance:', error);
+    console.error('[Tokens] Failed to fetch user token balance:', String(error));
     return {
       success: false,
       error: 'Failed to fetch token balance',
@@ -44,27 +44,33 @@ export async function getUserTokenBalance() {
 // Initialize user token balance if it doesn't exist
 export async function initializeUserTokens(userId: string) {
   try {
-    await db.userToken.upsert({
-      where: { userId },
-      update: {},
-      create: {
-        userId,
-        balance: 50, // Starting balance
-      },
-    });
+    await db.$transaction(async (tx) => {
+      // Check if already initialized to avoid duplicate welcome bonuses
+      const existing = await tx.userToken.findUnique({
+        where: { userId },
+      });
 
-    // Create initial transaction record
-    await db.tokenTransaction.create({
-      data: {
-        userId,
-        amount: 50,
-        reason: 'Welcome bonus',
-      },
+      if (existing) return; // Already initialized
+
+      await tx.userToken.create({
+        data: {
+          userId,
+          balance: 50, // Starting balance
+        },
+      });
+
+      await tx.tokenTransaction.create({
+        data: {
+          userId,
+          amount: 50,
+          reason: 'Welcome bonus',
+        },
+      });
     });
 
     return { success: true };
   } catch (error) {
-    console.error('[Tokens]initializing user tokens:', error);
+    console.error('[Tokens] initializing user tokens:', String(error));
     return { success: false, error: 'Failed to initialize tokens' };
   }
 }
@@ -304,71 +310,54 @@ export async function markReviewHelpful(reviewId: string) {
     const userId = await getUserId();
     const tokenRewards = await getTokenRewards();
 
-    // Check if already marked as helpful
-    const existingMark = await db.reviewHelpful.findUnique({
-      where: {
-        reviewId_userId: {
-          reviewId,
-          userId,
-        },
-      },
+    // Run check + create inside a transaction to prevent race conditions
+    const result = await db.$transaction(async (tx) => {
+      const existingMark = await tx.reviewHelpful.findUnique({
+        where: { reviewId_userId: { reviewId, userId } },
+      });
+
+      if (existingMark) {
+        return { error: 'Already marked as helpful' } as const;
+      }
+
+      const review = await tx.review.findUnique({
+        where: { id: reviewId },
+        select: { userId: true, briefId: true },
+      });
+
+      if (!review) {
+        return { error: 'Review not found' } as const;
+      }
+
+      if (review.userId === userId) {
+        return { error: 'Cannot mark your own review as helpful' } as const;
+      }
+
+      await tx.reviewHelpful.create({
+        data: { reviewId, userId },
+      });
+
+      return { briefId: review.briefId } as const;
     });
 
-    if (existingMark) {
-      return {
-        success: false,
-        error: 'Already marked as helpful',
-      };
+    if ('error' in result) {
+      return { success: false, error: result.error };
     }
 
-    // Get review details
-    const review = await db.review.findUnique({
-      where: { id: reviewId },
-      select: { userId: true, briefId: true },
-    });
-
-    if (!review) {
-      return {
-        success: false,
-        error: 'Review not found',
-      };
-    }
-
-    // Prevent marking own review as helpful
-    if (review.userId === userId) {
-      return {
-        success: false,
-        error: 'Cannot mark your own review as helpful',
-      };
-    }
-
-    // Mark as helpful
-    await db.reviewHelpful.create({
-      data: {
-        reviewId,
-        userId,
-      },
-    });
-
-    // Award token to the person marking it helpful
+    // Award token outside the transaction (uses its own atomic operation)
     await awardTokens(
       tokenRewards.GIVE_UPVOTE,
       'Marked review as helpful',
-      review.briefId,
+      result.briefId,
       reviewId
     );
 
     revalidatePath('/briefs/[id]', 'page');
 
-    return {
-      success: true,
-    };
+    return { success: true };
   } catch (error) {
-    console.error('[Tokens]marking review as helpful:', error);
-    return {
-      success: false,
-      error: 'Failed to mark review as helpful',
-    };
+    console.error('[Tokens] marking review as helpful:', String(error));
+    return { success: false, error: 'Failed to mark review as helpful' };
   }
 }
 
@@ -378,34 +367,28 @@ export async function unmarkReviewHelpful(reviewId: string) {
     const userId = await getUserId();
     const tokenRewards = await getTokenRewards();
 
-    // Check if marked as helpful
-    const existingMark = await db.reviewHelpful.findUnique({
-      where: {
-        reviewId_userId: {
-          reviewId,
-          userId,
-        },
-      },
+    // Run check + delete inside a transaction to prevent race conditions
+    const deleted = await db.$transaction(async (tx) => {
+      const existingMark = await tx.reviewHelpful.findUnique({
+        where: { reviewId_userId: { reviewId, userId } },
+      });
+
+      if (!existingMark) {
+        return false;
+      }
+
+      await tx.reviewHelpful.delete({
+        where: { reviewId_userId: { reviewId, userId } },
+      });
+
+      return true;
     });
 
-    if (!existingMark) {
-      return {
-        success: false,
-        error: 'Not marked as helpful',
-      };
+    if (!deleted) {
+      return { success: false, error: 'Not marked as helpful' };
     }
 
-    // Remove helpful mark
-    await db.reviewHelpful.delete({
-      where: {
-        reviewId_userId: {
-          reviewId,
-          userId,
-        },
-      },
-    });
-
-    // Deduct token (reverse the reward)
+    // Deduct token outside the transaction (uses its own atomic operation)
     await deductTokens(
       tokenRewards.GIVE_UPVOTE,
       'Unmarked review as helpful',
@@ -415,14 +398,9 @@ export async function unmarkReviewHelpful(reviewId: string) {
 
     revalidatePath('/briefs/[id]', 'page');
 
-    return {
-      success: true,
-    };
+    return { success: true };
   } catch (error) {
-    console.error('[Tokens]unmarking review as helpful:', error);
-    return {
-      success: false,
-      error: 'Failed to unmark review as helpful',
-    };
+    console.error('[Tokens] unmarking review as helpful:', String(error));
+    return { success: false, error: 'Failed to unmark review as helpful' };
   }
 }

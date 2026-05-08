@@ -1,30 +1,39 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
-import { 
-  Loader2, 
-  CheckCircle, 
-  AlertCircle, 
-  ChevronDown, 
-  ChevronUp, 
-  Edit2, 
-  Link, 
+import {
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  Link,
   Code as CodeIcon,
   Trash2,
   Clipboard,
   Menu,
-  X
+  X,
+  ArrowLeft,
+  Tag,
+  Sparkles
 } from "lucide-react";
+import { FileDropzone } from '@/components/ui/FileDropzone';
 
 import HtmlInspector from './html_inspector';
-import type { BriefData } from '@/functions/types';
+import type { BriefData, BriefSource, ConversationTurn } from '@/functions/types';
+import { useCategories } from '@/hooks/queries/useCategories';
+import { suggestCategories } from '@/server/actions/briefs/suggest-categories';
 import ErrorPopup from './error_popup';
 import TooltipWrapper from './TooltipWrapper';
 import AddReferencePopup from './AddReferencePopup';
+import { applySelectedConversationTurn } from '@/lib/extraction/normalize';
 import { parseManualBriefContent } from '@/functions/parsers/manual_parser';
+import { validateClaudeExport } from '@/functions/parsers/claude_export_validator';
+import ConversationTurnSelector from './ConversationTurnSelector';
 
 import {
   urlSchema,
@@ -38,12 +47,25 @@ import {
   titleComponents,
   referenceComponents,
   sectionVariants,
-  urlCardVariants
+  urlCardVariants,
+  PROVIDER_CONFIG,
 } from './brief_editor_utils';
+import type { ProviderId, ProviderConfig } from './brief_editor_utils';
+
+/** Extended BriefData that may include DB fields when editing an existing brief */
+interface InitialBriefData extends Omit<BriefData, 'model'> {
+  content?: string;
+  versionNumber?: number;
+  changeLog?: string;
+  createdAt?: Date;
+  isDraft?: boolean;
+  categories?: Array<{ id: string; name: string }>;
+  model?: string | { name?: string } | BriefData['model'];
+}
 
 interface MobileBriefUploadEditorProps {
   onSubmit?: (briefData: BriefData) => void;
-  initialData?: BriefData;
+  initialData?: InitialBriefData;
   fetchBriefFromUrl: (url: string) => Promise<BriefData>;
   isSubmitting: boolean;
 }
@@ -53,6 +75,9 @@ export default function MobileBriefUploadEditor({
   initialData, 
   fetchBriefFromUrl 
 }: MobileBriefUploadEditorProps) {
+  // Provider selection state
+  const [selectedProvider, setSelectedProvider] = useState<ProviderId | null>(null);
+
   // State variables
   const [url, setUrl] = useState("");
   const [isValidUrl, setIsValidUrl] = useState<boolean | null>(null);
@@ -61,8 +86,17 @@ export default function MobileBriefUploadEditor({
   const [briefData, setBriefData] = useState<BriefData | null>(null);
   const [showHtmlInspector, setShowHtmlInspector] = useState(false);
 
+  // Conversation turn selection
+  const [conversationTurns, setConversationTurns] = useState<ConversationTurn[] | null>(null);
+  const [showTurnSelector, setShowTurnSelector] = useState(false);
+  const [pendingBriefData, setPendingBriefData] = useState<BriefData | null>(null);
+
   // Manual entry state
   const [manualContent, setManualContent] = useState("");
+  const [otherInputMode, setOtherInputMode] = useState<'manual' | 'file'>('manual');
+
+  // Claude file validation warning
+  const [claudeWarning, setClaudeWarning] = useState<string | null>(null);
 
   // Theme state
   const [theme, setTheme] = useState(determineTheme(null));
@@ -89,7 +123,7 @@ export default function MobileBriefUploadEditor({
   
   // Mobile-specific states
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [activeTab, setActiveTab] = useState<'url' | 'manual' | 'sources'>('url');
+  const [activeTab, setActiveTab] = useState<'url' | 'manual' | 'file' | 'sources'>('url');
   
   // Refs
   const bottomControlsRef = useRef<HTMLDivElement>(null);
@@ -109,6 +143,12 @@ export default function MobileBriefUploadEditor({
   
   // Add this state for active tab
   const [activeSourcesDomain, setActiveSourcesDomain] = useState<string | null>(null);
+
+  // Category selection state
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [suggestedCategoryIds, setSuggestedCategoryIds] = useState<string[]>([]);
+  const [isSuggestingCategories, setIsSuggestingCategories] = useState(false);
+  const categoriesQuery = useCategories();
 
   // Reference management state
   const [isAddReferenceOpen, setIsAddReferenceOpen] = useState(false);
@@ -181,23 +221,24 @@ export default function MobileBriefUploadEditor({
   // Load initial data
   useEffect(() => {
     if (initialData) {
+      const modelValue = initialData.model;
       const transformedData: BriefData = {
         title: initialData.title || '',
-        content: (initialData as any).response || initialData.content || '',
+        response: initialData.response || initialData.content || '',
         abstract: initialData.abstract || '',
         thinking: initialData.thinking || '',
-        prompt: initialData.prompt || 'PROMPT UNKNOWN',
-        model: typeof (initialData as any).model === 'object' 
-          ? ((initialData as any).model?.name as "openai" | "perplexity" | "anthropic" | "other") || 'other'
-          : (initialData.model as "openai" | "perplexity" | "anthropic" | "other") || 'other',
-        sources: (initialData as any).sources || [],
-        references: (initialData as any).references || '',
-        rawHtml: (initialData as any).rawHtml
+        prompt: initialData.prompt || '',
+        model: (typeof modelValue === 'object' && modelValue !== null
+          ? ((modelValue as { name?: string }).name || 'other')
+          : (String(modelValue) || 'other')).toLowerCase() as "openai" | "perplexity" | "anthropic" | "other",
+        sources: initialData.sources || [],
+        references: initialData.references || '',
+        rawHtml: initialData.rawHtml
       };
 
       setBriefData(transformedData);
       setOriginalAbstract(transformedData.abstract || "");
-      setOriginalContent(transformedData.content || "");
+      setOriginalContent(transformedData.response || "");
       setShowTitleSection(true);
       setShowPromptSection(true);
       setShowAbstractSection(true);
@@ -223,21 +264,32 @@ export default function MobileBriefUploadEditor({
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const data = await fetchBriefFromUrl(url);
-      
+
       // Set default prompt if not provided
       if (!data.prompt) {
-        data.prompt = "PROMPT UNKNOWN";
+        data.prompt = "";
       }
-      
+
+      // Check if there are multiple conversation turns
+      if (data.conversationTurns && data.conversationTurns.length > 1) {
+        // Multiple turns detected - show selector
+        setConversationTurns(data.conversationTurns);
+        setPendingBriefData(data);
+        setShowTurnSelector(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // Single turn or no turns - proceed normally
       setBriefData(data);
-      
+
       setTheme(determineTheme(data));
-      
+
       setOriginalAbstract(data.abstract || "");
-      setOriginalContent(data.content || "");
-      
+      setOriginalContent(data.response || "");
+
       setShowTitleSection(true);
       setTimeout(() => setShowPromptSection(true), 150);
       setTimeout(() => setShowAbstractSection(true), 300);
@@ -245,16 +297,52 @@ export default function MobileBriefUploadEditor({
       setTimeout(() => setShowSourcesSection(true), 600);
       setTimeout(() => setShowReferencesSection(true), 750);
       setTimeout(() => setShowMetadataSection(true), 900);
-      
+      fetchCategorySuggestions(data);
+
       // Switch to sources tab after fetching
       setActiveTab('sources');
-      
+
     } catch (error) {
       console.error("Error fetching brief:", error);
       setError("Failed to fetch brief data. Please check the URL and try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle conversation turn selection
+  const handleTurnSelect = (turnIndex: number) => {
+    if (!pendingBriefData || !conversationTurns) return;
+
+    const updatedBriefData = applySelectedConversationTurn(pendingBriefData, turnIndex);
+
+    setBriefData(updatedBriefData);
+    setTheme(determineTheme(updatedBriefData));
+    setOriginalAbstract(updatedBriefData.abstract || "");
+    setOriginalContent(updatedBriefData.response || "");
+
+    // Hide selector and show sections
+    setShowTurnSelector(false);
+    setConversationTurns(null);
+    setPendingBriefData(null);
+
+    setShowTitleSection(true);
+    setTimeout(() => setShowPromptSection(true), 150);
+    setTimeout(() => setShowAbstractSection(true), 300);
+    setTimeout(() => setShowContentSection(true), 450);
+    setTimeout(() => setShowSourcesSection(true), 600);
+    setTimeout(() => setShowReferencesSection(true), 750);
+    setTimeout(() => setShowMetadataSection(true), 900);
+    fetchCategorySuggestions(updatedBriefData);
+
+    // Switch to sources tab
+    setActiveTab('sources');
+  };
+
+  const handleTurnSelectCancel = () => {
+    setShowTurnSelector(false);
+    setConversationTurns(null);
+    setPendingBriefData(null);
   };
 
   // Handle manual content parsing
@@ -273,14 +361,14 @@ export default function MobileBriefUploadEditor({
 
       // Set default prompt if not provided
       if (!data.prompt) {
-        data.prompt = "PROMPT UNKNOWN";
+        data.prompt = "";
       }
 
       setBriefData(data);
       setTheme(determineTheme(data));
 
       setOriginalAbstract(data.abstract || "");
-      setOriginalContent(data.content || "");
+      setOriginalContent(data.response || "");
 
       setShowTitleSection(true);
       setTimeout(() => setShowPromptSection(true), 150);
@@ -289,6 +377,7 @@ export default function MobileBriefUploadEditor({
       setTimeout(() => setShowSourcesSection(true), 600);
       setTimeout(() => setShowReferencesSection(true), 750);
       setTimeout(() => setShowMetadataSection(true), 900);
+      fetchCategorySuggestions(data);
 
       // Switch to sources tab after parsing
       setActiveTab('sources');
@@ -300,6 +389,75 @@ export default function MobileBriefUploadEditor({
       setIsLoading(false);
     }
   };
+
+  // Handle file upload - reads text content and feeds it through manual parse
+  const handleFileUpload = useCallback((file: File) => {
+    setIsLoading(true);
+    setError(null);
+    setClaudeWarning(null);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text?.trim()) {
+        setError("File is empty");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Check if this is a Claude deep research export
+        const claudeValidation = validateClaudeExport(text, file.name);
+
+        const data = parseManualBriefContent(text);
+        if (!data.prompt) {
+          data.prompt = "";
+        }
+
+        // If validated as Claude export, set model to anthropic
+        if (claudeValidation.isValid) {
+          data.model = 'anthropic';
+        } else if (selectedProvider === 'claude') {
+          setClaudeWarning("This file doesn't appear to be a Claude deep research export. It will still be parsed, but the content may not be structured as expected.");
+          data.model = 'anthropic';
+        }
+
+        // If a provider is selected, use its model
+        if (selectedProvider && selectedProvider !== 'other') {
+          const providerConfig = PROVIDER_CONFIG.find(p => p.id === selectedProvider);
+          if (providerConfig) {
+            data.model = providerConfig.model;
+          }
+        }
+
+        setBriefData(data);
+        setTheme(determineTheme(data));
+        setOriginalAbstract(data.abstract || "");
+        setOriginalContent(data.response || "");
+
+        setShowTitleSection(true);
+        setTimeout(() => setShowPromptSection(true), 150);
+        setTimeout(() => setShowAbstractSection(true), 300);
+        setTimeout(() => setShowContentSection(true), 450);
+        setTimeout(() => setShowSourcesSection(true), 600);
+        setTimeout(() => setShowReferencesSection(true), 750);
+        setTimeout(() => setShowMetadataSection(true), 900);
+        fetchCategorySuggestions(data);
+
+        setActiveTab('sources');
+      } catch (err) {
+        console.error("Error parsing file content:", err);
+        setError("Failed to parse file content. Please check the format.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      setError("Failed to read file");
+      setIsLoading(false);
+    };
+    reader.readAsText(file);
+  }, [selectedProvider]);
 
   // Handle clearing the form
   const handleClearForm = () => {
@@ -331,8 +489,46 @@ export default function MobileBriefUploadEditor({
     setTheme(determineTheme(null));
     setActiveTab('url');
     setShowMobileSidebar(false);
+    setSelectedProvider(null);
+    setClaudeWarning(null);
+    setOtherInputMode('manual');
+    setSelectedCategoryIds([]);
+    setSuggestedCategoryIds([]);
   };
-  
+
+  // Fetch category suggestions after extraction completes
+  const fetchCategorySuggestions = async (data: BriefData) => {
+    setIsSuggestingCategories(true);
+    try {
+      const result = await suggestCategories({
+        title: data.title,
+        abstract: data.abstract ?? '',
+        response: data.response,
+        prompt: data.prompt ?? '',
+        sourceUrls: (data.sources ?? []).map(s => s.url).filter(Boolean),
+      });
+      if (result.success && result.data && result.data.length > 0) {
+        const ids = result.data.map(c => c.id);
+        setSelectedCategoryIds(ids);
+        setSuggestedCategoryIds(ids);
+      }
+    } catch {
+      // Non-blocking
+    } finally {
+      setIsSuggestingCategories(false);
+    }
+  };
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategoryIds(prev => {
+      if (prev.includes(categoryId)) {
+        return prev.filter(id => id !== categoryId);
+      }
+      if (prev.length >= 3) return prev;
+      return [...prev, categoryId];
+    });
+  };
+
   // Handle title edit
   const handleTitleEdit = (newTitle: string) => {
     if (briefData) {
@@ -376,7 +572,7 @@ export default function MobileBriefUploadEditor({
     if (briefData) {
       setBriefData({
         ...briefData,
-        content: newContent
+        response: newContent
       });
       setContentDiff(createDiffMarkup(
         originalContent,
@@ -410,181 +606,313 @@ export default function MobileBriefUploadEditor({
   // Handle submit
   const handleSubmit = () => {
     if (briefData && onSubmit) {
-      onSubmit(briefData);
+      onSubmit({ ...briefData, categoryIds: selectedCategoryIds });
     }
   };
-  
-  const colors = themeColors[theme];
 
-  // Mobile sidebar content
-  const renderSidebarContent = () => (
+  const colors = themeColors[theme];
+  const activeProvider = selectedProvider ? PROVIDER_CONFIG.find(p => p.id === selectedProvider) : null;
+
+  // Mobile provider picker
+  const renderMobileProviderPicker = () => (
+    <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4">
+      <h2 className="text-lg font-bold text-center mb-4">Choose your AI platform</h2>
+      <div className="flex flex-col gap-3">
+        {PROVIDER_CONFIG.map((provider) => {
+          const pColors = themeColors[provider.theme];
+          return (
+            <button
+              key={provider.id}
+              onClick={() => {
+                setSelectedProvider(provider.id);
+                setTheme(provider.theme);
+              }}
+              className={`text-left p-4 rounded-lg border-2 border-l-4 transition-all active:scale-[0.98] ${pColors.secondary} hover:bg-gray-50`}
+            >
+              <h3 className={`font-semibold ${pColors.tertiary}`}>{provider.label}</h3>
+              <p className="text-sm text-gray-500 mt-1">{provider.description}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // Mobile instruction steps (vertical stack)
+  const renderMobileInstructions = (provider: ProviderConfig) => {
+    const pColors = themeColors[provider.theme];
+    return (
+      <div className="mb-4 space-y-3">
+        {provider.instructions.map((inst) => (
+          <div key={inst.step} className={`bg-white/90 backdrop-blur-sm rounded-lg border ${pColors.secondary} p-3`}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gradient-to-r ${pColors.flash}`}>
+                {inst.step}
+              </span>
+              <h4 className="font-semibold text-sm">{inst.title}</h4>
+            </div>
+            <div className="bg-gray-100 rounded-md h-[100px] flex items-center justify-center mb-2">
+              <span className="text-xs text-gray-400">{inst.imagePlaceholder}</span>
+            </div>
+            <p className="text-xs text-gray-600">{inst.description}</p>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Mobile provider-specific input
+  const renderMobileProviderInput = (provider: ProviderConfig) => {
+    const pColors = themeColors[provider.theme];
+
+    return (
+      <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4">
+        {/* Back link + provider name */}
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => {
+              setSelectedProvider(null);
+              setTheme(determineTheme(null));
+              setClaudeWarning(null);
+            }}
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <ArrowLeft size={14} />
+            <span>Back</span>
+          </button>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${pColors.highlight} ${pColors.tertiary}`}>
+            {provider.label}
+          </span>
+        </div>
+
+        {/* URL input for URL-based providers */}
+        {provider.uploadMethod === 'url' && (
+          <>
+            <label htmlFor="brief-url" className="block text-sm font-medium text-gray-700 mb-2">
+              Research URL
+            </label>
+            <div className="flex flex-col">
+              <div className="relative flex-1 mb-2">
+                <input
+                  id="brief-url"
+                  type="text"
+                  value={url}
+                  onChange={handleUrlChange}
+                  placeholder={provider.urlPlaceholder || 'Paste research URL'}
+                  className={`w-full p-2 pr-16 border rounded-md focus:ring-2 focus:outline-none ${
+                    isValidUrl === true ? 'border-green-500 focus:ring-green-200' :
+                    isValidUrl === false ? 'border-red-500 focus:ring-red-200' :
+                    'border-gray-300 focus:ring-blue-200'
+                  }`}
+                />
+                <button
+                  onClick={handlePasteFromClipboard}
+                  className="absolute right-2 top-2 text-gray-500 hover:text-gray-700"
+                  aria-label="Paste from clipboard"
+                >
+                  <Clipboard size={18} />
+                </button>
+                {isValidUrl === true && (
+                  <CheckCircle className="absolute right-10 top-2 text-green-500" size={18} />
+                )}
+                {isValidUrl === false && (
+                  <AlertCircle className="absolute right-10 top-2 text-red-500" size={18} />
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={handleFetchBrief}
+                  disabled={!isValidUrl || isLoading}
+                  className={`w-full text-white px-4 py-2 rounded-md transition-colors bg-gradient-to-r ${pColors.flash} hover:opacity-90 disabled:opacity-50`}
+                >
+                  {isLoading ? (
+                    <Loader2 className="animate-spin mx-auto" size={20} />
+                  ) : (
+                    "Fetch Brief"
+                  )}
+                </button>
+
+                {briefData && (
+                  <>
+                    <button
+                      onClick={handleClearForm}
+                      className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                      <span>Clear Form</span>
+                    </button>
+
+                    {briefData?.rawHtml && (
+                      <button
+                        onClick={() => setShowHtmlInspector(true)}
+                        className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        <CodeIcon size={16} />
+                        <span>Inspect HTML</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* File upload for Claude */}
+        {provider.uploadMethod === 'file' && (
+          <>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Upload Research File
+            </label>
+            <FileDropzone
+              onFileSelect={handleFileUpload}
+              accept={provider.acceptedFiles || '.md,.markdown'}
+              maxSize={5 * 1024 * 1024}
+              label="Drop a file here or tap to browse"
+              description={`Supports ${provider.acceptedFiles || '.md'} files (max 5MB)`}
+              isUploading={isLoading}
+            />
+            {claudeWarning && (
+              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                <p className="text-xs text-amber-700">{claudeWarning}</p>
+              </div>
+            )}
+            {briefData && (
+              <button
+                onClick={handleClearForm}
+                className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors mt-2"
+              >
+                <Trash2 size={16} />
+                <span>Clear Form</span>
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Manual paste + file toggle for Other */}
+        {provider.uploadMethod === 'manual' && (
+          <>
+            <div className="flex gap-2 mb-3 border-b border-gray-200">
+              <button
+                onClick={() => setOtherInputMode('manual')}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  otherInputMode === 'manual'
+                    ? `${pColors.tertiary} border-b-2 border-current`
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Paste Content
+              </button>
+              <button
+                onClick={() => setOtherInputMode('file')}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  otherInputMode === 'file'
+                    ? `${pColors.tertiary} border-b-2 border-current`
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                File Upload
+              </button>
+            </div>
+
+            {otherInputMode === 'manual' && (
+              <>
+                <label htmlFor="manual-content" className="block text-sm font-medium text-gray-700 mb-2">
+                  Paste Research Content
+                </label>
+                <div className="flex flex-col">
+                  <textarea
+                    id="manual-content"
+                    value={manualContent}
+                    onChange={(e) => setManualContent(e.target.value)}
+                    placeholder="Paste your entire research content here...&#10;&#10;The parser will automatically extract:&#10;• Title (from first heading or line)&#10;• Prompt/Question (if labeled)&#10;• Main Content&#10;• Abstract/Conclusion (if labeled)&#10;• References (if labeled)&#10;• Source URLs (from links)"
+                    className="w-full p-3 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 font-mono text-sm min-h-[300px] resize-y"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {manualContent.length} characters
+                  </p>
+                  <div className="flex flex-col gap-2 mt-2">
+                    <button
+                      onClick={handleManualParse}
+                      disabled={!manualContent.trim() || isLoading}
+                      className={`w-full text-white px-4 py-2 rounded-md transition-colors bg-gradient-to-r ${pColors.flash} hover:opacity-90 disabled:opacity-50`}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="animate-spin mx-auto" size={20} />
+                      ) : (
+                        "Parse Content"
+                      )}
+                    </button>
+
+                    {briefData && (
+                      <button
+                        onClick={handleClearForm}
+                        className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                        <span>Clear Form</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {otherInputMode === 'file' && (
+              <>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload Research File
+                </label>
+                <FileDropzone
+                  onFileSelect={handleFileUpload}
+                  accept={provider.acceptedFiles || '.html,.htm,.txt,.md,.markdown'}
+                  maxSize={5 * 1024 * 1024}
+                  label="Drop a file here or tap to browse"
+                  description="Supports .html, .txt, .md files (max 5MB)"
+                  isUploading={isLoading}
+                />
+                {briefData && (
+                  <button
+                    onClick={handleClearForm}
+                    className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors mt-2"
+                  >
+                    <Trash2 size={16} />
+                    <span>Clear Form</span>
+                  </button>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Sources sidebar content (shown in mobile sidebar after extraction)
+  const renderMobileSources = () => (
     <>
-      {/* Mobile Tabs - Always show */}
+      {/* Mobile Tabs - Sources tab */}
       <div className="flex border-b border-gray-200 mb-4">
         <button
-          onClick={() => setActiveTab('url')}
-          className={`flex-1 py-2 px-4 text-sm font-medium ${
-            activeTab === 'url'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600'
-          }`}
-        >
-          URL Extract
-        </button>
-        <button
-          onClick={() => setActiveTab('manual')}
-          className={`flex-1 py-2 px-4 text-sm font-medium ${
-            activeTab === 'manual'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600'
-          }`}
-        >
-          Manual
-        </button>
-        <button
           onClick={() => setActiveTab('sources')}
-          disabled={!briefData}
           className={`flex-1 py-2 px-4 text-sm font-medium ${
             activeTab === 'sources'
               ? 'text-blue-600 border-b-2 border-blue-600'
-              : briefData ? 'text-gray-600' : 'text-gray-400'
+              : 'text-gray-600'
           }`}
         >
           Sources
         </button>
       </div>
 
-      {/* Show URL input when URL tab is active */}
-      {activeTab === 'url' && (
-        /* URL Input Section */
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4">
-          <label htmlFor="brief-url" className="block text-sm font-medium text-gray-700 mb-2">
-            Research URL
-          </label>
-          <div className="flex flex-col">
-            <div className="relative flex-1 mb-2">
-              <input
-                id="brief-url"
-                type="text"
-                value={url}
-                onChange={handleUrlChange}
-                placeholder="Paste research URL"
-                className={`w-full p-2 pr-10 border rounded-md focus:ring-2 focus:outline-none ${
-                  isValidUrl === true ? 'border-green-500 focus:ring-green-200' :
-                  isValidUrl === false ? 'border-red-500 focus:ring-red-200' :
-                  'border-gray-300 focus:ring-blue-200'
-                }`}
-              />
-              <button
-                onClick={handlePasteFromClipboard}
-                className="absolute right-2 top-2 text-gray-500 hover:text-gray-700"
-                aria-label="Paste from clipboard"
-              >
-                <Clipboard size={18} />
-              </button>
-              {isValidUrl === true && (
-                <CheckCircle className="absolute right-10 top-2 text-green-500" size={18} />
-              )}
-              {isValidUrl === false && (
-                <AlertCircle className="absolute right-10 top-2 text-red-500" size={18} />
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={handleFetchBrief}
-                disabled={!isValidUrl || isLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors"
-              >
-                {isLoading ? (
-                  <Loader2 className="animate-spin mx-auto" size={20} />
-                ) : (
-                  "Fetch Brief"
-                )}
-              </button>
-              
-              {briefData && (
-                <>
-                  <button
-                    onClick={handleClearForm}
-                    className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                    <span>Clear Form</span>
-                  </button>
-                  
-                  {briefData?.rawHtml && (
-                    <button
-                      onClick={() => setShowHtmlInspector(true)}
-                      className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
-                    >
-                      <CodeIcon size={16} />
-                      <span>Inspect HTML</span>
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-gray-500 text-center">
-            Supports OpenAI and Perplexity deep research URLs
-          </p>
-        </div>
-      )}
-
-      {/* Show Manual Entry when manual tab is active */}
-      {activeTab === 'manual' && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4">
-          <label htmlFor="manual-content" className="block text-sm font-medium text-gray-700 mb-2">
-            Paste Research Content
-          </label>
-          <div className="flex flex-col">
-            <textarea
-              id="manual-content"
-              value={manualContent}
-              onChange={(e) => setManualContent(e.target.value)}
-              placeholder="Paste your entire research content here...&#10;&#10;The parser will automatically extract:&#10;• Title (from first heading or line)&#10;• Prompt/Question (if labeled)&#10;• Main Content&#10;• Abstract/Conclusion (if labeled)&#10;• References (if labeled)&#10;• Source URLs (from links)"
-              className="w-full p-3 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 font-mono text-sm min-h-[400px] resize-y"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              {manualContent.length} characters
-            </p>
-            <div className="flex flex-col gap-2 mt-2">
-              <button
-                onClick={handleManualParse}
-                disabled={!manualContent.trim() || isLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md transition-colors"
-              >
-                {isLoading ? (
-                  <Loader2 className="animate-spin mx-auto" size={20} />
-                ) : (
-                  "Parse Content"
-                )}
-              </button>
-
-              {briefData && (
-                <button
-                  onClick={handleClearForm}
-                  className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  <Trash2 size={16} />
-                  <span>Clear Form</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Only show sources tab content when brief data exists and sources tab is active */}
-      {briefData && activeTab === 'sources' && (
-        /* Sources Section */
+      {activeTab === 'sources' && (
         <motion.div
           initial="hidden"
           animate={showSourcesSection ? "visible" : "hidden"}
           variants={sectionVariants}
           className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4"
         >
-          <div 
+          <div
             className="flex justify-between items-center cursor-pointer"
             onClick={() => setIsSourcesExpanded(!isSourcesExpanded)}
           >
@@ -593,7 +921,7 @@ export default function MobileBriefUploadEditor({
               {isSourcesExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </button>
           </div>
-          
+
           {isSourcesExpanded && (
             <div className="mt-3">
               {briefData?.sources && briefData.sources.length > 0 ? (
@@ -601,11 +929,11 @@ export default function MobileBriefUploadEditor({
                   {(() => {
                     const sourceGroups = groupSourcesByDomain(briefData.sources);
                     const domains = Array.from(sourceGroups.keys());
-                    
+
                     if (!activeSourcesDomain && domains.length > 0) {
                       setActiveSourcesDomain(domains[0] as string);
                     }
-                    
+
                     return (
                       <>
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -629,18 +957,18 @@ export default function MobileBriefUploadEditor({
                             </button>
                           ))}
                         </div>
-                        
+
                         <div className="space-y-2 max-h-64 overflow-y-auto">
                           {activeSourcesDomain && sourceGroups.get(activeSourcesDomain)?.map((source: BriefData['sources'][0], index: number) => {
                             const favicon = getFaviconUrl(activeSourcesDomain);
                             return (
-                              <div 
-                                key={index} 
+                              <div
+                                key={index}
                                 className="p-2 border rounded-md border-gray-200 text-sm break-words"
                               >
                                 <div className="flex items-start gap-2">
-                                  <img 
-                                    src={favicon} 
+                                  <img
+                                    src={favicon}
                                     alt={`${activeSourcesDomain} favicon`}
                                     className="w-4 h-4 mt-1 flex-shrink-0"
                                     onError={(e) => {
@@ -651,9 +979,9 @@ export default function MobileBriefUploadEditor({
                                   <Link className="text-gray-500 mt-1 flex-shrink-0 hidden" size={14} />
                                   <div className="min-w-0 flex-1">
                                     <p className="font-medium line-clamp-2">{source.title}</p>
-                                    <a 
-                                      href={source.url} 
-                                      target="_blank" 
+                                    <a
+                                      href={source.url}
+                                      target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-xs text-blue-600 hover:underline block truncate"
                                       onClick={(e) => e.stopPropagation()}
@@ -681,7 +1009,16 @@ export default function MobileBriefUploadEditor({
           )}
         </motion.div>
       )}
-      
+
+      {/* Clear form button in sidebar */}
+      <button
+        onClick={handleClearForm}
+        className="w-full flex items-center justify-center gap-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors mt-4"
+      >
+        <Trash2 size={16} />
+        <span>Clear Form</span>
+      </button>
+
       <ErrorPopup
         isVisible={!!error}
         message={error ?? ''}
@@ -711,7 +1048,7 @@ export default function MobileBriefUploadEditor({
           {showMobileSidebar ? <X size={24} /> : <Menu size={24} />}
         </button>
       )}
-      
+
       {/* Mobile Sidebar - Only show when brief data exists */}
       {briefData && (
         <>
@@ -719,25 +1056,46 @@ export default function MobileBriefUploadEditor({
             showMobileSidebar ? 'translate-x-0' : '-translate-x-full'
           }`}>
             <div className="p-4 pt-20 h-full overflow-y-auto">
-              {renderSidebarContent()}
+              {renderMobileSources()}
             </div>
           </div>
-          
+
           {/* Mobile Overlay */}
           {showMobileSidebar && (
-            <div 
+            <div
               className="fixed inset-0 bg-black bg-opacity-50 z-30"
               onClick={() => setShowMobileSidebar(false)}
             />
           )}
         </>
       )}
-      
+
       {/* Main Content */}
       <div className="w-full">
-        {!showTitleSection && (
+        {/* Provider picker - no provider selected, no brief data */}
+        {!selectedProvider && !briefData && (
           <div className="mb-6">
-            {renderSidebarContent()}
+            {renderMobileProviderPicker()}
+            <ErrorPopup
+              isVisible={!!error}
+              message={error ?? ''}
+              onClose={() => setError(null)}
+              autoClose={true}
+            />
+          </div>
+        )}
+
+        {/* Provider selected but no brief data - show instructions + input */}
+        {selectedProvider && activeProvider && !briefData && (
+          <div className="mb-6">
+            {renderMobileInstructions(activeProvider)}
+            {renderMobileProviderInput(activeProvider)}
+            <ErrorPopup
+              isVisible={!!error}
+              message={error ?? ''}
+              onClose={() => setError(null)}
+              autoClose={true}
+            />
           </div>
         )}
         
@@ -817,7 +1175,7 @@ export default function MobileBriefUploadEditor({
               {isPromptEditing ? (
                 <div>
                   <textarea
-                    defaultValue={briefData?.prompt ?? "PROMPT UNKNOWN"}
+                    defaultValue={briefData?.prompt ?? ""}
                     className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[100px] text-sm"
                     onBlur={(e) => handlePromptEdit(e.target.value)}
                     autoFocus
@@ -840,7 +1198,7 @@ export default function MobileBriefUploadEditor({
                     rehypePlugins={[rehypeSanitize, rehypeRaw]}
                     components={markdownComponents}
                   >
-                    {briefData?.prompt ?? "PROMPT UNKNOWN"}
+                    {briefData?.prompt ?? ""}
                   </ReactMarkdown>
                 </div>
               )}
@@ -937,13 +1295,13 @@ export default function MobileBriefUploadEditor({
                   {isContentEditing ? (
                     <div>
                       <textarea
-                        defaultValue={briefData?.content ?? ""}
+                        defaultValue={briefData?.response ?? ""}
                         className="w-full p-2 border rounded-md focus:ring-2 focus:outline-none border-gray-300 focus:ring-blue-200 min-h-[200px] text-sm"
                         onBlur={(e) => handleContentEdit(e.target.value)}
                         autoFocus
                       />
                       <div className="flex justify-between mt-1 text-xs text-gray-500">
-                        <span>{briefData?.content?.length ?? 0} characters</span>
+                        <span>{briefData?.response?.length ?? 0} characters</span>
                         <button 
                           onClick={() => setIsContentEditing(false)}
                           className="text-blue-600 hover:underline"
@@ -962,7 +1320,7 @@ export default function MobileBriefUploadEditor({
                           rehypePlugins={[rehypeSanitize, rehypeRaw]}
                           components={markdownComponents}
                         >
-                          {briefData?.content ?? "No content available"}
+                          {briefData?.response ?? "No content available"}
                         </ReactMarkdown>
                       )}
                     </div>
@@ -1048,13 +1406,72 @@ export default function MobileBriefUploadEditor({
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Word Count:</span>
-                  <p className="mt-1">{briefData?.content?.split(' ').length ?? 0} words</p>
+                  <p className="mt-1">{briefData?.response?.split(' ').length ?? 0} words</p>
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Sources:</span>
                   <p className="mt-1">{briefData?.sources?.length ?? 0} sources</p>
                 </div>
               </div>
+            </motion.div>
+
+            {/* Categories Section */}
+            <motion.div
+              initial="hidden"
+              animate={showMetadataSection ? "visible" : "hidden"}
+              variants={sectionVariants}
+              className={`bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-4 mb-4 border ${colors.secondary}`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Tag size={16} className={colors.tertiary} />
+                  <h2 className="text-base font-semibold">Categories</h2>
+                </div>
+                {isSuggestingCategories && (
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                    <Loader2 size={12} className="animate-spin" />
+                    <span>Suggesting...</span>
+                  </div>
+                )}
+                {!isSuggestingCategories && suggestedCategoryIds.length > 0 && (
+                  <div className="flex items-center gap-1 text-xs text-amber-600">
+                    <Sparkles size={12} />
+                    <span>Auto-suggested</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {categoriesQuery.data?.map((category: { id: string; name: string }) => {
+                  const isSelected = selectedCategoryIds.includes(category.id);
+                  const isSuggested = suggestedCategoryIds.includes(category.id);
+                  const isDisabled = !isSelected && selectedCategoryIds.length >= 3;
+
+                  return (
+                    <button
+                      key={category.id}
+                      onClick={() => toggleCategory(category.id)}
+                      disabled={isDisabled}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                        isSelected
+                          ? isSuggested
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-blue-100 text-blue-800 border border-blue-300'
+                          : isDisabled
+                            ? 'bg-gray-50 text-gray-300 border border-gray-200 cursor-not-allowed'
+                            : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                      }`}
+                    >
+                      {category.name}
+                      {isSelected && <X size={12} />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedCategoryIds.length >= 3 && (
+                <p className="text-xs text-gray-500 mt-2">Maximum 3 categories selected</p>
+              )}
             </motion.div>
 
             {/* Bottom Controls */}
@@ -1090,9 +1507,18 @@ export default function MobileBriefUploadEditor({
           title: source.title,
           domain: new URL(source.url).hostname
         })) || []}
-        briefContent={briefData?.content || ''}
+        briefContent={briefData?.response || ''}
         briefAbstract={briefData?.abstract || ''}
       />
+
+      {/* Conversation Turn Selector */}
+      {showTurnSelector && conversationTurns && (
+        <ConversationTurnSelector
+          turns={conversationTurns}
+          onSelect={handleTurnSelect}
+          onCancel={handleTurnSelectCancel}
+        />
+      )}
     </div>
   );
 }

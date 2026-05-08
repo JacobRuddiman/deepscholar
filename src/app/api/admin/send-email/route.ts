@@ -1,14 +1,11 @@
 // app/api/admin/send-email/route.ts
-import { NextResponse } from 'next/server';
-
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/server/auth';
+import { apiSuccess, apiError, requireAdmin, isApiError } from '@/lib/api-response';
+
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user || !(session.user as any).isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireAdmin();
+    if (isApiError(session)) return session;
 
     const { subject, body, footer, recipients } = await request.json() as {
       subject: string;
@@ -19,17 +16,17 @@ export async function POST(request: Request) {
 
     // Validate inputs
     if (!subject || !body) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return apiError('Missing required fields', 400);
     }
 
     // Get recipient emails
     let recipientEmails: string[] = [];
-    
+
     if (recipients === 'all') {
       const users = await prisma.user.findMany({
-        where: { 
+        where: {
           email: { not: null },
-          emailNotifications: true 
+          emailNotifications: true
         },
         select: { email: true }
       });
@@ -38,10 +35,10 @@ export async function POST(request: Request) {
       // Handle both user IDs and email addresses
       const userIds = recipients.filter((r: string) => !r.includes('@'));
       const directEmails = recipients.filter((r: string) => r.includes('@'));
-      
+
       if (userIds.length > 0) {
         const users = await prisma.user.findMany({
-          where: { 
+          where: {
             id: { in: userIds },
             email: { not: null },
             emailNotifications: true
@@ -66,20 +63,10 @@ export async function POST(request: Request) {
     });
 
     // Here you would integrate with your email service
-    // For now, we'll just log it
-    console.log('Sending email:', {
-      subject,
-      to: recipientEmails,
-      body: `${body}\n\n${footer}`,
-      sentBy: session.user.email
-    });
 
-    return NextResponse.json({ 
-      success: true, 
-      recipientCount: recipientEmails.length 
-    });
+    return apiSuccess({ recipientCount: recipientEmails.length });
   } catch (error) {
-    console.error('Failed to send email:', error);
-    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
+    console.error('Failed to send email:', String(error));
+    return apiError('Failed to send email', 500);
   }
 }

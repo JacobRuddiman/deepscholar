@@ -1,11 +1,11 @@
 /**
  * CSV Formatter
- * 
+ *
  * Converts data structures to CSV format
  */
 
 import { Formatter } from './index';
-import { BriefExportData, UserProfileExportData, SearchResultsExportData } from '../types';
+import { BriefExportData, UserProfileExportData, SearchResultsExportData, ExportableData, ExportOptions } from '../types';
 
 export class CsvFormatter implements Formatter {
   getMimeType(): string {
@@ -16,33 +16,31 @@ export class CsvFormatter implements Formatter {
     return '.csv';
   }
 
-  async format(data: any, options?: any): Promise<string> {
+  async format(data: ExportableData, options?: ExportOptions): Promise<string> {
     if (this.isBriefData(data)) {
       return this.formatBrief(data, options);
     } else if (this.isUserProfileData(data)) {
       return this.formatUserProfile(data, options);
     } else if (this.isSearchResultsData(data)) {
       return this.formatSearchResults(data, options);
-    } else if (Array.isArray(data)) {
-      return this.formatArray(data, options);
     } else {
       return this.formatGeneric(data, options);
     }
   }
 
-  private isBriefData(data: any): data is BriefExportData {
-    return data && typeof data.title === 'string' && typeof data.content === 'string';
+  private isBriefData(data: unknown): data is BriefExportData {
+    return data !== null && typeof data === 'object' && 'title' in data && typeof (data as Record<string, unknown>).title === 'string' && 'content' in data && typeof (data as Record<string, unknown>).content === 'string';
   }
 
-  private isUserProfileData(data: any): data is UserProfileExportData {
-    return data && typeof data.name === 'string' && data.statistics;
+  private isUserProfileData(data: unknown): data is UserProfileExportData {
+    return data !== null && typeof data === 'object' && 'name' in data && typeof (data as Record<string, unknown>).name === 'string' && 'statistics' in data;
   }
 
-  private isSearchResultsData(data: any): data is SearchResultsExportData {
-    return data && typeof data.query === 'string' && Array.isArray(data.results);
+  private isSearchResultsData(data: unknown): data is SearchResultsExportData {
+    return data !== null && typeof data === 'object' && 'query' in data && typeof (data as Record<string, unknown>).query === 'string' && 'results' in data && Array.isArray((data as Record<string, unknown>).results);
   }
 
-  private formatBrief(data: BriefExportData, options?: any): string {
+  private formatBrief(data: BriefExportData, _options?: ExportOptions): string {
     const headers = [
       'ID', 'Title', 'Author', 'Model', 'Provider', 'Created', 'Categories',
       'View Count', 'Upvotes', 'Abstract', 'Content Length'
@@ -80,7 +78,7 @@ export class CsvFormatter implements Formatter {
     }
   }
 
-  private formatUserProfile(data: UserProfileExportData, options?: any): string {
+  private formatUserProfile(data: UserProfileExportData, _options?: ExportOptions): string {
     const headers = [
       'ID', 'Name', 'Email', 'Joined', 'Briefs Created', 'Reviews Written',
       'Upvotes Received', 'Token Balance'
@@ -100,7 +98,7 @@ export class CsvFormatter implements Formatter {
     return this.arrayToCsv([headers, row]);
   }
 
-  private formatSearchResults(data: SearchResultsExportData, options?: any): string {
+  private formatSearchResults(data: SearchResultsExportData, _options?: ExportOptions): string {
     const headers = [
       'Rank', 'ID', 'Title', 'Author', 'Created', 'Relevance Score', 'Abstract'
     ];
@@ -118,32 +116,13 @@ export class CsvFormatter implements Formatter {
     return this.arrayToCsv([headers, ...rows]);
   }
 
-  private formatArray(data: any[], options?: any): string {
-    if (data.length === 0) return '';
-
-    // Extract headers from first object
-    const firstItem = data[0];
-    const headers = Object.keys(firstItem);
-
-    const rows = data.map(item => 
-      headers.map(header => {
-        const value = item[header];
-        if (value === null || value === undefined) return '';
-        if (typeof value === 'object') return JSON.stringify(value);
-        return value.toString();
-      })
-    );
-
-    return this.arrayToCsv([headers, ...rows]);
-  }
-
-  private formatGeneric(data: any, options?: any): string {
+  private formatGeneric(data: ExportableData, _options?: ExportOptions): string {
     // Convert object to key-value pairs
     const entries = Object.entries(data);
     const headers = ['Key', 'Value'];
     const rows = entries.map(([key, value]) => [
       key,
-      typeof value === 'object' ? JSON.stringify(value) : value?.toString() || ''
+      typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')
     ]);
 
     return this.arrayToCsv([headers, ...rows]);

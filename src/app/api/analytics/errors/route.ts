@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiSuccess, apiError } from '@/lib/api-response';
 
 /**
  * API endpoint to track client-side errors
@@ -20,10 +21,7 @@ export async function POST(request: NextRequest) {
 
     // Validate error
     if (!error.name || !error.message) {
-      return NextResponse.json(
-        { error: 'Invalid error data' },
-        { status: 400 }
-      );
+      return apiError('Invalid error data', 400);
     }
 
     // Log all errors in development
@@ -49,10 +47,10 @@ export async function POST(request: NextRequest) {
       // Sentry integration would go here
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ received: true });
   } catch (error) {
     console.error('[Analytics API] Error processing error report:', error);
-    return NextResponse.json({ success: true }, { status: 200 });
+    return apiSuccess({ received: true });
   }
 }
 

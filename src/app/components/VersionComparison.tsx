@@ -36,6 +36,20 @@ interface BriefData {
   changeLog?: string;
 }
 
+/** Extended brief result from getBriefById including optional version fields */
+interface BriefByIdResult {
+  id: string;
+  title: string;
+  abstract?: string | null;
+  response?: string | null;
+  thinking?: string | null;
+  content?: string | null;
+  versionNumber?: number;
+  isDraft?: boolean;
+  changeLog?: string | null;
+  [key: string]: unknown;
+}
+
 // Word-level diff within a line
 function calculateWordDiff(oldLine: string, newLine: string) {
   const oldWords = oldLine.split(/(\s+)/);
@@ -310,16 +324,11 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
   // Set default compare version when modal opens
   useEffect(() => {
     if (isOpen && versions.length > 1) {
-      console.log('[VersionComparison] Setting up default versions');
-      console.log('[VersionComparison] Current version ID:', currentVersionId);
-      console.log('[VersionComparison] All versions:', versions);
-
       // Reset selections when modal opens
       setLeftVersionId(currentVersionId);
 
       // Find a different version for comparison
       const currentIndex = versions.findIndex(v => v.id === currentVersionId);
-      console.log('[VersionComparison] Current index:', currentIndex);
 
       let compareVersionId = '';
 
@@ -328,13 +337,11 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
         if (currentIndex > 0) {
           const prevVersion = versions[currentIndex - 1];
           compareVersionId = prevVersion?.id || '';
-          console.log('[VersionComparison] Using previous version:', prevVersion);
         }
         // Otherwise get the next version
         else if (currentIndex < versions.length - 1) {
           const nextVersion = versions[currentIndex + 1];
           compareVersionId = nextVersion?.id || '';
-          console.log('[VersionComparison] Using next version:', nextVersion);
         }
       }
 
@@ -342,11 +349,7 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
       if (!compareVersionId) {
         const otherVersion = versions.find(v => v.id !== currentVersionId);
         compareVersionId = otherVersion?.id || '';
-        console.log('[VersionComparison] Using fallback version:', otherVersion);
       }
-
-      console.log('[VersionComparison] Setting leftVersionId to:', currentVersionId);
-      console.log('[VersionComparison] Setting rightVersionId to:', compareVersionId);
 
       if (compareVersionId && compareVersionId !== currentVersionId) {
         setRightVersionId(compareVersionId);
@@ -372,28 +375,30 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
       ]);
 
       if (leftResult.success && leftResult.data) {
+        const leftData = leftResult.data as BriefByIdResult;
         setLeftBrief({
-          id: leftResult.data.id,
-          title: leftResult.data.title,
-          abstract: leftResult.data.abstract || '',
-          response: leftResult.data.response || (leftResult.data as any).content || '',
-          thinking: leftResult.data.thinking || '',
-          versionNumber: (leftResult.data as any).versionNumber || 1,
-          isDraft: (leftResult.data as any).isDraft || false,
-          changeLog: (leftResult.data as any).changeLog,
+          id: leftData.id,
+          title: leftData.title,
+          abstract: leftData.abstract || '',
+          response: leftData.response || leftData.content || '',
+          thinking: leftData.thinking || '',
+          versionNumber: leftData.versionNumber || 1,
+          isDraft: leftData.isDraft || false,
+          changeLog: leftData.changeLog || undefined,
         });
       }
 
       if (rightResult.success && rightResult.data) {
+        const rightData = rightResult.data as BriefByIdResult;
         setRightBrief({
-          id: rightResult.data.id,
-          title: rightResult.data.title,
-          abstract: rightResult.data.abstract || '',
-          response: rightResult.data.response || (rightResult.data as any).content || '',
-          thinking: rightResult.data.thinking || '',
-          versionNumber: (rightResult.data as any).versionNumber || 1,
-          isDraft: (rightResult.data as any).isDraft || false,
-          changeLog: (rightResult.data as any).changeLog,
+          id: rightData.id,
+          title: rightData.title,
+          abstract: rightData.abstract || '',
+          response: rightData.response || rightData.content || '',
+          thinking: rightData.thinking || '',
+          versionNumber: rightData.versionNumber || 1,
+          isDraft: rightData.isDraft || false,
+          changeLog: rightData.changeLog || undefined,
         });
       }
     } catch (error) {
@@ -455,21 +460,15 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
     return groups;
   }, [versions]);
 
-  const renderVersionOptions = (excludeId: string, dropdownName: string) => {
-    console.log(`[VersionComparison] Rendering ${dropdownName} dropdown, excluding:`, excludeId);
-
+  const renderVersionOptions = (excludeId: string) => {
     const options = Object.entries(groupedVersions)
       .sort(([a], [b]) => parseInt(b) - parseInt(a))
-      .flatMap(([versionNumber, group]) => {
+      .flatMap(([, group]) => {
         const opts: JSX.Element[] = [];
 
         // Published Version
         if (group.version) {
-          const isExcluded = group.version.id === excludeId;
-          console.log(`[VersionComparison]   Version ${versionNumber} (${getVersionDisplayName(group.version)}):`,
-            isExcluded ? 'EXCLUDED' : 'INCLUDED');
-
-          if (!isExcluded) {
+          if (group.version.id !== excludeId) {
             opts.push(
               <option key={group.version.id} value={group.version.id}>
                 {getVersionDisplayName(group.version)}
@@ -480,11 +479,7 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
 
         // Drafts
         group.drafts.forEach((draft) => {
-          const isExcluded = draft.id === excludeId;
-          console.log(`[VersionComparison]   Draft ${draft.draftNumber} for v${versionNumber}:`,
-            isExcluded ? 'EXCLUDED' : 'INCLUDED');
-
-          if (!isExcluded) {
+          if (draft.id !== excludeId) {
             opts.push(
               <option key={draft.id} value={draft.id}>
                 ↳ Draft {draft.draftNumber} (v{draft.versionNumber})
@@ -496,7 +491,6 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
         return opts;
       });
 
-    console.log(`[VersionComparison] ${dropdownName} dropdown will show ${options.length} options`);
     return options;
   };
 
@@ -618,7 +612,7 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
                   onChange={(e) => setLeftVersionId(e.target.value)}
                   className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                 >
-                  {renderVersionOptions(rightVersionId, 'LEFT')}
+                  {renderVersionOptions(rightVersionId)}
                 </select>
               </div>
 
@@ -643,7 +637,7 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
                   </TooltipWrapper>
                   <select
                     value={compareField}
-                    onChange={(e) => setCompareField(e.target.value as any)}
+                    onChange={(e) => setCompareField(e.target.value as 'all' | 'title' | 'abstract' | 'content' | 'thinking')}
                     className="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="all">All Content</option>
@@ -665,7 +659,7 @@ const VersionComparison: React.FC<VersionComparisonProps> = ({
                   onChange={(e) => setRightVersionId(e.target.value)}
                   className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                 >
-                  {renderVersionOptions(leftVersionId, 'RIGHT')}
+                  {renderVersionOptions(leftVersionId)}
                 </select>
               </div>
             </div>

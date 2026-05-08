@@ -2,17 +2,18 @@
 
 import { auth } from '@/server/auth';
 import { prisma } from '@/lib/prisma';
+import { createNotification } from '@/server/actions/notifications/notifications';
 
 /**
  * Extract mentions from text (@username)
  */
 function extractMentions(text: string): string[] {
   const mentionRegex = /@(\w+)/g;
-  const mentions = [];
+  const mentions: string[] = [];
   let match;
 
   while ((match = mentionRegex.exec(text)) !== null) {
-    mentions.push(match[1]);
+    if (match[1]) mentions.push(match[1]);
   }
 
   return [...new Set(mentions)]; // Remove duplicates
@@ -60,21 +61,22 @@ export async function createMentions(
       )
     );
 
-    // Send notifications to mentioned users
-    // (Assuming you have notification system from earlier)
-    /*
+    // Send notifications to mentioned users (don't notify yourself)
+    const mentionedOthers = users.filter((user) => user.id !== session.user.id);
     await Promise.all(
-      users.map((user) =>
+      mentionedOthers.map((user) =>
         createNotification({
           userId: user.id,
           type: 'mention',
           title: 'You were mentioned',
-          message: `${session.user.name} mentioned you in a ${contentType}`,
-          actionUrl: getContentUrl(contentType, contentId),
-        })
+          message: `${session.user.name ?? 'Someone'} mentioned you in a ${contentType}`,
+          actionUrl: contentType === 'brief' ? `/briefs/${contentId}` : undefined,
+          relatedId: contentId,
+        }).catch((err) =>
+          console.error('[Mentions] Notification failed:', String(err))
+        )
       )
     );
-    */
 
     return {
       success: true,

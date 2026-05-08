@@ -600,6 +600,18 @@ video {
   border-width: 0;
 }
 
+.sr-only-focusable:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
 .pointer-events-none {
   pointer-events: none;
 }
@@ -3917,5 +3929,133 @@ body {
 @media (prefers-color-scheme: light) {
   :root {
     --status-bar-color: #ffffff;
+  }
+}
+
+/* Code syntax highlighting for brief content */
+.prose pre {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  overflow-x: auto;
+  border: 1px solid #334155;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.prose pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+  border: none;
+}
+
+.prose code {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+}
+
+.prose code::before,
+.prose code::after {
+  content: none;
+}
+
+/* Dark mode code blocks */
+@media (prefers-color-scheme: dark) {
+  .prose code {
+    background-color: #1e293b;
+    color: #e2e8f0;
+    border-color: #334155;
+  }
+
+  .prose pre {
+    background-color: #0f172a;
+    border-color: #1e293b;
+  }
+}
+
+/* Keyword colors within code blocks */
+.prose pre .keyword,
+.prose pre .tag { color: #c084fc; }
+.prose pre .string,
+.prose pre .attr-value { color: #86efac; }
+.prose pre .comment { color: #64748b; font-style: italic; }
+.prose pre .number { color: #fbbf24; }
+.prose pre .function { color: #7dd3fc; }
+.prose pre .operator { color: #f472b6; }
+.prose pre .class-name { color: #fde68a; }
+
+/* Print-friendly styles for brief pages */
+@media print {
+  /* Hide navigation, buttons, and interactive elements */
+  #navigation,
+  .no-print,
+  button,
+  [role="navigation"],
+  [data-radix-popper-content-wrapper],
+  .fixed,
+  .sticky {
+    display: none !important;
+  }
+
+  /* Reset layout for print */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+    line-height: 1.6;
+  }
+
+  #main-content {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Optimize typography */
+  h1 { font-size: 18pt; margin-bottom: 8pt; }
+  h2 { font-size: 16pt; margin-bottom: 6pt; }
+  h3 { font-size: 14pt; margin-bottom: 4pt; }
+  p { margin-bottom: 6pt; orphans: 3; widows: 3; }
+
+  /* Show URLs for links */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #666;
+    word-break: break-all;
+  }
+
+  /* Avoid page breaks inside key elements */
+  h1, h2, h3, h4 { page-break-after: avoid; }
+  img, pre, blockquote, table { page-break-inside: avoid; }
+
+  /* Remove backgrounds and shadows */
+  * {
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Ensure images print properly */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* Code blocks */
+  pre, code {
+    border: 1px solid #ddd !important;
+    font-size: 10pt;
+    white-space: pre-wrap;
+    word-wrap: break-word;
   }
 }

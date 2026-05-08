@@ -95,7 +95,7 @@ export const getCachedBriefBySlug = createBriefCache(
       const brief = await prisma.brief.findFirst({
         where: {
           slug,
-          public: true,
+          published: true,
         },
         include: {
           categories: true,
@@ -170,7 +170,7 @@ export const getCachedPublicBriefs = createBriefListCache(
     const { limit = 20, offset = 0, categoryId, sortBy = 'recent' } = options || {};
 
     try {
-      const where: any = { public: true };
+      const where: any = { published: true };
 
       if (categoryId) {
         where.categories = {
@@ -332,7 +332,7 @@ export const getCachedSearchResults = createSearchCache(
 
     try {
       const where: any = {
-        public: true,
+        published: true,
         OR: [
           { title: { contains: query, mode: 'insensitive' } },
           { abstract: { contains: query, mode: 'insensitive' } },
@@ -397,7 +397,7 @@ export const getCachedTrendingBriefs = createBriefListCache(
 
       const briefs = await prisma.brief.findMany({
         where: {
-          public: true,
+          published: true,
           createdAt: {
             gte: sevenDaysAgo,
           },

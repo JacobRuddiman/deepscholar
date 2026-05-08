@@ -1,15 +1,15 @@
 // app/settings/page.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  User, 
-  Bell, 
-  Coins, 
-  Shield, 
+  User,
+  Bell,
+  Coins,
+  Shield,
   ChevronRight,
   Edit2,
   Save,
@@ -17,17 +17,19 @@ import {
   AlertCircle,
   Menu,
   ArrowLeft,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
 import { getUserTokenBalance, getUserTokenTransactions } from '@/server/actions/tokens';
 import { getProfileImageSrc, profileImageClasses } from '@/lib/profileUtils';
 import { useTooltipSettings } from '@/app/components/TooltipProvider';
 import { useDeviceDetection } from '@/app/hooks/useDeviceDetection';
+import { isLocalMode } from '@/lib/localMode';
 
 type SettingsSection = 'profile' | 'notifications' | 'tokens' | 'account';
 
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const { isMobile, isTablet } = useDeviceDetection();
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
@@ -94,6 +96,26 @@ export default function SettingsPage() {
     void loadNotificationPrefs();
     void loadTokenData();
   }, [isMobile, isTablet]);
+
+  // Sync profile form when session finishes loading
+  useEffect(() => {
+    if (session?.user) {
+      setProfileForm({
+        name: session.user.name ?? '',
+        email: session.user.email ?? '',
+        image: session.user.image ?? '',
+      });
+    }
+  }, [session]);
+
+  // Show loading spinner while session is being resolved (skip in local mode)
+  if (!isLocalMode() && status === 'loading') {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   const handleProfileUpdate = async () => {
     try {

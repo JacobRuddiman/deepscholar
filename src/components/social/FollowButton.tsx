@@ -1,6 +1,6 @@
 'use client';
 
-import { useFollowUser, useUnfollowUser, useIsFollowing } from '@/hooks/mutations/useFollowMutations';
+import { useFollowUser, useUnfollowUser, useIsFollowing, useFollowCounts, useSuggestedUsers } from '@/hooks/mutations/useFollowMutations';
 import { useSession } from 'next-auth/react';
 
 interface FollowButtonProps {
@@ -204,7 +204,7 @@ export function SuggestedUsersWidget({ limit = 5 }: { limit?: number }) {
         Suggested Users
       </h3>
       <div className="space-y-3">
-        {suggestedUsers.map((user) => (
+        {suggestedUsers.map((user: any) => (
           <div key={user.id} className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
               {user.name?.[0]?.toUpperCase() || '?'}

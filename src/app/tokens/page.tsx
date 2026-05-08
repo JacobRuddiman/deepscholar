@@ -22,6 +22,8 @@ import {
   getUserPurchases
 } from '@/server/actions/tokens';
 import ErrorPopup from '../components/error_popup';
+import { isLocalMode } from '@/lib/localMode';
+
 type TokenTransaction = {
   id: string;
   amount: number;
@@ -44,7 +46,7 @@ type TokenPurchase = {
 };
 
 export default function TokensPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<TokenTransaction[]>([]);
   const [purchases, setPurchases] = useState<TokenPurchase[]>([]);
@@ -123,6 +125,15 @@ export default function TokensPage() {
       minute: '2-digit',
     });
   };
+
+  // Show loading spinner while session is being resolved (skip in local mode)
+  if (!isLocalMode() && status === 'loading') {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

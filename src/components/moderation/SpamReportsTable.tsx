@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDistanceToNow } from 'date-fns';
+import { EmptyStates } from '@/components/empty-states/EmptyState';
 
 const ACTION_CONFIG = {
   flag: {
@@ -43,6 +44,19 @@ const ACTION_CONFIG = {
     color: 'text-red-600',
   },
 };
+
+interface SpamReport {
+  id: string;
+  action: string;
+  spamScore: number;
+  contentType: string;
+  content?: string;
+  reasons?: string;
+  userId: string;
+  createdAt: string;
+  reason?: string;
+  user?: { name: string | null; email: string | null };
+}
 
 export function SpamReportsTable() {
   const [action, setAction] = useState<'flag' | 'hide' | 'ban' | undefined>(undefined);
@@ -86,8 +100,8 @@ export function SpamReportsTable() {
 
       <CardContent>
         {/* Filter Tabs */}
-        <Tabs value={action || 'all'} onValueChange={(v) => {
-          setAction(v === 'all' ? undefined : v as any);
+        <Tabs value={action || 'all'} onValueChange={(v: string) => {
+          setAction(v === 'all' ? undefined : v as 'flag' | 'hide' | 'ban');
           setOffset(0);
         }}>
           <TabsList className="grid w-full grid-cols-4 mb-4">
@@ -103,10 +117,7 @@ export function SpamReportsTable() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : !data || data.reports.length === 0 ? (
-              <div className="text-center py-8">
-                <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground/30 mb-2" />
-                <p className="text-sm text-muted-foreground">No spam reports found</p>
-              </div>
+              <EmptyStates.NoSpamReports />
             ) : (
               <>
                 {/* Reports Table */}
@@ -124,7 +135,7 @@ export function SpamReportsTable() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.reports.map((report) => {
+                      {data.reports.map((report: SpamReport) => {
                         const actionConfig = ACTION_CONFIG[report.action as keyof typeof ACTION_CONFIG];
                         const ActionIcon = actionConfig?.icon || Flag;
 
@@ -134,10 +145,10 @@ export function SpamReportsTable() {
                             <TableCell>
                               <div className="flex flex-col">
                                 <span className="font-medium">
-                                  {report.user.name || 'Unknown'}
+                                  {report.user?.name || 'Unknown'}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {report.user.email}
+                                  {report.user?.email}
                                 </span>
                               </div>
                             </TableCell>

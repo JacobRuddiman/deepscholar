@@ -1,14 +1,16 @@
 // app/api/admin/email-images/route.ts
-import { NextResponse } from 'next/server';
-
 import fs from 'fs/promises';
 import path from 'path';
 
+import { apiSuccess, apiError, requireAdmin, isApiError } from '@/lib/api-response';
+
 export async function GET() {
   try {
-    
+    const session = await requireAdmin();
+    if (isApiError(session)) return session;
+
     const imagesDir = path.join(process.cwd(), 'public', 'email');
-    
+
     try {
       const files = await fs.readdir(imagesDir);
       const images = files
@@ -18,13 +20,13 @@ export async function GET() {
           url: `/email/${file}`
         }));
 
-      return NextResponse.json({ images });
-    } catch (error) {
+      return apiSuccess({ images });
+    } catch {
       // Directory doesn't exist, return empty array
-      return NextResponse.json({ images: [] });
+      return apiSuccess({ images: [] });
     }
   } catch (error) {
-    console.error('Failed to fetch images:', error);
-    return NextResponse.json({ error: 'Failed to fetch images' }, { status: 500 });
+    console.error('Failed to fetch images:', String(error));
+    return apiError('Failed to fetch images', 500);
   }
 }

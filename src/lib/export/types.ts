@@ -49,6 +49,7 @@ export interface ExportOptions {
   includeReferences?: boolean;
   includeComments?: boolean;
   includeVersionHistory?: boolean;
+  includeThinking?: boolean;
   template?: string;
   styling?: ExportStyling;
   compression?: boolean;
@@ -178,7 +179,7 @@ export interface UserProfileExportData {
 // Search results export specific types
 export interface SearchResultsExportData {
   query: string;
-  filters: Record<string, any>;
+  filters: Record<string, unknown>;
   totalResults: number;
   results: Array<{
     id: string;
@@ -196,13 +197,16 @@ export interface SearchResultsExportData {
   };
 }
 
+// Union type for all exportable data structures
+export type ExportableData = BriefExportData | UserProfileExportData | SearchResultsExportData;
+
 // API export specific types
 export interface ApiExportRequest {
   endpoint: string;
   method: 'GET' | 'POST';
   headers?: Record<string, string>;
-  params?: Record<string, any>;
-  body?: any;
+  params?: Record<string, string>;
+  body?: Record<string, unknown>;
   authentication?: {
     type: 'bearer' | 'api_key' | 'basic';
     credentials: string;
@@ -253,4 +257,33 @@ export interface ExportAnalytics {
     start: Date;
     end: Date;
   };
+}
+
+// Export history record (for display purposes)
+export interface ExportHistoryRecord {
+  id: string;
+  type: string;
+  format: string;
+  filename: string;
+  size: string;
+  createdAt: string;
+  status: string;
+  targetId: string;
+  options?: ExportOptions;
+}
+
+// Export usage statistics
+export interface ExportUsageStats {
+  today: number;
+  thisMonth: number;
+  total: number;
+  remaining: number;
+}
+
+// Export generation result
+export interface ExportGenerationResult {
+  data: ExportData;
+  filename: string;
+  size: number;
+  downloadUrl?: string;
 }

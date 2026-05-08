@@ -1,59 +1,31 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { apiSuccess } from '@/lib/api-response';
 
-/**
- * Health check endpoint
- * Returns the health status of the application and its dependencies
- *
- * @route GET /api/health
- * @returns {object} Health status information
- */
 export async function GET() {
-  const startTime = Date.now();
+  let dbStatus: 'ok' | 'down' = 'down';
+  let dbLatencyMs = 0;
 
-  const health = {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    checks: {
-      database: 'unknown',
-      memory: 'unknown',
-    },
-    responseTime: 0,
-  };
-
-  // Check database connection
   try {
+    const start = Date.now();
     await prisma.$queryRaw`SELECT 1`;
-    health.checks.database = 'healthy';
+    dbLatencyMs = Date.now() - start;
+    dbStatus = 'ok';
   } catch (error) {
-    health.status = 'degraded';
-    health.checks.database = 'unhealthy';
-    console.error('[Health Check] Database check failed:', error);
+    console.error('[Health Check] Database check failed:', String(error));
   }
 
-  // Check memory usage
-  const memoryUsage = process.memoryUsage();
-  const memoryUsageMB = {
-    rss: Math.round(memoryUsage.rss / 1024 / 1024),
-    heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024),
-    heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024),
-    external: Math.round(memoryUsage.external / 1024 / 1024),
-  };
+  const overallStatus = dbStatus === 'ok' ? 'ok' : 'degraded';
+  const statusCode = overallStatus === 'ok' ? 200 : 503;
 
-  // Flag if heap usage is above 80%
-  const heapUsagePercent = (memoryUsageMB.heapUsed / memoryUsageMB.heapTotal) * 100;
-  if (heapUsagePercent > 80) {
-    health.status = 'degraded';
-    health.checks.memory = 'warning';
-  } else {
-    health.checks.memory = 'healthy';
-  }
-
-  health.responseTime = Date.now() - startTime;
-
-  // Return appropriate HTTP status code
-  const statusCode = health.status === 'healthy' ? 200 : 503;
-
-  return NextResponse.json(health, { status: statusCode });
+  return apiSuccess(
+    {
+      status: overallStatus,
+      uptime: Math.floor(process.uptime()),
+      checks: {
+        database: { status: dbStatus, latencyMs: dbLatencyMs },
+        environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+      },
+    },
+    statusCode
+  );
 }

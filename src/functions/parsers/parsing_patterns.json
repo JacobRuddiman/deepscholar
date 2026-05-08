@@ -1,0 +1,200 @@
+{
+  "description": "Common section headers and patterns for parsing AI-generated research content",
+  "version": "1.0.0",
+
+  "sections": {
+    "prompt": {
+      "description": "Identifies the original user question/prompt",
+      "headers": [
+        "Question:",
+        "Prompt:",
+        "Query:",
+        "User Asked:",
+        "User Question:",
+        "Research Question:",
+        "You Asked:",
+        "You said:",
+        "You:",
+        "User:",
+        "Human:",
+        "Request:"
+      ],
+      "patterns": [
+        "^(?:Question|Prompt|Query|User(?:\\s+(?:Asked|Question))?|Research Question|You(?:\\s+(?:Asked|said))?|Human):\\s*(.+?)$"
+      ]
+    },
+
+    "thinking": {
+      "description": "Identifies AI reasoning/thinking process sections",
+      "headers": [
+        "Thinking:",
+        "Thought Process:",
+        "Reasoning:",
+        "Analysis:",
+        "My Thinking:",
+        "Chain of Thought:",
+        "Let me think:",
+        "Internal Monologue:",
+        "Reasoning Steps:"
+      ],
+      "patterns": [
+        "^(?:Thinking|Thought Process|Reasoning|Analysis|My Thinking|Chain of Thought|Let me think|Internal Monologue|Reasoning Steps):\\s*"
+      ]
+    },
+
+    "abstract": {
+      "description": "Identifies summary/conclusion/abstract sections",
+      "headers": [
+        "Abstract",
+        "Summary",
+        "Conclusion",
+        "Conclusions",
+        "In Summary",
+        "To Summarize",
+        "Overall",
+        "In Conclusion",
+        "Key Takeaways",
+        "Key Takeaway",
+        "Main Points",
+        "Main Point",
+        "Findings",
+        "Final Thoughts",
+        "Final Thought",
+        "Wrap-up",
+        "Wrap Up",
+        "Executive Summary",
+        "TL;DR",
+        "TLDR",
+        "Bottom Line"
+      ],
+      "patterns": [
+        "\\n\\s*(?:Abstract|Summary|Conclusions?|In Summary|To Summarize|Overall|In Conclusion|Key Takeaways?|Main Points?|Findings?|Final Thoughts?|Wrap-?up|Executive Summary|TL;?DR|Bottom Line)\\s*[:)]?\\s*\\n",
+        "^(?:Abstract|Summary|Conclusions?|In Summary|To Summarize|Overall|In Conclusion|Key Takeaways?|Main Points?|Findings?|Final Thoughts?|Wrap-?up|Executive Summary|TL;?DR|Bottom Line)\\s*[:)]?\\s*$"
+      ]
+    },
+
+    "references": {
+      "description": "Identifies bibliography/references/sources sections",
+      "headers": [
+        "References",
+        "Reference",
+        "Sources",
+        "Source",
+        "Citations",
+        "Citation",
+        "Bibliography",
+        "Works Cited",
+        "Further Reading",
+        "Read More",
+        "Learn More",
+        "Additional Resources",
+        "Additional Resource",
+        "See Also",
+        "Related Links",
+        "External Links",
+        "Links"
+      ],
+      "patterns": [
+        "\\n\\s*(?:References?|Sources?|Citations?|Bibliography|Works Cited|Further Reading|Read More|Learn More|Additional Resources?|See Also|Related Links|External Links|Links)\\s*[:)]?\\s*\\n",
+        "^(?:References?|Sources?|Citations?|Bibliography|Works Cited|Further Reading|Read More|Learn More|Additional Resources?|See Also|Related Links|External Links|Links)\\s*[:)]?\\s*$"
+      ]
+    },
+
+    "methodology": {
+      "description": "Identifies research methodology sections",
+      "headers": [
+        "Methodology",
+        "Methods",
+        "Research Methods",
+        "Approach",
+        "Research Approach"
+      ],
+      "patterns": [
+        "\\n\\s*(?:Methodology|Methods|Research Methods|Approach|Research Approach)\\s*[:)]?\\s*\\n"
+      ]
+    },
+
+    "discussion": {
+      "description": "Identifies discussion sections",
+      "headers": [
+        "Discussion",
+        "Analysis and Discussion",
+        "Interpretation"
+      ],
+      "patterns": [
+        "\\n\\s*(?:Discussion|Analysis and Discussion|Interpretation)\\s*[:)]?\\s*\\n"
+      ]
+    }
+  },
+
+  "sourcePatterns": {
+    "description": "Patterns for identifying and parsing citation sources",
+    "urlPatterns": [
+      "https?://[^\\s)\"'>]+",
+      "www\\.[^\\s)\"'>]+"
+    ],
+    "citationFormats": [
+      {
+        "name": "markdown_link",
+        "pattern": "\\[([^\\]]+)\\]\\(([^)]+)\\)",
+        "titleGroup": 1,
+        "urlGroup": 2
+      },
+      {
+        "name": "numbered_citation",
+        "pattern": "\\[?(\\d+)\\]?\\.?\\s*([^\\n]+?)(?:\\s*-\\s*|\\s+)(https?://[^\\s)]+)",
+        "numberGroup": 1,
+        "titleGroup": 2,
+        "urlGroup": 3
+      },
+      {
+        "name": "bullet_citation",
+        "pattern": "^\\s*[-*•]\\s*\\*\\*([^*]+)\\*\\*[:\\s]*(.+?)(?:\\s*-\\s*|\\s+)(https?://[^\\s)]+)",
+        "titleGroup": 1,
+        "descGroup": 2,
+        "urlGroup": 3
+      },
+      {
+        "name": "plain_url_with_title",
+        "pattern": "(?:^|\\n)\\s*(.+?)(?:\\s*-\\s*|:\\s*)(https?://[^\\s)]+)",
+        "titleGroup": 1,
+        "urlGroup": 2
+      }
+    ]
+  },
+
+  "structuralMarkers": {
+    "description": "Patterns that help identify document structure",
+    "headings": {
+      "markdown": [
+        "^#{1,6}\\s+(.+)$",
+        "^(.+?)\\n[=-]{3,}$"
+      ],
+      "numbered": [
+        "^(\\d+\\.\\s+.+)$",
+        "^([A-Z]\\.\\s+.+)$",
+        "^([IVX]+\\.\\s+.+)$"
+      ]
+    },
+    "lists": {
+      "bullet": "^\\s*[-*•]\\s+",
+      "numbered": "^\\s*\\d+\\.\\s+",
+      "lettered": "^\\s*[a-z]\\)\\s+"
+    },
+    "codeBlocks": {
+      "fenced": "```[\\s\\S]*?```",
+      "inline": "`[^`]+`"
+    }
+  },
+
+  "cleanupPatterns": {
+    "description": "Patterns for cleaning extracted content",
+    "removePatterns": [
+      "<!--[\\s\\S]*?-->",
+      "<script[^>]*>[\\s\\S]*?</script>",
+      "<style[^>]*>[\\s\\S]*?</style>"
+    ],
+    "normalizeWhitespace": true,
+    "trimLines": true
+  }
+}

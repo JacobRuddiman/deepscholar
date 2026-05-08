@@ -20,7 +20,7 @@ export function useSecurityAuditLogs(options?: {
   return useQuery({
     queryKey: ['security-audit-logs', options],
     queryFn: async () => {
-      const result = await getSecurityAuditLogs(options);
+      const result = await getSecurityAuditLogs(options as Parameters<typeof getSecurityAuditLogs>[0]);
       if (!result.success) {
         throw new Error(result.error);
       }

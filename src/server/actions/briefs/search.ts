@@ -175,14 +175,8 @@ export async function searchBriefs({
               image: true,
             },
           },
-          upvotes: {
-            select: {
-              id: true,
-            },
-          },
           reviews: {
             select: {
-              id: true,
               rating: true,
             },
           },
@@ -245,7 +239,7 @@ export async function searchBriefs({
         category: brief.categories[0]?.name || 'Uncategorized',
         views: brief.viewCount,
         rating: calculateAverageRating(brief.reviews),
-        reviewCount: brief.reviews.length,
+        reviewCount: brief._count.reviews,
       }));
 
     // Adjust total count if rating filter was applied

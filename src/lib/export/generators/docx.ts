@@ -19,7 +19,7 @@ import {
   UnderlineType
 } from 'docx';
 import { Generator } from './index';
-import { BriefExportData, UserProfileExportData, SearchResultsExportData } from '../types';
+import { BriefExportData, UserProfileExportData, SearchResultsExportData, ExportableData, ExportOptions } from '../types';
 
 export class DocxGenerator implements Generator {
   getMimeType(): string {
@@ -30,9 +30,9 @@ export class DocxGenerator implements Generator {
     return '.docx';
   }
 
-  async generate(data: any, options?: any): Promise<Buffer> {
+  async generate(data: ExportableData, options?: ExportOptions): Promise<Buffer> {
     let sections;
-    
+
     if (this.isBriefData(data)) {
       sections = this.generateBriefDocument(data, options);
     } else if (this.isUserProfileData(data)) {
@@ -40,7 +40,7 @@ export class DocxGenerator implements Generator {
     } else if (this.isSearchResultsData(data)) {
       sections = this.generateSearchResultsDocument(data, options);
     } else {
-      sections = this.generateGenericDocument(data, options);
+      sections = this.generateGenericDocument(data);
     }
 
     const doc = new Document({
@@ -49,23 +49,23 @@ export class DocxGenerator implements Generator {
         children: sections
       }]
     });
-    
+
     return await Packer.toBuffer(doc);
   }
 
-  private isBriefData(data: any): data is BriefExportData {
-    return data && typeof data.title === 'string' && typeof data.content === 'string';
+  private isBriefData(data: unknown): data is BriefExportData {
+    return data !== null && typeof data === 'object' && 'title' in data && typeof (data as Record<string, unknown>).title === 'string' && 'content' in data && typeof (data as Record<string, unknown>).content === 'string';
   }
 
-  private isUserProfileData(data: any): data is UserProfileExportData {
-    return data && typeof data.name === 'string' && data.statistics;
+  private isUserProfileData(data: unknown): data is UserProfileExportData {
+    return data !== null && typeof data === 'object' && 'name' in data && typeof (data as Record<string, unknown>).name === 'string' && 'statistics' in data;
   }
 
-  private isSearchResultsData(data: any): data is SearchResultsExportData {
-    return data && typeof data.query === 'string' && Array.isArray(data.results);
+  private isSearchResultsData(data: unknown): data is SearchResultsExportData {
+    return data !== null && typeof data === 'object' && 'query' in data && typeof (data as Record<string, unknown>).query === 'string' && 'results' in data && Array.isArray((data as Record<string, unknown>).results);
   }
 
-  private generateBriefDocument(data: BriefExportData, options?: any): Paragraph[] {
+  private generateBriefDocument(data: BriefExportData, options?: ExportOptions): Paragraph[] {
     const paragraphs: Paragraph[] = [];
     
     // Title
@@ -278,7 +278,7 @@ export class DocxGenerator implements Generator {
     return paragraphs;
   }
 
-  private generateUserProfileDocument(data: UserProfileExportData, options?: any): Paragraph[] {
+  private generateUserProfileDocument(data: UserProfileExportData, _options?: ExportOptions): Paragraph[] {
     const paragraphs: Paragraph[] = [];
     
     // Title
@@ -458,7 +458,7 @@ export class DocxGenerator implements Generator {
     return paragraphs;
   }
 
-  private generateSearchResultsDocument(data: SearchResultsExportData, options?: any): Paragraph[] {
+  private generateSearchResultsDocument(data: SearchResultsExportData, _options?: ExportOptions): Paragraph[] {
     const paragraphs: Paragraph[] = [];
     
     // Title
@@ -541,7 +541,7 @@ export class DocxGenerator implements Generator {
     return paragraphs;
   }
 
-  private generateGenericDocument(data: any, options?: any): Paragraph[] {
+  private generateGenericDocument(data: ExportableData): Paragraph[] {
     const paragraphs: Paragraph[] = [];
     
     paragraphs.push(new Paragraph({

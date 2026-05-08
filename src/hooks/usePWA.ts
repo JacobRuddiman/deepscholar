@@ -2,6 +2,26 @@
 
 import { useEffect, useState } from 'react';
 
+interface NetworkInformation {
+  effectiveType?: string;
+  downlink?: number;
+  rtt?: number;
+  saveData?: boolean;
+  addEventListener: (type: string, listener: () => void) => void;
+  removeEventListener: (type: string, listener: () => void) => void;
+}
+
+interface NavigatorWithConnection extends Navigator {
+  connection?: NetworkInformation;
+  mozConnection?: NetworkInformation;
+  webkitConnection?: NetworkInformation;
+}
+
+interface NavigatorWithBadge extends Navigator {
+  setAppBadge: (count: number) => Promise<void>;
+  clearAppBadge: () => Promise<void>;
+}
+
 /**
  * Hook to register and manage service worker
  */
@@ -19,7 +39,6 @@ export function useServiceWorker() {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
-        console.log('[PWA] Service worker registered');
         setRegistration(reg);
 
         // Check for updates
@@ -29,7 +48,6 @@ export function useServiceWorker() {
 
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('[PWA] Update available');
               setUpdateAvailable(true);
             }
           });
@@ -246,7 +264,7 @@ export function useNetworkQuality() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const connection = (navigator as NavigatorWithConnection).connection || (navigator as NavigatorWithConnection).mozConnection || (navigator as NavigatorWithConnection).webkitConnection;
 
     if (!connection) return;
 
@@ -296,13 +314,13 @@ function urlBase64ToUint8Array(base64String: string) {
 export function useAppBadge() {
   const setAppBadge = (count: number) => {
     if ('setAppBadge' in navigator) {
-      (navigator as any).setAppBadge(count);
+      (navigator as NavigatorWithBadge).setAppBadge?.(count);
     }
   };
 
   const clearAppBadge = () => {
     if ('clearAppBadge' in navigator) {
-      (navigator as any).clearAppBadge();
+      (navigator as NavigatorWithBadge).clearAppBadge?.();
     }
   };
 

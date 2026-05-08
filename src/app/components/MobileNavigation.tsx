@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSwipe } from "@/hooks/useTouchGestures";
 import { 
   BiUpload, 
   BiFile, 
@@ -22,6 +23,18 @@ export default function MobileNavigation() {
   const [tokens, setTokens] = useState(0);
   const pathname = usePathname();
   const isHomePage = pathname === "/" || pathname === "/home";
+  const menuDrawerRef = useSwipe<HTMLDivElement>({
+    minDistance: 60,
+    onSwipeLeft: () => setIsMenuOpen(false),
+  });
+  const menuOverlayRef = useSwipe<HTMLDivElement>({
+    minDistance: 60,
+    onSwipeLeft: () => setIsMenuOpen(false),
+  });
+  const menuEdgeRef = useSwipe<HTMLDivElement>({
+    minDistance: 60,
+    onSwipeRight: () => setIsMenuOpen(true),
+  });
 
   useEffect(() => {
     const loadTokenBalance = async () => {
@@ -42,6 +55,26 @@ export default function MobileNavigation() {
   useEffect(() => {
     setIsMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [isMenuOpen]);
 
   return (
     <>
@@ -65,74 +98,94 @@ export default function MobileNavigation() {
         </div>
       </div>
 
+      {!isMenuOpen && (
+        <div
+          ref={menuEdgeRef}
+          className="fixed top-14 bottom-16 left-0 z-20 w-5 md:hidden"
+          aria-hidden="true"
+        />
+      )}
+
       {/* Mobile Menu Overlay */}
       {isMenuOpen && (
         <div 
+          ref={menuOverlayRef}
           className="fixed inset-0 bg-black bg-opacity-50 z-30"
           onClick={() => setIsMenuOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Mobile Menu Drawer */}
-      <div className={`fixed top-14 left-0 bottom-0 w-64 bg-white shadow-xl z-40 transform transition-transform duration-300 ${
+      <div
+        ref={menuDrawerRef}
+        className={`fixed top-14 left-0 bottom-0 w-64 bg-white shadow-xl z-40 transform transition-transform duration-300 ${
         isMenuOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <nav className="p-4 space-y-2">
+      }`}
+      >
+        <nav aria-label="Main navigation" className="p-4 space-y-2">
           {!isHomePage && (
-            <Link 
+            <Link
               href="/"
               className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-current={pathname === '/' ? 'page' : undefined}
             >
               <BiHome size={24} className="text-gray-600" />
               <span className="text-gray-800">Home</span>
             </Link>
           )}
-          
-          <Link 
+
+          <Link
             href="/brief_upload"
             className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-current={pathname === '/brief_upload' ? 'page' : undefined}
           >
             <BiUpload size={24} className="text-gray-600" />
             <span className="text-gray-800">Upload Brief</span>
           </Link>
-          
-          <Link 
+
+          <Link
             href="/my-briefs"
             className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-current={pathname === '/my-briefs' ? 'page' : undefined}
           >
             <BiFile size={24} className="text-gray-600" />
             <span className="text-gray-800">My Briefs</span>
           </Link>
-          
-          <Link 
+
+          <Link
             href="/users"
             className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-current={pathname === '/users' ? 'page' : undefined}
           >
             <FiUsers size={24} className="text-gray-600" />
             <span className="text-gray-800">Users</span>
           </Link>
-          
+
           <div className="border-t border-gray-200 my-4"></div>
-          
-          <Link 
+
+          <Link
             href="/profile"
             className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-current={pathname === '/profile' ? 'page' : undefined}
           >
             <BiUser size={24} className="text-gray-600" />
             <span className="text-gray-800">Profile</span>
           </Link>
-          
-          <Link 
+
+          <Link
             href="/tokens"
             className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-current={pathname === '/tokens' ? 'page' : undefined}
           >
             <RiCoinLine size={24} className="text-gray-600" />
             <span className="text-gray-800">Tokens ({tokens} ₮)</span>
           </Link>
-          
-          <Link 
+
+          <Link
             href="/settings"
             className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-current={pathname === '/settings' ? 'page' : undefined}
           >
             <BiCog size={24} className="text-gray-600" />
             <span className="text-gray-800">Settings</span>
@@ -141,49 +194,53 @@ export default function MobileNavigation() {
       </div>
 
       {/* Bottom Navigation Bar for Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 md:hidden">
+      <nav aria-label="Quick navigation" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 md:hidden">
         <div className="grid grid-cols-4 h-16">
-          <Link 
+          <Link
             href="/"
             className={`flex flex-col items-center justify-center space-y-1 ${
               pathname === '/' || pathname === '/home' ? 'text-blue-600' : 'text-gray-600'
             }`}
+            aria-current={pathname === '/' || pathname === '/home' ? 'page' : undefined}
           >
             <BiHome size={20} />
             <span className="text-xs">Home</span>
           </Link>
-          
-          <Link 
+
+          <Link
             href="/briefs"
             className={`flex flex-col items-center justify-center space-y-1 ${
               pathname === '/briefs' ? 'text-blue-600' : 'text-gray-600'
             }`}
+            aria-current={pathname === '/briefs' ? 'page' : undefined}
           >
             <BiFile size={20} />
             <span className="text-xs">Browse</span>
           </Link>
-          
-          <Link 
+
+          <Link
             href="/brief_upload"
             className={`flex flex-col items-center justify-center space-y-1 ${
               pathname === '/brief_upload' ? 'text-blue-600' : 'text-gray-600'
             }`}
+            aria-current={pathname === '/brief_upload' ? 'page' : undefined}
           >
             <BiUpload size={20} />
             <span className="text-xs">Upload</span>
           </Link>
-          
-          <Link 
+
+          <Link
             href="/profile"
             className={`flex flex-col items-center justify-center space-y-1 ${
               pathname === '/profile' ? 'text-blue-600' : 'text-gray-600'
             }`}
+            aria-current={pathname === '/profile' ? 'page' : undefined}
           >
             <BiUser size={20} />
             <span className="text-xs">Profile</span>
           </Link>
         </div>
-      </div>
+      </nav>
     </>
   );
 }

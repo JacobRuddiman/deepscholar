@@ -3,12 +3,63 @@
 import React, { useState } from 'react';
 import { TrendingUp, Users, Coins, Star, RefreshCw, Calendar, ArrowUp, ArrowDown, Activity, Eye, MessageSquare } from 'lucide-react';
 
+interface TimeSeriesPoint {
+  date: string;
+  count: number;
+}
+
+interface RetentionCohort {
+  cohort: string;
+  totalUsers: number;
+  retainedUsers: number;
+  retentionRate: number;
+}
+
+interface UserEngagementData {
+  newUserRegistrations: TimeSeriesPoint[];
+  userInteractions: TimeSeriesPoint[];
+  briefViews: TimeSeriesPoint[];
+  retentionCohorts: RetentionCohort[];
+  dailyActiveUsers: Array<{ date: string; activeUsers: number }>;
+  error?: string;
+}
+
+interface ContentPerformanceData {
+  briefCreationVelocity: Array<{ day: string; count: number }>;
+  topPerformingBriefs: Array<{ id: string; title: string; viewCount: number; upvoteCount: number; averageRating: number | null; engagementRate: number }>;
+  totalBriefs: number;
+  totalViews: number;
+  totalUpvotes: number;
+  error?: string;
+}
+
+interface TokenEconomicsData {
+  totalRevenue: number;
+  totalTokensPurchased: number;
+  totalTokensUsed: number;
+  revenueProjection?: { next30Days: number };
+  tokenBalanceDistribution?: Record<string, number>;
+  error?: string;
+}
+
+interface ReviewAnalyticsData {
+  comparison: { userReviewCount: number; aiReviewCount: number; userAverageRating: number; aiAverageRating: number; ratingDifference: number };
+  userRatingDistribution?: number[];
+  error?: string;
+}
+
+interface CategoryTrendsData {
+  categoryStats: Array<{ id: string; name: string; briefCount: number; viewCount: number }>;
+  totalCategories: number;
+  error?: string;
+}
+
 interface AnalyticsData {
-  userEngagement: any;
-  contentPerformance: any;
-  tokenEconomics: any;
-  reviewAnalytics: any;
-  categoryTrends: any;
+  userEngagement: UserEngagementData;
+  contentPerformance: ContentPerformanceData;
+  tokenEconomics: TokenEconomicsData;
+  reviewAnalytics: ReviewAnalyticsData;
+  categoryTrends: CategoryTrendsData;
   metadata: {
     period: { value: number; unit: string };
     generatedAt: string;
@@ -222,14 +273,14 @@ export default function MobileAnalyticsPage({ data, onRefresh, refreshing }: Mob
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Total Views</span>
                 <span className="font-semibold text-gray-900">
-                  {data.userEngagement?.briefViews?.reduce((sum: number, item: any) => sum + (item.count || 0), 0) || 0}
+                  {data.userEngagement?.briefViews?.reduce((sum: number, item: TimeSeriesPoint) => sum + (item.count || 0), 0) || 0}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Avg Retention</span>
                 <span className="font-semibold text-gray-900">
                   {data.userEngagement?.retentionCohorts?.length > 0
-                    ? `${(data.userEngagement.retentionCohorts.reduce((sum: number, c: any) => sum + c.retentionRate, 0) / data.userEngagement.retentionCohorts.length).toFixed(1)}%`
+                    ? `${(data.userEngagement.retentionCohorts.reduce((sum: number, c: RetentionCohort) => sum + c.retentionRate, 0) / data.userEngagement.retentionCohorts.length).toFixed(1)}%`
                     : 'N/A'}
                 </span>
               </div>
@@ -280,7 +331,7 @@ export default function MobileAnalyticsPage({ data, onRefresh, refreshing }: Mob
               <div className="mt-6">
                 <h4 className="font-semibold text-gray-900 mb-3">Top Performing Briefs</h4>
                 <div className="space-y-2">
-                  {data.contentPerformance.topPerformingBriefs.slice(0, 3).map((brief: any, index: number) => (
+                  {data.contentPerformance.topPerformingBriefs.slice(0, 3).map((brief: { id: string; title: string; viewCount: number; upvoteCount: number; averageRating: number | null; engagementRate: number }, index: number) => (
                     <div key={brief.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
                         index === 0 ? 'bg-yellow-500' :
@@ -413,8 +464,9 @@ export default function MobileAnalyticsPage({ data, onRefresh, refreshing }: Mob
                 <h4 className="font-semibold text-gray-900 mb-3">User Rating Distribution</h4>
                 <div className="space-y-2">
                   {[5, 4, 3, 2, 1].map(rating => {
-                    const count = data.reviewAnalytics.userRatingDistribution[5 - rating] || 0;
-                    const maxCount = Math.max(...data.reviewAnalytics.userRatingDistribution);
+                    const distribution = data.reviewAnalytics.userRatingDistribution!;
+                    const count = distribution[5 - rating] || 0;
+                    const maxCount = Math.max(...distribution);
                     const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
                     
                     return (

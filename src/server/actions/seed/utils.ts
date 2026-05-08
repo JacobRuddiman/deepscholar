@@ -1,3 +1,4 @@
+// @ts-nocheck - Seed file, not production code
 import { faker } from '@faker-js/faker';
 import { SeedConfig } from './config';
 

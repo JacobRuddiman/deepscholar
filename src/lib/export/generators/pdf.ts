@@ -1,13 +1,13 @@
 /**
  * PDF Generator
- * 
+ *
  * Generates PDF files from data structures using Puppeteer
  */
 
 import { Generator } from './index';
-import { BriefExportData, UserProfileExportData, SearchResultsExportData } from '../types';
+import { ExportableData, ExportOptions } from '../types';
 import { htmlFormatter } from '../formatters/html';
-import puppeteer from 'puppeteer';
+import puppeteer, { PDFOptions } from 'puppeteer';
 
 export class PdfGenerator implements Generator {
   getMimeType(): string {
@@ -18,7 +18,7 @@ export class PdfGenerator implements Generator {
     return '.pdf';
   }
 
-  async generate(data: any, options?: any): Promise<Buffer> {
+  async generate(data: ExportableData, options?: ExportOptions): Promise<Buffer> {
     let browser;
     try {
       // Convert data to HTML first using our HTML formatter
@@ -45,15 +45,15 @@ export class PdfGenerator implements Generator {
       });
 
       const page = await browser.newPage();
-      
+
       // Set content and wait for any dynamic content to load
-      await page.setContent(html, { 
+      await page.setContent(html, {
         waitUntil: 'networkidle0',
-        timeout: 30000 
+        timeout: 30000
       });
 
       // Configure PDF options
-      const pdfOptions: any = {
+      const pdfOpts: PDFOptions = {
         format: options?.pageSize || 'A4',
         printBackground: true,
         margin: {
@@ -78,7 +78,7 @@ export class PdfGenerator implements Generator {
       };
 
       // Generate PDF
-      const pdfBuffer = await page.pdf(pdfOptions);
+      const pdfBuffer = await page.pdf(pdfOpts);
 
       return Buffer.from(pdfBuffer);
 

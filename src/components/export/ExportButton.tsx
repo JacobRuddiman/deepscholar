@@ -19,7 +19,7 @@ export function ExportButton({ briefId, briefTitle, variant = 'dropdown', classN
     try {
       const result = await exportBriefAsMarkdown(briefId);
 
-      if (!result.success) {
+      if (!result.success || !result.data) {
         alert(result.error || 'Failed to export');
         return;
       }
@@ -49,7 +49,7 @@ export function ExportButton({ briefId, briefTitle, variant = 'dropdown', classN
     try {
       const result = await exportBriefAsHTML(briefId);
 
-      if (!result.success) {
+      if (!result.success || !result.data) {
         alert(result.error || 'Failed to export');
         return;
       }
@@ -230,10 +230,11 @@ export function BulkExportButton({ briefIds, format }: { briefIds: string[]; for
 
       for (let i = 0; i < total; i++) {
         const briefId = briefIds[i];
+        if (!briefId) continue;
 
         if (format === 'markdown') {
           const result = await exportBriefAsMarkdown(briefId);
-          if (result.success) {
+          if (result.success && result.data) {
             const blob = new Blob([result.data.content], { type: 'text/markdown' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');

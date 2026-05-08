@@ -3,9 +3,6 @@
 import { db } from "@/server/db";
 
 export async function getDefaultModel(provider = "OpenAI") {
-  console.log('\n🔍 ===== DETAILED MODEL LOOKUP DEBUG =====');
-  console.log('📋 Input provider:', provider);
-  
   try {
     // Create a mapping of common variations to the actual database values
     const providerMapping: { [key: string]: string } = {
@@ -18,8 +15,7 @@ export async function getDefaultModel(provider = "OpenAI") {
     };
     
     const mappedProvider = providerMapping[provider] || provider;
-    console.log('🔄 Mapped provider:', mappedProvider);
-    
+
     const model = await db.researchAIModel.findFirst({
       where: {
         provider: mappedProvider
@@ -41,13 +37,6 @@ export async function getDefaultModel(provider = "OpenAI") {
         error: `No model found for provider "${provider}". Available providers: ${availableProviders.join(', ')}` 
       };
     }
-
-    console.log('✅ SUCCESS! Model found:', {
-      id: model.id,
-      name: model.name,
-      provider: model.provider,
-      version: model.version
-    });
 
     return { success: true, data: model };
   } catch (error: unknown) {

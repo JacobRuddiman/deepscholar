@@ -97,13 +97,9 @@ class Logger {
    * Send log to external service (placeholder for future implementation)
    */
   private sendToExternalService(level: LogLevel, message: string, context?: LogContext) {
-    // TODO: Implement integration with external logging service
-    // Examples:
-    // - Sentry.captureMessage(message, { level, extra: context })
-    // - LogRocket.log(message, context)
-    // - Datadog logger
-
-    // For now, this is a no-op placeholder
+    // PLACEHOLDER: Intentionally a no-op until an external logging service
+    // (e.g. Sentry, Datadog, LogRocket) is configured.
+    // When ready, replace this with the service SDK call.
   }
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery } from '@tantml:query-client';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   checkBot,
   checkRateLimit,

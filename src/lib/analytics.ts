@@ -3,7 +3,17 @@
  * Supports Google Analytics, custom analytics, and Core Web Vitals
  */
 
-import { Metric } from 'web-vitals';
+/** Web Vitals metric type (from web-vitals package) */
+interface Metric {
+  name: string;
+  value: number;
+  delta: number;
+  id: string;
+  label: string;
+  entries: PerformanceEntry[];
+  navigationType: string;
+  rating: 'good' | 'needs-improvement' | 'poor';
+}
 
 declare global {
   interface Window {
@@ -66,17 +76,6 @@ export function sendEvent({
  * Called automatically by Next.js via reportWebVitals export
  */
 export function reportWebVitals(metric: Metric) {
-  // Log to console in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[Web Vitals]', {
-      name: metric.name,
-      value: metric.value,
-      rating: metric.rating,
-      delta: metric.delta,
-      id: metric.id,
-    });
-  }
-
   // Send to Google Analytics
   if (GA_MEASUREMENT_ID && metric.label === 'web-vital') {
     gtag('event', metric.name, {

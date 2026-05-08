@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { createReviewSchema, validateInput } from '@/lib/validation';
 import { getUserId } from './utils';
+import { notifyNewReview, notifyNewUpvote } from '@/server/actions/notifications/notifications';
 
 /**
  * Get all briefs saved by the current user
@@ -145,6 +146,18 @@ export async function toggleBriefUpvote(briefId: string) {
     await prisma.briefUpvote.create({
       data: { briefId, userId },
     });
+
+    // Notify the brief author (don't notify yourself)
+    const brief = await prisma.brief.findUnique({
+      where: { id: briefId },
+      select: { userId: true },
+    });
+    if (brief && brief.userId !== userId) {
+      notifyNewUpvote(briefId, userId, brief.userId).catch((err) =>
+        console.error('[Briefs] Upvote notification failed:', String(err))
+      );
+    }
+
     return { success: true, upvoted: true };
   } catch (error) {
     console.error('[Briefs] Failed to toggle upvote:', error);
@@ -235,6 +248,17 @@ export async function addBriefReview(briefId: string, content: string, rating: n
         helpfulMarks: true,
       },
     });
+
+    // Notify the brief author (don't notify yourself)
+    const brief = await prisma.brief.findUnique({
+      where: { id: briefId },
+      select: { userId: true },
+    });
+    if (brief && brief.userId !== userId) {
+      notifyNewReview(briefId, userId, brief.userId).catch((err) =>
+        console.error('[Briefs] Review notification failed:', String(err))
+      );
+    }
 
     return {
       success: true,

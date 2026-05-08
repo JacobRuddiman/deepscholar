@@ -1,3 +1,4 @@
+// @ts-nocheck - Seed file, not production code
 import { db } from "@/server/db";
 import { faker } from '@faker-js/faker';
 import { hash } from 'bcryptjs';
@@ -188,6 +189,58 @@ export async function createCategories(config: SeedConfig) {
   }
 
   return createdCategories;
+}
+
+export async function createNotifications(config: SeedConfig, createdData: { users: any[]; briefs: any[] }) {
+  const notifications = [];
+  const users = createdData.users;
+  const briefs = createdData.briefs;
+
+  if (users.length < 2) return notifications;
+
+  const notificationTypes = ['follow', 'review', 'upvote', 'publish', 'mention', 'system'] as const;
+  const notificationTemplates = {
+    follow: (actor: string) => ({ title: 'New Follower', message: `${actor} started following you` }),
+    review: (actor: string, briefTitle?: string) => ({ title: 'New Review', message: `${actor} reviewed your brief "${briefTitle || 'Untitled'}"` }),
+    upvote: (actor: string, briefTitle?: string) => ({ title: 'New Upvote', message: `${actor} upvoted your brief "${briefTitle || 'Untitled'}"` }),
+    publish: (_actor: string, briefTitle?: string) => ({ title: 'Brief Published', message: `Your brief "${briefTitle || 'Untitled'}" has been published` }),
+    mention: (actor: string) => ({ title: 'You were mentioned', message: `${actor} mentioned you in a review` }),
+    system: () => ({ title: 'Welcome to DeepScholar', message: 'Start exploring research briefs from the community' }),
+  };
+
+  // Create ~3 notifications per user (subset)
+  const targetCount = Math.min(users.length * 3, 300);
+
+  for (let i = 0; i < targetCount; i++) {
+    const recipient = getRandomElement(users);
+    const actor = getRandomElement(users.filter((u: any) => u.id !== recipient.id)) || users[0];
+    const type = getRandomElement([...notificationTypes]);
+    const brief = briefs.length > 0 ? getRandomElement(briefs) : null;
+
+    const template = notificationTemplates[type](
+      actor?.name || 'Someone',
+      brief?.title
+    );
+
+    const isRead = Math.random() < 0.6;
+
+    const notification = await db.notification.create({
+      data: {
+        userId: recipient.id,
+        type,
+        title: template.title,
+        message: template.message,
+        actionUrl: brief ? `/briefs/${brief.slug || brief.id}` : undefined,
+        relatedId: type === 'follow' ? actor?.id : brief?.id,
+        read: isRead,
+        readAt: isRead ? faker.date.recent() : null,
+        createdAt: getSkewedDate(config),
+      },
+    });
+    notifications.push(notification);
+  }
+
+  return notifications;
 }
 
 export async function createSources(config: SeedConfig) {

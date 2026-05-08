@@ -26,9 +26,6 @@ export const getCachedUserById = createUserCache(
           email: true,
           image: true,
           createdAt: true,
-          bio: true,
-          website: true,
-          location: true,
           _count: {
             select: {
               briefs: true,
@@ -66,11 +63,8 @@ export const getCachedUserProfile = createUserCache(
           email: true,
           image: true,
           createdAt: true,
-          bio: true,
-          website: true,
-          location: true,
           briefs: {
-            where: { public: true },
+            where: { published: true },
             take: 10,
             orderBy: { createdAt: 'desc' },
             select: {
@@ -93,7 +87,7 @@ export const getCachedUserProfile = createUserCache(
               briefs: true,
               reviews: true,
               savedBriefs: true,
-              upvotedBriefs: true,
+              briefUpvotes: true,
             },
           },
         },
@@ -191,7 +185,7 @@ export const getCachedPlatformStats = createCachedFunction(
   async () => {
     try {
       const [briefCount, userCount, reviewCount, categoryCount] = await Promise.all([
-        prisma.brief.count({ where: { public: true } }),
+        prisma.brief.count({ where: { published: true } }),
         prisma.user.count(),
         prisma.review.count(),
         prisma.category.count(),
@@ -199,7 +193,7 @@ export const getCachedPlatformStats = createCachedFunction(
 
       // Get recent activity
       const recentBriefs = await prisma.brief.findMany({
-        where: { public: true },
+        where: { published: true },
         take: 5,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -249,9 +243,9 @@ export const getCachedUserStats = createUserCache(
               briefs: true,
               reviews: true,
               savedBriefs: true,
-              upvotedBriefs: true,
-              upvotedReviews: true,
-              helpfulReviews: true,
+              briefUpvotes: true,
+              reviewUpvotes: true,
+              reviewHelpful: true,
             },
           },
         },
@@ -274,9 +268,9 @@ export const getCachedUserStats = createUserCache(
         briefsCreated: stats._count.briefs,
         reviewsWritten: stats._count.reviews,
         briefsSaved: stats._count.savedBriefs,
-        briefsUpvoted: stats._count.upvotedBriefs,
-        reviewsUpvoted: stats._count.upvotedReviews,
-        helpfulReviewsMarked: stats._count.helpfulReviews,
+        briefsUpvoted: stats._count.briefUpvotes,
+        reviewsUpvoted: stats._count.reviewUpvotes,
+        helpfulReviewsMarked: stats._count.reviewHelpful,
         upvotesReceived,
       };
     } catch (error) {
@@ -297,13 +291,12 @@ export const getCachedUserStats = createUserCache(
 export const getCachedModels = createCachedFunction(
   async () => {
     try {
-      const models = await prisma.aIModel.findMany({
+      const models = await prisma.researchAIModel.findMany({
         orderBy: { name: 'asc' },
         include: {
           _count: {
             select: {
               briefs: true,
-              aiReviews: true,
             },
           },
         },
@@ -328,13 +321,12 @@ export const getCachedModels = createCachedFunction(
 export const getCachedModelById = createCachedFunction(
   async (modelId: string) => {
     try {
-      const model = await prisma.aIModel.findUnique({
+      const model = await prisma.researchAIModel.findUnique({
         where: { id: modelId },
         include: {
           _count: {
             select: {
               briefs: true,
-              aiReviews: true,
             },
           },
         },

@@ -1,29 +1,45 @@
-# Create T3 App
+# DeepScholar
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+A platform for sharing and discovering AI-generated research briefs. Users can extract research content from AI platforms (ChatGPT, Perplexity, Claude, Gemini), publish briefs, review content, and engage with the community through a token-based system.
 
-## What's next? How do I make an app with this?
+## Tech Stack
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- [Next.js 15](https://nextjs.org) - React framework with App Router
+- [NextAuth.js](https://next-auth.js.org) - Authentication (Google, Discord)
+- [Prisma](https://prisma.io) - Type-safe ORM with PostgreSQL
+- [Tailwind CSS](https://tailwindcss.com) - Utility-first CSS
+- [React Query](https://tanstack.com/query) - Server state management
+- [Framer Motion](https://www.framer.com/motion/) - Animations
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Getting Started
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+```bash
+npm install
+npm run dev
+```
 
-## Learn More
+For local development without a database or OAuth providers:
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+```bash
+# Set in .env
+NEXT_PUBLIC_LOCAL_AUTH=true
+NEXT_PUBLIC_LOCAL_MODE=true
+```
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for production deployment and [LOCAL_MODE_CONFIG.md](./LOCAL_MODE_CONFIG.md) for local development options.
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+## Project Structure
 
-## How do I deploy this?
-
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+```
+src/
+  app/           # Next.js App Router pages and API routes
+  components/    # Shared UI components
+  hooks/         # Custom React hooks
+  lib/           # Utilities, validation, caching
+  server/        # Server actions and services
+  functions/     # Brief extraction and parsing
+  styles/        # Global styles
+prisma/          # Database schema and migrations
+e2e/             # Playwright end-to-end tests
+public/          # Static assets and service worker
+```

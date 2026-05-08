@@ -44,12 +44,26 @@ export const userNameSchema = z
 export const createBriefSchema = z.object({
   title: briefTitleSchema,
   abstract: briefAbstractSchema,
-  prompt: nonEmptyStringSchema,
+  prompt: z.string().optional().default(""),  // Allow empty prompts
   response: briefContentSchema,
   thinking: z.string().optional(),
   modelId: nonEmptyStringSchema,
   categoryIds: z.array(z.string()).optional(),
   sourceIds: z.array(z.string()).optional(),
+  sources: z.array(z.object({
+    title: z.string(),
+    url: z.string(),
+    author: z.string().optional(),
+    date: z.string().optional(),
+  })).optional(),
+  referencesText: z.string().optional(),
+  conversationTurns: z.array(z.object({
+    index: z.number(),
+    userMessage: z.string(),
+    assistantMessage: z.string(),
+    timestamp: z.any().optional(),
+  })).optional(),
+  selectedTurnIndex: z.number().optional(),
   slug: z.string().optional(),
 });
 
@@ -57,7 +71,7 @@ export const createBriefSchema = z.object({
 export const updateBriefSchema = z.object({
   title: briefTitleSchema.optional(),
   abstract: briefAbstractSchema,
-  prompt: nonEmptyStringSchema.optional(),
+  prompt: z.string().optional(),  // Allow empty prompts
   response: briefContentSchema.optional(),
   thinking: z.string().optional(),
   modelId: nonEmptyStringSchema.optional(),
@@ -145,7 +159,7 @@ export function sanitizeHtml(
   }
 ): string {
   // Default safe configuration
-  const config: DOMPurify.Config = {
+  const config: Record<string, unknown> = {
     // Allow only safe tags by default
     ALLOWED_TAGS: options?.allowedTags || [
       'p', 'br', 'strong', 'em', 'u', 's', 'del', 'ins',

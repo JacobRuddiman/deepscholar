@@ -17,9 +17,22 @@ interface CreateNotificationParams {
 
 /**
  * Create a notification for a user
+ * SECURITY: Requires authentication to prevent arbitrary notification injection.
+ * Gated by ENABLE_NOTIFICATIONS env var (default: off).
  */
 export async function createNotification(params: CreateNotificationParams) {
   try {
+    // Global kill switch — env var must be explicitly "true" to send notifications
+    if (process.env.ENABLE_NOTIFICATIONS !== 'true') {
+      return { success: true, data: null };
+    }
+
+    // SECURITY: Verify caller is authenticated
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: 'Authentication required' };
+    }
+
     // Check if user has in-app notifications enabled for this type
     const preferences = await prisma.notificationPreference.findUnique({
       where: { userId: params.userId },
@@ -321,10 +334,10 @@ export async function getNotificationPreferences() {
  * Update notification preferences
  */
 export async function updateNotificationPreferences(preferences: Partial<{
-  inAppNewFollow: boolean;
-  inAppNewReview: boolean;
-  inAppNewUpvote: boolean;
-  inAppBriefPublished: boolean;
+  inAppFollow: boolean;
+  inAppReview: boolean;
+  inAppUpvote: boolean;
+  inAppPublish: boolean;
   inAppMention: boolean;
   emailNewFollow: boolean;
   emailNewReview: boolean;

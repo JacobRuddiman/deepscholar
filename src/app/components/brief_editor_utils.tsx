@@ -5,6 +5,20 @@ import DiffMatchPatch from 'diff-match-patch';
 
 import type { BriefData } from '@/functions/types';
 
+/**
+ * Escape special HTML characters to prevent XSS when building HTML strings.
+ * Used by createDiffMarkup and detectAndFormatReferences to sanitize text
+ * before inserting it into HTML markup.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // Initialize diff match patch
 const dmp = new DiffMatchPatch();
 
@@ -12,7 +26,7 @@ const dmp = new DiffMatchPatch();
 export const urlSchema = z.string().url("Please enter a valid URL");
 
 // Theme definitions based on source
-export type ThemeSource = 'openai' | 'perplexity' | 'default';
+export type ThemeSource = 'openai' | 'perplexity' | 'anthropic' | 'default';
 
 export interface ThemeColors {
   primary: string;   // Background gradient
@@ -24,7 +38,7 @@ export interface ThemeColors {
 
 export const themeColors: Record<ThemeSource, ThemeColors> = {
   openai: {
-    primary: 'from-green-100/30 via-teal-50/20 to-transparent', 
+    primary: 'from-green-100/30 via-teal-50/20 to-transparent',
     secondary: 'border-green-200',
     tertiary: 'text-green-600',
     highlight: 'bg-green-100',
@@ -36,6 +50,13 @@ export const themeColors: Record<ThemeSource, ThemeColors> = {
     tertiary: 'text-purple-600',
     highlight: 'bg-purple-100',
     flash: 'from-purple-400 to-violet-500'
+  },
+  anthropic: {
+    primary: 'from-amber-100/30 via-orange-50/20 to-transparent',
+    secondary: 'border-amber-200',
+    tertiary: 'text-amber-600',
+    highlight: 'bg-amber-100',
+    flash: 'from-amber-400 to-orange-500'
   },
   default: {
     primary: 'from-blue-100/30 via-sky-50/20 to-transparent',
@@ -61,8 +82,93 @@ export function determineTheme(briefData: BriefData | null): ThemeSource {
     return 'perplexity';
   }
 
+  if (briefData.model?.toLowerCase().includes('claude') || briefData.model === 'anthropic') {
+    return 'anthropic';
+  }
+
   return 'default';
 }
+
+// Provider configuration for upload UI
+export type ProviderId = 'chatgpt' | 'perplexity' | 'claude' | 'other';
+
+export interface ProviderInstruction {
+  step: number;
+  title: string;
+  description: string;
+  imagePlaceholder: string;
+}
+
+export interface ProviderConfig {
+  id: ProviderId;
+  label: string;
+  description: string;
+  model: BriefData['model'];
+  theme: ThemeSource;
+  uploadMethod: 'url' | 'file' | 'manual';
+  acceptedFiles?: string;
+  urlPlaceholder?: string;
+  instructions: ProviderInstruction[];
+}
+
+export const PROVIDER_CONFIG: ProviderConfig[] = [
+  {
+    id: 'chatgpt',
+    label: 'ChatGPT',
+    description: 'OpenAI deep research share links',
+    model: 'openai',
+    theme: 'openai',
+    uploadMethod: 'url',
+    urlPlaceholder: 'https://chatgpt.com/share/...',
+    instructions: [
+      { step: 1, title: 'Open your chat', description: 'Go to ChatGPT and open the deep research conversation you want to share.', imagePlaceholder: 'ChatGPT conversation view' },
+      { step: 2, title: 'Create share link', description: 'Click the share button in the top-right corner and copy the share link.', imagePlaceholder: 'ChatGPT share button' },
+      { step: 3, title: 'Paste the URL', description: 'Paste the share link below and click Fetch Brief.', imagePlaceholder: 'Paste URL into input field' },
+    ],
+  },
+  {
+    id: 'perplexity',
+    label: 'Perplexity',
+    description: 'Perplexity research share links',
+    model: 'perplexity',
+    theme: 'perplexity',
+    uploadMethod: 'url',
+    urlPlaceholder: 'https://www.perplexity.ai/search/...',
+    instructions: [
+      { step: 1, title: 'Open your thread', description: 'Go to Perplexity and open the research thread you want to share.', imagePlaceholder: 'Perplexity thread view' },
+      { step: 2, title: 'Copy share link', description: 'Click the share icon and copy the link to your clipboard.', imagePlaceholder: 'Perplexity share button' },
+      { step: 3, title: 'Paste the URL', description: 'Paste the share link below and click Fetch Brief.', imagePlaceholder: 'Paste URL into input field' },
+    ],
+  },
+  {
+    id: 'claude',
+    label: 'Claude',
+    description: 'Upload exported Claude research files',
+    model: 'anthropic',
+    theme: 'anthropic',
+    uploadMethod: 'file',
+    acceptedFiles: '.md,.markdown',
+    instructions: [
+      { step: 1, title: 'Run deep research', description: 'Use Claude to run a deep research query and wait for the results.', imagePlaceholder: 'Claude research conversation' },
+      { step: 2, title: 'Download the file', description: 'Click the download/copy button to save the response as a Markdown file.', imagePlaceholder: 'Claude download button' },
+      { step: 3, title: 'Upload the file', description: 'Drop the .md file below or click to browse your files.', imagePlaceholder: 'File upload dropzone' },
+    ],
+  },
+  {
+    id: 'other',
+    label: 'Other',
+    description: 'Paste content or upload any file',
+    model: 'other',
+    theme: 'default',
+    uploadMethod: 'manual',
+    acceptedFiles: '.html,.htm,.txt,.md,.markdown',
+    instructions: [
+      { step: 1, title: 'Copy your content', description: 'Copy the research output from any AI platform or document.', imagePlaceholder: 'Copy content from source' },
+      { step: 2, title: 'Paste or upload', description: 'Paste the text below, or switch to file upload for .html, .txt, or .md files.', imagePlaceholder: 'Paste or upload interface' },
+      { step: 3, title: 'Review & publish', description: 'Review the parsed sections, make any edits, then publish.', imagePlaceholder: 'Review parsed brief' },
+    ],
+  },
+];
 
 // Add this helper function for grouping sources by domain
 export function groupSourcesByDomain(sources: BriefData['sources']) {
@@ -105,22 +211,24 @@ export type CodeComponentProps = {
 } & React.HTMLAttributes<HTMLElement>;
 
 // Function to create markup for modified content with highlight for additions
+// SECURITY: All text segments are HTML-escaped before insertion to prevent XSS
 export const createDiffMarkup = (originalText: string, newText: string, highlightClass: string): string => {
-  if (!originalText) return newText;
-  
+  if (!originalText) return escapeHtml(newText);
+
   const diff = dmp.diff_main(originalText, newText);
   dmp.diff_cleanupSemantic(diff);
-  
+
   let html = '';
   for (const [op, text] of diff) {
+    const escaped = escapeHtml(text);
     if (op === 1) { // Addition
-      html += `<span class="${highlightClass}">${text}</span>`;
+      html += `<span class="${escapeHtml(highlightClass)}">${escaped}</span>`;
     } else if (op === 0) { // No change
-      html += text;
+      html += escaped;
     }
     // We don't render deletions (op === -1)
   }
-  
+
   return html;
 }
 
@@ -185,6 +293,8 @@ export const referenceComponents: Components = {
 
 /**
  * Automatically detects and formats references in text
+ * SECURITY: All captured text is HTML-escaped before insertion to prevent XSS.
+ * URLs are encoded for href attributes.
  * Supports multiple patterns:
  * 1. "quoted text" [Source Name](URL)
  * 2. "quoted text" (URL)
@@ -198,17 +308,19 @@ export function detectAndFormatReferences(text: string): string {
   // Converts to our reference format
   formattedText = formattedText.replace(
     /"([^"]+)"\s*\[([^\]]+)\]\(([^)]+)\)/g,
-    '<span class="reference-highlight">"$1"</span> <a href="$3" class="reference-source" target="_blank" rel="noopener noreferrer">[$2]</a>'
+    (_match, quote: string, sourceName: string, url: string) => {
+      return `<span class="reference-highlight">"${escapeHtml(quote)}"</span> <a href="${escapeHtml(url)}" class="reference-source" target="_blank" rel="noopener noreferrer">[${escapeHtml(sourceName)}]</a>`;
+    }
   );
 
   // Pattern 2: "quoted text" (https://...)
   formattedText = formattedText.replace(
     /"([^"]+)"\s*\((https?:\/\/[^)]+)\)/g,
-    (match, quote, url) => {
+    (match, quote: string, url: string) => {
       try {
         const urlObj = new URL(url);
         const domain = urlObj.hostname.replace('www.', '');
-        return `<span class="reference-highlight">"${quote}"</span> <a href="${url}" class="reference-source" target="_blank" rel="noopener noreferrer">[${domain}]</a>`;
+        return `<span class="reference-highlight">"${escapeHtml(quote)}"</span> <a href="${escapeHtml(url)}" class="reference-source" target="_blank" rel="noopener noreferrer">[${escapeHtml(domain)}]</a>`;
       } catch {
         return match; // Return original if URL parsing fails
       }
@@ -218,13 +330,17 @@ export function detectAndFormatReferences(text: string): string {
   // Pattern 3: "quoted text" - Source Name (assuming source name doesn't contain URLs)
   formattedText = formattedText.replace(
     /"([^"]+)"\s*-\s*([A-Z][^.\n]+?)(?=\.|$|\n)/g,
-    '<span class="reference-highlight">"$1"</span> - $2'
+    (_match, quote: string, sourceName: string) => {
+      return `<span class="reference-highlight">"${escapeHtml(quote)}"</span> - ${escapeHtml(sourceName)}`;
+    }
   );
 
   // Pattern 4: According to [Source](URL), "quoted text"
   formattedText = formattedText.replace(
     /According to \[([^\]]+)\]\(([^)]+)\),\s*"([^"]+)"/gi,
-    'According to <a href="$2" class="reference-source" target="_blank" rel="noopener noreferrer">[$1]</a>, <span class="reference-highlight">"$3"</span>'
+    (_match, sourceName: string, url: string, quote: string) => {
+      return `According to <a href="${escapeHtml(url)}" class="reference-source" target="_blank" rel="noopener noreferrer">[${escapeHtml(sourceName)}]</a>, <span class="reference-highlight">"${escapeHtml(quote)}"</span>`;
+    }
   );
 
   return formattedText;

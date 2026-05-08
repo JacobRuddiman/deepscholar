@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDistanceToNow } from 'date-fns';
+import { EmptyStates } from '@/components/empty-states/EmptyState';
 
 const SEVERITY_CONFIG = {
   info: {
@@ -75,8 +76,8 @@ export function SecurityAuditTable({ userId }: { userId?: string }) {
 
       <CardContent>
         {/* Filter Tabs */}
-        <Tabs value={severity || 'all'} onValueChange={(v) => {
-          setSeverity(v === 'all' ? undefined : v as any);
+        <Tabs value={severity || 'all'} onValueChange={(v: string) => {
+          setSeverity(v === 'all' ? undefined : v as 'info' | 'warning' | 'critical');
           setOffset(0);
         }}>
           <TabsList className="grid w-full grid-cols-4 mb-4">
@@ -92,10 +93,7 @@ export function SecurityAuditTable({ userId }: { userId?: string }) {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : !data || data.logs.length === 0 ? (
-              <div className="text-center py-8">
-                <Shield className="h-12 w-12 mx-auto text-muted-foreground/30 mb-2" />
-                <p className="text-sm text-muted-foreground">No security events found</p>
-              </div>
+              <EmptyStates.NoSecurityEvents />
             ) : (
               <>
                 {/* Events Table */}
@@ -112,7 +110,7 @@ export function SecurityAuditTable({ userId }: { userId?: string }) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.logs.map((log) => {
+                      {data.logs.map((log: { id: string; severity: string; event: string; action?: string; details?: string; ipAddress?: string; createdAt: string; user?: { name: string | null; email: string | null } }) => {
                         const severityConfig = SEVERITY_CONFIG[log.severity as keyof typeof SEVERITY_CONFIG];
                         const SeverityIcon = severityConfig?.icon || Info;
 
@@ -122,7 +120,7 @@ export function SecurityAuditTable({ userId }: { userId?: string }) {
                             <TableCell>
                               <div className="flex flex-col">
                                 <span className="text-sm font-medium">
-                                  {log.event.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  {log.event.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                                 </span>
                                 {log.user && (
                                   <span className="text-xs text-muted-foreground">

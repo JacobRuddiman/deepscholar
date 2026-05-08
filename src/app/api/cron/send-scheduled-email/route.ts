@@ -1,13 +1,13 @@
 // app/api/cron/send-scheduled-emails/route.ts
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { apiSuccess, apiError } from '@/lib/api-response';
 
 export async function GET(request: Request) {
   try {
     // Verify cron secret (set this in your environment variables)
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return apiError('Unauthorized', 401);
     }
 
     // Find emails that should be sent now
@@ -27,15 +27,15 @@ export async function GET(request: Request) {
     for (const email of emailsToSend) {
       try {
         const recipients = JSON.parse(email.recipients);
-        
+
         // Get recipient emails
         let recipientEmails: string[] = [];
-        
+
         if (recipients === 'all') {
           const users = await prisma.user.findMany({
-            where: { 
+            where: {
               email: { not: null },
-              emailNotifications: true 
+              emailNotifications: true
             },
             select: { email: true }
           });
@@ -43,10 +43,10 @@ export async function GET(request: Request) {
         } else if (Array.isArray(recipients)) {
           const userIds = recipients.filter(r => !r.includes('@'));
           const directEmails = recipients.filter(r => r.includes('@'));
-          
+
           if (userIds.length > 0) {
             const users = await prisma.user.findMany({
-              where: { 
+              where: {
                 id: { in: userIds },
                 email: { not: null },
                 emailNotifications: true
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
 
       } catch (error) {
         console.error(`Failed to send scheduled email ${email.id}:`, error);
-        
+
         // Update email status to failed
         await prisma.scheduledEmail.update({
           where: { id: email.id },
@@ -100,12 +100,9 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      processed: emailsToSend.length 
-    });
+    return apiSuccess({ processed: emailsToSend.length });
   } catch (error) {
     console.error('Failed to process scheduled emails:', error);
-    return NextResponse.json({ error: 'Failed to process scheduled emails' }, { status: 500 });
+    return apiError('Failed to process scheduled emails', 500);
   }
 }

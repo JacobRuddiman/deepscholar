@@ -17,11 +17,11 @@ import SearchQuerySelector from '@/app/components/export/SearchQuerySelector';
 import ApiDocumentation from '@/app/components/export/ApiDocumentation';
 import ExportHistory from '@/app/components/export/ExportHistory';
 import { 
-  Download, 
-  FileText, 
-  Code, 
-  Globe, 
-  Settings, 
+  Download,
+  FileText,
+  Code,
+  Globe,
+  Settings,
   History,
   Copy,
   ExternalLink,
@@ -31,7 +31,8 @@ import {
   RefreshCw,
   Search,
   User,
-  ChevronDown
+  ChevronDown,
+  Loader2
 } from 'lucide-react';
 
 interface ExportOption {
@@ -68,7 +69,7 @@ interface UserOption {
 }
 
 export default function ExportPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   
   // Get session (handle local mode)
   const currentSession = isLocalMode() ? getLocalSession() : session;
@@ -310,6 +311,15 @@ export default function ExportPage() {
     }
     return [];
   };
+
+  // Show loading spinner while session is being resolved (skip in local mode)
+  if (!isLocalMode() && status === 'loading') {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   if (!currentSession) {
     return (

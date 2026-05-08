@@ -1,11 +1,11 @@
 /**
  * Markdown Formatter
- * 
+ *
  * Converts data structures to Markdown format
  */
 
 import { Formatter } from './index';
-import { BriefExportData, UserProfileExportData, SearchResultsExportData } from '../types';
+import { BriefExportData, UserProfileExportData, SearchResultsExportData, ExportableData, ExportOptions } from '../types';
 
 export class MarkdownFormatter implements Formatter {
   getMimeType(): string {
@@ -16,7 +16,7 @@ export class MarkdownFormatter implements Formatter {
     return '.md';
   }
 
-  async format(data: any, options?: any): Promise<string> {
+  async format(data: ExportableData, options?: ExportOptions): Promise<string> {
     // Determine data type and format accordingly
     if (this.isBriefData(data)) {
       return this.formatBrief(data, options);
@@ -25,23 +25,23 @@ export class MarkdownFormatter implements Formatter {
     } else if (this.isSearchResultsData(data)) {
       return this.formatSearchResults(data, options);
     } else {
-      return this.formatGeneric(data, options);
+      return this.formatGeneric(data);
     }
   }
 
-  private isBriefData(data: any): data is BriefExportData {
-    return data && typeof data.title === 'string' && typeof data.content === 'string';
+  private isBriefData(data: unknown): data is BriefExportData {
+    return data !== null && typeof data === 'object' && 'title' in data && typeof (data as Record<string, unknown>).title === 'string' && 'content' in data && typeof (data as Record<string, unknown>).content === 'string';
   }
 
-  private isUserProfileData(data: any): data is UserProfileExportData {
-    return data && typeof data.name === 'string' && data.statistics;
+  private isUserProfileData(data: unknown): data is UserProfileExportData {
+    return data !== null && typeof data === 'object' && 'name' in data && typeof (data as Record<string, unknown>).name === 'string' && 'statistics' in data;
   }
 
-  private isSearchResultsData(data: any): data is SearchResultsExportData {
-    return data && typeof data.query === 'string' && Array.isArray(data.results);
+  private isSearchResultsData(data: unknown): data is SearchResultsExportData {
+    return data !== null && typeof data === 'object' && 'query' in data && typeof (data as Record<string, unknown>).query === 'string' && 'results' in data && Array.isArray((data as Record<string, unknown>).results);
   }
 
-  private formatBrief(data: BriefExportData, options?: any): string {
+  private formatBrief(data: BriefExportData, options?: ExportOptions): string {
     let markdown = '';
 
     // Title
@@ -102,29 +102,21 @@ export class MarkdownFormatter implements Formatter {
   }
 
   private formatDate(date: Date | string): string {
-    console.log('📅 Formatting date:', date, 'Type:', typeof date);
-    console.log('📅 Date instanceof Date:', date instanceof Date);
-    
     if (date instanceof Date) {
-      console.log('📅 Using Date.toLocaleDateString()');
       return date.toLocaleDateString();
     } else if (typeof date === 'string') {
-      console.log('📅 Parsing string date:', date);
       // Try to parse string date
       const parsedDate = new Date(date);
-      console.log('📅 Parsed date valid:', !isNaN(parsedDate.getTime()));
       if (!isNaN(parsedDate.getTime())) {
         return parsedDate.toLocaleDateString();
       }
-      console.log('📅 Using original string as fallback');
       return date; // Fallback to original string
     } else {
-      console.log('📅 Unknown date type, returning "Unknown Date"');
       return 'Unknown Date';
     }
   }
 
-  private formatUserProfile(data: UserProfileExportData, options?: any): string {
+  private formatUserProfile(data: UserProfileExportData, _options?: ExportOptions): string {
     let markdown = '';
 
     // Title
@@ -159,7 +151,7 @@ export class MarkdownFormatter implements Formatter {
     return markdown;
   }
 
-  private formatSearchResults(data: SearchResultsExportData, options?: any): string {
+  private formatSearchResults(data: SearchResultsExportData, _options?: ExportOptions): string {
     let markdown = '';
 
     // Title
@@ -196,7 +188,7 @@ export class MarkdownFormatter implements Formatter {
     return markdown;
   }
 
-  private formatGeneric(data: any, options?: any): string {
+  private formatGeneric(data: ExportableData): string {
     // Fallback for generic data
     return `# Data Export\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`\n`;
   }

@@ -1,14 +1,14 @@
 // app/auth/signin/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import ErrorPopup from "../../components/error_popup";
 
-export default function SignInPage() {
+function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/home";
@@ -174,3 +174,13 @@ export default function SignInPage() {
     </div>
   );
 }
+
+function SignInPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen animate-pulse" />}>
+      <SignInPage />
+    </Suspense>
+  );
+}
+
+export default SignInPageWrapper;

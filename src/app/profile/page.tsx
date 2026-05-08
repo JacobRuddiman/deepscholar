@@ -21,6 +21,7 @@ import {
 import { formatBriefDate } from '@/lib/brief-utils';
 import ErrorPopup from '../components/error_popup';
 import { useUserProfile } from '@/hooks/queries/useUserProfile';
+import { isLocalMode } from '@/lib/localMode';
 
 /**
  * PROFILE PAGE COMPONENT
@@ -67,7 +68,7 @@ type Review = {
 
 export default function ProfilePage() {
   // Session management for authentication
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   // State management for UI controls
   const [activeTab, setActiveTab] = useState<ActivityType>('all');
@@ -312,6 +313,15 @@ export default function ProfilePage() {
       </svg>
     </div>
   );
+
+  // Session loading state (skip in local mode)
+  if (!isLocalMode() && status === 'loading') {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   // Loading state
   if (isLoading) {
